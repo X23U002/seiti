@@ -1,0 +1,95 @@
+@charset "UTF-8";
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+    background-color: #f4f7f6; /* アプリの背景色 */
+}
+
+/* ヘッダー */
+.app-header {
+    background-color: #0b3c5d;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 60px;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.app-header h1 { font-size: 18px; margin: 0; letter-spacing: 1px; }
+.back-btn {
+    position: absolute;
+    left: 15px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 10px;
+}
+
+.content { padding: 30px 20px; }
+
+/* 案内テキスト */
+.instruction {
+    background-color: rgba(11, 60, 93, 0.05);
+    padding: 12px;
+    border-left: 4px solid #0b3c5d;
+    margin-bottom: 25px;
+    font-size: 13px;
+    color: #2c3e50;
+    line-height: 1.5;
+}
+.instruction p { margin: 0; }
+
+/* フォームの各項目 */
+.form-group { margin-bottom: 20px; }
+.form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: bold;
+    color: #0b3c5d;
+    margin-bottom: 8px;
+}
+.form-group input {
+    width: 100%;
+    padding: 14px;
+    border: 1px solid #dcdde1;
+    border-radius: 8px;
+    font-size: 15px;
+    box-sizing: border-box; /* paddingを含めた幅計算にする */
+    transition: border-color 0.2s;
+}
+.form-group input:focus {
+    outline: none;
+    border-color: #0b3c5d; /* 入力中（フォーカス時）は枠線を青くする */
+}
+
+/* パスワードの注意書き */
+.form-hint {
+    font-size: 11px;
+    color: #e74c3c; /* 目立つように少し赤色 */
+    margin: 5px 0 0 0;
+}
+
+/* 登録確認ボタン */
+.register-btn {
+    width: 100%;
+    padding: 16px;
+    background-color: #0b3c5d;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 20px;
+    box-shadow: 0 4px 6px rgba(11, 60, 93, 0.2);
+    transition: background-color 0.2s;
+}
+.register-btn:active {
+    transform: translateY(2px);
+    box-shadow: none;
+}

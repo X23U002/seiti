@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登録確認 - 聖地巡礼NAVI</title>
+    <!-- cssフォルダにあるconfirm.cssを読み込む -->
+    <link rel="stylesheet" href="../css/confirm.css">
+</head>
+<body>
+
+    <!-- アプリ共通ヘッダー -->
+    <header class="app-header">
+        <button class="back-btn" onclick="goToRegister()">＜ 戻る</button>
+        <h1>登録確認</h1>
+    </header>
+
+    <div class="content">
+        <!-- 案内テキスト -->
+        <div class="instruction">
+            <p>以下の内容で新規登録を行います。<br>内容に間違いがないかご確認ください。<br>問題がなければ「登録」ボタンを押してください。</p>
+        </div>
+
+        <!-- 確認内容の表示 -->
+        <div class="confirm-box">
+            <div class="info-group">
+                <div class="info-label">名前</div>
+                <div class="info-text">田中 太郎</div>
+            </div>
+
+            <div class="info-group">
+                <div class="info-label">パスワード</div>
+                <div class="info-text">******** (非表示)</div>
+            </div>
+
+            <div class="info-group">
+                <div class="info-label">メールアドレス</div>
+                <div class="info-text">seiti150@seiti.ac.jp</div>
+            </div>
+        </div>
+
+        <!-- 登録完了へ進むボタン -->
+        <button class="submit-btn" onclick="goToComplete()">登録</button>
+    </div>
+
+    <!-- jsフォルダにあるconfirm.jsを読み込む -->
+    <script src="../js/confirm.js"></script>
+</body>
+</html>

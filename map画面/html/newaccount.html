@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新規登録 - 聖地巡礼NAVI</title>
+    <!-- cssフォルダにあるregister.cssを読み込む -->
+    <link rel="stylesheet" href="../css/newaccount.css">
+</head>
+<body>
+
+    <!-- アプリ共通ヘッダー -->
+    <header class="app-header">
+        <button class="back-btn" onclick="goToLogin()">＜ 戻る</button>
+        <h1>新規登録</h1>
+    </header>
+
+    <div class="content">
+        <!-- 案内テキスト -->
+        <div class="instruction">
+            <p>名前、パスワード、メールアドレスを入力してください。</p>
+        </div>
+
+        <!-- 入力フォーム -->
+        <div class="form-group">
+            <label for="username">名前</label>
+            <input type="text" id="username" placeholder="(例) 田中太郎">
+        </div>
+
+        <div class="form-group">
+            <label for="password">パスワード</label>
+            <input type="password" id="password" placeholder="(例) seiti555">
+            <!-- 注意書き -->
+            <p class="form-hint">※英数字8文字以上 / 記号不可</p>
+        </div>
+
+        <div class="form-group">
+            <label for="email">メールアドレス</label>
+            <input type="email" id="email" placeholder="(例) seiti150@seiti.ac.jp">
+        </div>
+
+        <!-- 登録確認画面へ進むボタン -->
+        <button class="register-btn" onclick="goToConfirm()">登録確認へ</button>
+    </div>
+
+    <!-- jsフォルダにあるregister.jsを読み込む -->
+    <script src="../js/newaccount.js"></script>
+</body>
+</html>

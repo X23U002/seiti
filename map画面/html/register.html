@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>聖地登録</title>
+
+    <link rel="stylesheet"
+          href="../css/register.css">
+
+</head>
+
+<body>
+
+<!-- =========================
+     入力画面
+========================= -->
+
+<div class="container" id="registerPage">
+
+    <a href="map.html"
+       class="close-btn">
+
+        ✖
+
+    </a>
+
+    <h2>
+
+        聖地登録
+
+    </h2>
+
+    <p class="description">
+
+        聖地スポットの追加に必要な情報を入力してください。
+
+    </p>
+
+    <hr>
+
+    <!-- 作品名 -->
+
+    <label>
+
+        作品名
+
+    </label>
+
+    <input
+        type="text"
+        id="animeName"
+        placeholder="正式名称を入力してください">
+
+    <p class="note">
+
+        ※略称ではなく正式名称で入力してください。
+
+    </p>
+
+    <hr>
+
+    <!-- 住所 -->
+
+    <label>
+
+        住所
+
+    </label>
+
+    <input
+        type="text"
+        id="address"
+        placeholder="住所を入力してください">
+
+    <hr>
+
+    <!-- 画像 -->
+
+    <label>
+
+        画像
+
+    </label>
+
+    <input
+        type="file"
+        id="image">
+
+    <p class="note">
+
+        ※スクリーンショットなどでもOK
+
+    </p>
+
+    <hr>
+
+    <!-- スポット説明 -->
+
+    <label>
+
+        スポットの説明
+
+    </label>
+
+    <textarea
+        id="spotText"
+        placeholder="何期・何話・どのシーンかなどを入力してください"></textarea>
+
+    <p class="note">
+
+        ※何期の何話のどのシーンかを書いていただけると助かります。
+
+    </p>
+
+    <button
+        class="register-btn"
+        onclick="completeRegister()">
+
+        聖地登録申請
+
+    </button>
+
+</div>
+<!-- =========================
+     登録完了画面
+========================= -->
+
+<div
+    class="container"
+    id="completePage"
+    style="display:none;">
+
+    <a href="map.html"
+       class="close-btn">
+
+        ✖
+
+    </a>
+
+    <h2>
+
+        登録申請が完了しました
+
+    </h2>
+
+    <p class="complete-text">
+
+        ご協力いただき、
+        ありがとうございました。<br><br>
+
+        運営で確認が完了しましたら
+        スポットの登録をいたします。<br><br>
+
+        スポットの登録が完了後、
+        マイページに登録完了の通知を
+        いたします。<br><br>
+
+        今後も当アプリをご愛用
+        いただけますと幸いです。
+
+    </p>
+
+    <button
+        class="map-btn"
+        onclick="location.href='map.html'">
+
+        マップに戻る
+
+    </button>
+
+</div>
+
+<script src="../js/register.js"></script>
+
+</body>
+
+</html>

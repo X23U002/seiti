@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聖地巡礼アプリ - ログイン</title>
+    <!-- cssフォルダにあるlogin.cssを読み込む -->
+    <link rel="stylesheet" href="../css/login.css">
+</head>
+<body>
+
+    <div class="login-container">
+        <h1 class="app-title">聖地巡礼NAVI</h1>
+        
+        <div class="instruction">
+            <p>ユーザーIDとパスワードを入力してください。</p>
+            <p class="small-text">※忘れた場合は新規登録時の確認メールを確認</p>
+        </div>
+
+        <div class="form-group">
+            <label for="userid">ユーザーID</label>
+            <input type="text" id="userid" placeholder="(例) u1">
+        </div>
+
+        <div class="form-group">
+            <label for="password">パスワード</label>
+            <input type="password" id="password" placeholder="(例) seiti555">
+        </div>
+
+        <!-- ログインボタン（クリックするとgoToMap関数が動く） -->
+        <button class="login-btn" onclick="goToMap()">ログイン</button>
+
+        <div class="links">
+            <a href="newaccount.html">新規登録</a>
+            <a href="forgot_password.html">パスワードを忘れた場合</a>
+        </div>
+    </div>
+
+    <!-- jsフォルダにあるlogin.jsを読み込む -->
+    <script src="../js/login.js"></script>
+</body>
+</html>

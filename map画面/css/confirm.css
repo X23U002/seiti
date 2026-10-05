@@ -1,0 +1,97 @@
+@charset "UTF-8";
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+    background-color: #f4f7f6; /* アプリの背景色 */
+}
+
+/* ヘッダー */
+.app-header {
+    background-color: #0b3c5d;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 60px;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.app-header h1 { font-size: 18px; margin: 0; letter-spacing: 1px; }
+.back-btn {
+    position: absolute;
+    left: 15px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 10px;
+}
+
+.content { padding: 30px 20px; }
+
+/* 案内テキスト */
+.instruction {
+    background-color: rgba(11, 60, 93, 0.05);
+    padding: 15px;
+    border-left: 4px solid #0b3c5d;
+    margin-bottom: 25px;
+    font-size: 13px;
+    color: #2c3e50;
+    line-height: 1.6;
+}
+.instruction p { margin: 0; }
+
+/* 確認内容を表示するボックス */
+.confirm-box {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #dcdde1;
+    margin-bottom: 25px;
+}
+
+.info-group {
+    margin-bottom: 18px;
+    border-bottom: 1px dashed #ecf0f1;
+    padding-bottom: 10px;
+}
+.info-group:last-child {
+    margin-bottom: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.info-label {
+    font-size: 12px;
+    font-weight: bold;
+    color: #7f8c8d;
+    margin-bottom: 6px;
+}
+
+.info-text {
+    font-size: 16px;
+    color: #0b3c5d;
+    font-weight: bold;
+}
+
+/* 登録ボタン */
+.submit-btn {
+    width: 100%;
+    padding: 16px;
+    background-color: #2ecc71; /* 完了を意味する緑色 */
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(46, 204, 113, 0.2);
+    transition: background-color 0.2s;
+}
+.submit-btn:active {
+    transform: translateY(2px);
+    box-shadow: none;
+}

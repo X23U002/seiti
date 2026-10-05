@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>お問い合わせ</title>
+
+    <link rel="stylesheet"
+          href="../css/information.css">
+
+</head>
+
+<body>
+
+<!-- =====================================
+     お問い合わせ入力画面
+===================================== -->
+
+<div class="container" id="formPage">
+
+    <!-- ×ボタン -->
+
+    <a href="map.html" class="close-btn">
+
+        ✕
+
+    </a>
+
+    <!-- タイトル -->
+
+    <h2>
+
+        お問い合わせ
+
+    </h2>
+
+    <p class="description">
+
+        不具合・ご意見・ご要望などを<br>
+        ご入力ください。
+
+    </p>
+
+    <hr>
+
+    <!-- お問い合わせ -->
+
+    <label>
+
+        お問い合わせ内容
+
+    </label>
+
+    <textarea
+        id="contactText"
+        placeholder="お問い合わせ内容を入力してください"></textarea>
+
+    <hr>
+
+    <!-- 画像 -->
+
+    <label>
+
+        画像
+
+    </label>
+
+    <input
+        type="file"
+        id="image">
+
+    <p class="note">
+
+        ※スクリーンショットなどがある場合は添付してください。
+
+    </p>
+
+    <button
+        class="send-btn"
+        onclick="sendContact()">
+
+        送信する
+
+    </button>
+
+</div>
+<!-- =====================================
+     送信完了画面
+===================================== -->
+
+<div
+    class="container"
+    id="completePage"
+    style="display:none;">
+
+    <!-- ×ボタン -->
+
+    <a
+        href="map.html"
+        class="close-btn">
+
+        ✕
+
+    </a>
+
+    <!-- タイトル -->
+
+    <h2>
+
+        お問い合わせ送信完了
+
+    </h2>
+
+    <p class="complete-text">
+
+        お問い合わせいただき、
+        ありがとうございました。<br><br>
+
+        運営で内容を確認後、
+        必要に応じて返信いたします。<br><br>
+
+        今後も当アプリを
+        ご愛用いただけますと幸いです。
+
+    </p>
+
+    <button
+        class="map-btn"
+        onclick="location.href='map.html'">
+
+        マップに戻る
+
+    </button>
+
+</div>
+
+<script src="../js/information.js"></script>
+
+</body>
+
+</html>

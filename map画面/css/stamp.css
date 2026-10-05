@@ -1,0 +1,189 @@
+@charset "UTF-8";
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+    background-color: #f4f7f6; /* 他の画面と同じ背景色 */
+}
+
+/* ヘッダー（他画面と統一） */
+.app-header {
+    background-color: #0b3c5d;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 60px;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.app-header h1 { font-size: 18px; margin: 0; letter-spacing: 1px; }
+.back-btn {
+    position: absolute;
+    left: 15px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 10px;
+}
+
+.content { padding: 20px; }
+
+/* 絞り込みボタン */
+.filter-btn {
+    width: 100%;
+    background-color: white;
+    border: 1px solid #dcdde1;
+    padding: 12px 15px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    font-weight: bold;
+    color: #0b3c5d;
+    cursor: pointer;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.filter-dropdown {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* スタンプ一覧を囲む白いカード */
+.stamp-container {
+    background: white;
+    padding: 25px 15px;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+/* スタンプのグリッド */
+.stamp-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 25px 10px;
+}
+
+.stamp-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    cursor: pointer;
+}
+
+.stamp-circle {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    margin-bottom: 8px;
+    border: 3px solid white;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+.stamp-item:active .stamp-circle { transform: scale(0.95); }
+
+.stamp-circle.earned { background-color: #0b3c5d; color: white; }
+.stamp-circle.unearned {
+    background-color: #bdc3c7;
+    border: 3px solid #ecf0f1;
+    box-shadow: none;
+    opacity: 0.6;
+}
+.stamp-circle.unearned::after {
+    content: "未";
+    color: #7f8c8d;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.stamp-label { font-size: 12px; font-weight: bold; color: #2c3e50; }
+
+/* =========================================
+   ポップアップ（モーダル）専用のデザイン
+========================================= */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background-color: white; /* モーダルも白背景に統一 */
+    width: 85%;
+    max-width: 320px;
+    padding: 30px 20px;
+    border-radius: 12px;
+    position: relative;
+    text-align: center;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+}
+
+.modal-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #7f8c8d;
+}
+
+.stamp-big-circle {
+    width: 90px;
+    height: 90px;
+    background-color: #0b3c5d;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    margin: 0 auto 15px auto;
+    border: 4px solid #f4f7f6;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.spot-title { margin: 0 0 10px 0; font-size: 20px; color: #0b3c5d; }
+.visit-date {
+    font-size: 12px;
+    color: #e74c3c;
+    font-weight: bold;
+    background-color: rgba(231, 76, 60, 0.1);
+    padding: 6px 12px;
+    border-radius: 20px;
+    display: inline-block;
+    margin: 0 auto 20px auto;
+}
+
+.info-group {
+    text-align: left;
+    border-top: 1px dashed #ecf0f1;
+    padding-top: 15px;
+}
+.info-label { font-size: 11px; color: #7f8c8d; margin-bottom: 4px; font-weight: bold; }
+.info-text { font-size: 14px; color: #2c3e50; margin-bottom: 15px; line-height: 1.4; }
+.info-text:last-child { margin-bottom: 0; }

@@ -1,0 +1,201 @@
+@charset "UTF-8";
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+    background-color: #f4f7f6; /* アプリ全体の背景色 */
+}
+
+/* ヘッダー */
+.app-header {
+    background-color: #0b3c5d;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 60px;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.app-header h1 {
+    font-size: 18px;
+    margin: 0;
+    letter-spacing: 1px;
+}
+
+.back-btn {
+    position: absolute;
+    left: 15px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 10px;
+}
+
+/* コンテンツエリア */
+.content {
+    padding: 20px;
+}
+
+/* プロフィールカード */
+.profile-card {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    margin-bottom: 25px;
+}
+
+.profile-icon {
+    width: 60px;
+    height: 60px;
+    background: #e0e0e0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+}
+
+.user-name {
+    margin: 0 0 5px 0;
+    color: #0b3c5d;
+    font-size: 20px;
+}
+
+.user-id {
+    margin: 0;
+    color: #7f8c8d;
+    font-size: 13px;
+}
+
+/* メニューボタン群 */
+.menu-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.menu-item {
+    background: white;
+    border: none;
+    padding: 18px 20px;
+    border-radius: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 15px;
+    font-weight: bold;
+    color: #2c3e50;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.menu-item:active {
+    background-color: #f0f0f0;
+    transform: scale(0.98);
+}
+
+/* ログアウトボタンだけ色を変える */
+.logout {
+    margin-top: 20px;
+    color: #e74c3c; /* 赤色で目立たせる */
+    justify-content: center; /* 中央寄せ */
+}
+/* プロフィール編集ボタン */
+.profile-card {
+    position: relative; /* ボタンの配置の基準にする */
+}
+
+.edit-profile-btn {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    background-color: #ecf0f1;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #2c3e50;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.edit-profile-btn:active {
+    background-color: #dcdde1;
+}
+
+/* =========================================
+   編集ポップアップ（モーダル）専用のデザイン
+========================================= */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex; justify-content: center; align-items: center;
+}
+
+.modal-content {
+    background-color: white;
+    width: 85%;
+    max-width: 320px;
+    padding: 25px 20px;
+    border-radius: 12px;
+    position: relative;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+
+.modal-close-btn {
+    position: absolute; top: 10px; right: 15px;
+    font-size: 24px; font-weight: bold; cursor: pointer; color: #7f8c8d;
+}
+
+.modal-title {
+    margin-top: 0; font-size: 18px; color: #0b3c5d; text-align: center; margin-bottom: 20px;
+}
+
+/* モーダル内の入力フォーム */
+.form-group { margin-bottom: 20px; text-align: left; }
+.form-group label { display: block; font-size: 13px; font-weight: bold; color: #0b3c5d; margin-bottom: 8px; }
+.form-group input { width: 100%; padding: 12px; border: 1px solid #dcdde1; border-radius: 8px; font-size: 15px; box-sizing: border-box; }
+
+/* アイコン選択のグリッド */
+.icon-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.icon-option {
+    font-size: 32px;
+    text-align: center;
+    padding: 10px;
+    background-color: #f4f7f6;
+    border-radius: 8px;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+/* 選択されているアイコンの枠を青くする */
+.icon-option.selected {
+    border-color: #0b3c5d;
+    background-color: #e6f2f5;
+}
+
+/* 保存ボタン */
+.save-btn {
+    width: 100%; padding: 16px; background-color: #0b3c5d; color: white;
+    border: none; border-radius: 8px; font-size: 16px; font-weight: bold;
+    cursor: pointer; box-shadow: 0 4px 6px rgba(11, 60, 93, 0.2); margin-top: 10px;
+}
+.save-btn:active { transform: translateY(2px); box-shadow: none; }

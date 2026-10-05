@@ -1,0 +1,97 @@
+@charset "UTF-8";
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+    background-color: #f4f7f6; /* 少しグレーがかった背景 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh; /* 画面の高さいっぱいに広げる */
+}
+
+.login-container {
+    background-color: #ffffff;
+    width: 90%;
+    max-width: 340px;
+    padding: 30px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); /* ふわっとした影 */
+}
+
+.app-title {
+    text-align: center;
+    color: #0b3c5d;
+    font-size: 24px;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+.instruction {
+    background-color: rgba(11, 60, 93, 0.05);
+    padding: 10px;
+    border-left: 4px solid #0b3c5d;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: #2c3e50;
+}
+
+.small-text {
+    font-size: 11px;
+    color: #7f8c8d;
+    margin-top: 4px;
+    margin-bottom: 0;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: bold;
+    color: #0b3c5d;
+    margin-bottom: 5px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #dcdde1;
+    border-radius: 6px;
+    font-size: 14px;
+    box-sizing: border-box; /* paddingを含めて幅を100%にする */
+}
+
+.login-btn {
+    width: 100%;
+    padding: 14px;
+    background-color: #0b3c5d;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 10px;
+    box-shadow: 0 2px 4px rgba(11, 60, 93, 0.3);
+}
+
+.login-btn:active {
+    transform: translateY(2px);
+    box-shadow: none;
+}
+
+.links {
+    margin-top: 20px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+}
+
+.links a {
+    color: #0b3c5d;
+    text-decoration: none;
+}

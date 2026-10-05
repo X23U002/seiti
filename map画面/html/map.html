@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>聖地巡礼アプリ</title>
+
+    <!-- Mapbox -->
+    <link
+        href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css"
+        rel="stylesheet"
+    >
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js"></script>
+
+    <!-- Mapbox Geocoder -->
+    <link
+        href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css"
+        rel="stylesheet"
+    >
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
+
+    <!-- 自作CSS -->
+    <link
+        rel="stylesheet"
+        href="../css/style.css"
+    >
+
+    <style>
+        .popup-img {
+            width: 100%;
+            max-width: 200px;
+            margin-top: 10px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- 地図 -->
+    <div id="map"></div>
+
+
+    <!-- 左サイドメニュー -->
+    <div id="side-menu">
+
+        <button
+            id="close-menu"
+            type="button"
+            onclick="toggleMenu()"
+        >
+            ❮❮
+        </button>
+
+        <h2>メニュー</h2>
+
+        <ul>
+            <li onclick="location.href='information.html'">
+                お問い合わせ
+            </li>
+
+            <li onclick="location.href='register.html'">
+                聖地登録
+            </li>
+
+            <li onclick="location.href='guide.html'">
+                操作ガイド
+            </li>
+        </ul>
+
+    </div>
+
+
+    <!-- ハンバーガーボタン -->
+    <div
+        id="hamburger-btn"
+        onclick="toggleMenu()"
+    >
+        <span></span>
+        <span></span>
+        <span></span>
+    </div>
+
+
+    <!-- 検索バー -->
+    <div id="search-container"></div>
+
+
+    <!-- マイページボタン -->
+    <button
+        id="profile-btn"
+        type="button"
+        onclick="location.href='mypage.html'"
+    >
+        👤
+    </button>
+
+
+    <!-- 絞り込みボタン -->
+    <button
+        id="filter-btn"
+        type="button"
+        onclick="openFilter()"
+    >
+        🎬 アニメで絞り込み
+    </button>
+
+
+    <!-- アニメ絞り込み画面 -->
+    <div id="filter-modal">
+
+        <div class="filter-header">
+
+            <h2>アニメで絞り込み</h2>
+
+            <button
+                type="button"
+                onclick="closeFilter()"
+            >
+                ✕
+            </button>
+
+        </div>
+
+        <input
+            type="text"
+            id="anime-search"
+            placeholder="作品名を入力"
+            onkeyup="searchAnime()"
+        >
+
+        <div id="anime-list"></div>
+
+        <div class="filter-buttons">
+
+            <button
+                id="filter-reset"
+                type="button"
+                onclick="resetFilter()"
+            >
+                リセット
+            </button>
+
+            <button
+                id="filter-ok"
+                type="button"
+                onclick="applyFilter()"
+            >
+                決定
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- 現在地 -->
+    <button
+        id="location-btn"
+        type="button"
+        onclick="moveToCurrentLocation()"
+    >
+        📍
+    </button>
+
+
+    <!-- 2D・3D -->
+    <button
+        id="toggle-view-btn"
+        type="button"
+        onclick="toggleView()"
+    >
+        🔄 3D
+    </button>
+
+
+    <!-- 経路案内パネル -->
+    <div
+        id="routePanel"
+        style="display:none;"
+    >
+
+        <div class="route-header">
+
+            <h3>📍 ルート案内</h3>
+
+            <button
+                id="clear-route"
+                type="button"
+            >
+                全削除
+            </button>
+
+        </div>
+
+        <div id="routeList">
+            <!-- 追加したスポットが表示される -->
+        </div>
+
+        <button
+            id="open-google-route"
+            type="button"
+        >
+            Googleマップで案内
+        </button>
+
+    </div>
+
+
+    <!-- =====================================================
+         Firebase compat
+         必ずstampsyori.jsより先に読み込む
+    ====================================================== -->
+    <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-auth-compat.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore-compat.js"></script>
+
+
+    <!-- =====================================================
+         スタンプ処理
+         type="module"は付けない
+    ====================================================== -->
+    <script src="../js/stampsyori.js"></script>
+
+
+    <!-- =====================================================
+         地図・Firestoreスポット読込
+         stampsyori.jsより後に読み込む
+    ====================================================== -->
+    <script
+        type="module"
+        src="../js/Script.js"
+    ></script>
+
+</body>
+
+</html>

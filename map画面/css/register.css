@@ -1,0 +1,345 @@
+@charset "UTF-8";
+
+/* =====================================
+   共通
+===================================== */
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+
+    font-family:
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+
+    background:#f3f3f3;
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:flex-start;
+
+    min-height:100vh;
+
+    padding:40px 0;
+
+}
+
+/* =====================================
+   カード
+===================================== */
+
+.container{
+
+    width:420px;
+
+    background:#ffffff;
+
+    border:2px solid #222;
+
+    border-radius:8px;
+
+    padding:30px;
+
+    position:relative;
+
+    box-shadow:0 4px 12px rgba(0,0,0,.15);
+
+}
+
+/* =====================================
+   タイトル
+===================================== */
+
+h2{
+
+    text-align:center;
+
+    font-size:28px;
+
+    margin-bottom:20px;
+
+}
+
+/* =====================================
+   ×ボタン
+===================================== */
+
+.close-btn{
+
+    position:absolute;
+
+    top:15px;
+
+    right:20px;
+
+    font-size:30px;
+
+    text-decoration:none;
+
+    color:#000;
+
+    font-weight:bold;
+
+}
+
+.close-btn:hover{
+
+    color:#0b3c5d;
+
+}
+
+/* =====================================
+   説明文
+===================================== */
+
+.description{
+
+    text-align:center;
+
+    line-height:1.8;
+
+    margin-bottom:20px;
+
+}
+
+/* =====================================
+   区切り線
+===================================== */
+
+hr{
+
+    margin:25px 0;
+
+}
+
+/* =====================================
+   ラベル
+===================================== */
+
+label{
+
+    display:block;
+
+    font-weight:bold;
+
+    margin-bottom:10px;
+
+    font-size:17px;
+
+}
+
+/* =====================================
+   テキストボックス
+===================================== */
+
+input[type="text"]{
+
+    width:100%;
+
+    height:45px;
+
+    border:1px solid #999;
+
+    border-radius:5px;
+
+    padding:10px;
+
+    font-size:15px;
+
+}
+
+/* =====================================
+   ファイル選択
+===================================== */
+
+input[type="file"]{
+
+    width:100%;
+
+    margin-top:10px;
+
+}
+
+/* =====================================
+   スポット説明
+===================================== */
+
+textarea{
+
+    width:100%;
+
+    height:220px;
+
+    border:1px solid #999;
+
+    border-radius:5px;
+
+    resize:vertical;
+
+    padding:12px;
+
+    font-size:15px;
+
+    line-height:1.6;
+
+}
+/* =====================================
+   補足説明
+===================================== */
+
+.note{
+
+    margin-top:8px;
+
+    margin-bottom:20px;
+
+    font-size:13px;
+
+    color:#666;
+
+    line-height:1.6;
+
+}
+
+/* =====================================
+   聖地登録ボタン
+===================================== */
+
+.register-btn{
+
+    width:100%;
+
+    height:50px;
+
+    margin-top:30px;
+
+    background:#0b3c5d;
+
+    color:white;
+
+    border:none;
+
+    border-radius:6px;
+
+    font-size:18px;
+
+    font-weight:bold;
+
+    cursor:pointer;
+
+    transition:0.2s;
+
+}
+
+.register-btn:hover{
+
+    background:#14537f;
+
+}
+
+/* =====================================
+   登録完了画面
+===================================== */
+
+.complete-text{
+
+    margin:35px 0;
+
+    text-align:center;
+
+    line-height:2;
+
+    font-size:16px;
+
+}
+
+/* =====================================
+   マップへ戻るボタン
+===================================== */
+
+.map-btn{
+
+    width:100%;
+
+    height:50px;
+
+    background:#0b3c5d;
+
+    color:white;
+
+    border:none;
+
+    border-radius:6px;
+
+    font-size:18px;
+
+    font-weight:bold;
+
+    cursor:pointer;
+
+    transition:0.2s;
+
+}
+
+.map-btn:hover{
+
+    background:#14537f;
+
+}
+
+/* =====================================
+   ボタン共通
+===================================== */
+
+button{
+
+    box-shadow:0 3px 8px rgba(0,0,0,.2);
+
+}
+
+button:active{
+
+    transform:scale(.98);
+
+}
+
+/* =====================================
+   スマホ対応
+===================================== */
+
+@media screen and (max-width:600px){
+
+    body{
+
+        padding:15px;
+
+    }
+
+    .container{
+
+        width:100%;
+
+        padding:20px;
+
+    }
+
+    h2{
+
+        font-size:24px;
+
+    }
+
+    textarea{
+
+        height:180px;
+
+    }
+
+}

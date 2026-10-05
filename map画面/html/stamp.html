@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>獲得スタンプ - 聖地巡礼NAVI</title>
+    <link rel="stylesheet" href="../css/stamp.css">
+</head>
+<body>
+
+ <!-- アプリ共通ヘッダー（他画面と統一） -->
+    <header class="app-header">
+        <button class="back-btn" onclick="goToMyPage()">＜ 戻る</button>
+        <h1>獲得スタンプ</h1>
+    </header>
+
+    <div class="content">
+        <!-- 絞り込みボタン -->
+        <button class="filter-btn" onclick="toggleFilter()">
+            <span>🎛 絞り込み (作品名)</span>
+            <span>▼</span>
+        </button>
+
+        <!-- 絞り込みのポップアップメニュー（最初は隠しておく） -->
+        <div id="filter-menu" class="filter-dropdown" style="display: none;">
+        </div>
+
+        <!-- 白いカード領域の中にスタンプを並べる -->
+        <!-- 白いカード領域の中にスタンプを並べる -->
+        <div class="stamp-container">
+            <!-- classとidを同じdivタグにまとめます -->
+            <div id="stampList" class="stamp-grid">
+            </div>
+        </div>
+    </div>
+
+    <!-- =============== スタンプ詳細のポップアップ（モーダル） =============== -->
+    <div id="stamp-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <!-- 閉じるボタン -->
+            <span class="modal-close-btn" onclick="closeStampModal()">✖</span>
+            
+            <div class="stamp-big-circle">⛩️</div>
+            <h2 id="modal-title" class="spot-title">〇〇神社</h2>
+            <div id="modal-date" class="visit-date">訪問日時：2026年05月15日</div>
+            
+            <div class="info-group">
+                <div class="info-label">🎬 作品名</div>
+                <div class="info-text" id="modal-anime">アニメ名</div>
+                
+                <div class="info-label">📺 シーン</div>
+                <div class="info-text" id="modal-scene">シーン</div>
+                
+                <div class="info-label">📍 住所</div>
+                <div class="info-text" id="modal-address">住所</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/stamp.js"></script>
+</body>
+</html> 
