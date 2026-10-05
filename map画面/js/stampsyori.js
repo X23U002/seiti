@@ -991,6 +991,27 @@ async function saveStampHistoryToFirestore() {
 
 
 // ==========================================
+// メッセージ表示（toast.jsが無い場合はalert）
+// ==========================================
+function notifyStamp(
+    message,
+    type
+) {
+    if (
+        typeof window.showToast ===
+        "function"
+    ) {
+        window.showToast(
+            message,
+            type
+        );
+    } else {
+        alert(message);
+    }
+}
+
+
+// ==========================================
 // スタンプ取得
 // ==========================================
 async function collectStamp(spotId) {
@@ -1010,8 +1031,9 @@ async function collectStamp(spotId) {
             );
 
     if (!selectedSpot) {
-        alert(
-            "スポット情報が見つかりません"
+        notifyStamp(
+            "スポット情報が見つかりません",
+            "error"
         );
 
         return;
@@ -1025,8 +1047,9 @@ async function collectStamp(spotId) {
     if (
         state.disabled
     ) {
-        alert(
-            state.message
+        notifyStamp(
+            state.message,
+            "error"
         );
 
         return;
@@ -1068,12 +1091,12 @@ async function collectStamp(spotId) {
     try {
         await saveStampHistoryToFirestore();
 
-        alert(
-            `${
+        notifyStamp(
+            `🎉 ${
                 selectedSpot
                     .spot_name ||
                 "スポット"
-            }のスタンプを取得しました！\n${nextText}`
+            }のスタンプを取得しました！ ${nextText}`
         );
     } catch (error) {
         console.error(
@@ -1081,12 +1104,13 @@ async function collectStamp(spotId) {
             error
         );
 
-        alert(
+        notifyStamp(
             `${
                 selectedSpot
                     .spot_name ||
                 "スポット"
-            }のスタンプを端末に保存しました。\nFirestoreへの保存には失敗しました。\n${nextText}`
+            }のスタンプを端末に保存しました（サーバーへの保存は失敗しました）`,
+            "error"
         );
     }
 }

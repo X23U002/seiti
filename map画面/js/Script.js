@@ -191,8 +191,10 @@ function escapeHTML(value) {
 // =========================================================
 // 3. データの取得
 // =========================================================
+// 作品名が無いスポットは「その他」として扱う
+// （色分け・絞り込みのリストと同じ名前にそろえる）
 function getTitleName(data) {
-    return data.title_name || "";
+    return data.title_name || "その他";
 }
 
 
@@ -515,8 +517,29 @@ function drawMarkers(list) {
                 ] ||
                 "#0b3c5d";
 
+            // 公式サイトのURL（http/httpsの時だけボタンを表示する）
             const titleURL =
-                data.title_url;
+                /^https?:\/\//i.test(
+                    data.title_url || ""
+                )
+                    ? data.title_url
+                    : "";
+
+            const homeButtonHTML =
+                titleURL
+                    ? `
+                        <a
+                            href="${escapeHTML(titleURL)}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="popup-home"
+                            aria-label="作品の公式サイトを開く"
+                            title="作品の公式サイト"
+                        >
+                            🌐
+                        </a>
+                    `
+                    : "";
 
 
             // =============================================
@@ -570,6 +593,7 @@ function drawMarkers(list) {
                         <img
                             src="${escapeHTML(imagePath)}"
                             alt="スポット画像"
+                            onerror="this.parentNode.classList.add('no-image')"
                         >
                     </div>
 
@@ -578,13 +602,7 @@ function drawMarkers(list) {
 
                     <div class="popup-buttons">
 
-                        <a
-                            href="${titleURL || "#"}"
-                            target="_blank"
-                            class="popup-home"
-                        >
-                            🌐
-                        </a>
+                        ${homeButtonHTML}
 
                         <button
                             type="button"
@@ -1370,8 +1388,9 @@ window.applyFilter =
                 currentSpots
             );
         } else {
-            alert(
-                "入力された作品名のスポットは見つかりませんでした。"
+            window.showToast(
+                "入力された作品名のスポットは見つかりませんでした",
+                "error"
             );
 
             currentSpots =
@@ -1447,8 +1466,9 @@ window.addSpotToRouteById =
             !spot ||
             !spot.coord
         ) {
-            alert(
-                "スポットデータが見つかりません。"
+            window.showToast(
+                "スポットデータが見つかりません",
+                "error"
             );
 
             return;
@@ -1474,8 +1494,9 @@ window.addSpotToRouteById =
                 }
             )
         ) {
-            alert(
-                "この場所はすでに追加されています"
+            window.showToast(
+                "この場所はすでにルートに追加されています",
+                "error"
             );
 
             return;
@@ -1506,6 +1527,10 @@ window.addSpotToRouteById =
                 "flex";
 
         updateRouteList();
+
+        window.showToast(
+            `「${selectedSpots[selectedSpots.length - 1].name}」をルートに追加しました`
+        );
     };
 
 
@@ -1586,7 +1611,7 @@ function updateRouteList() {
         selectedSpots.length === 0
     ) {
         routeList.innerHTML =
-            "<p>行きたい場所はありません</p>";
+            '<p class="route-empty">行きたい場所はありません</p>';
 
         return;
     }
@@ -1651,8 +1676,9 @@ window.openGoogleMapsRoute =
         if (
             selectedSpots.length === 0
         ) {
-            alert(
-                "行きたい場所を追加してください"
+            window.showToast(
+                "行きたい場所を追加してください",
+                "error"
             );
 
             return;
@@ -1703,28 +1729,24 @@ window.openGoogleMapsRoute =
 // =========================================================
 // HTML読み込み後に経路ボタンを接続
 // =========================================================
-setTimeout(
-    function () {
-        document
-            .getElementById(
-                "open-google-route"
-            )
-            ?.addEventListener(
-                "click",
-                window.openGoogleMapsRoute
-            );
+// type="module" はHTML読み込み後に実行されるので、待たずにそのまま接続できる
+document
+    .getElementById(
+        "open-google-route"
+    )
+    ?.addEventListener(
+        "click",
+        window.openGoogleMapsRoute
+    );
 
-        document
-            .getElementById(
-                "clear-route"
-            )
-            ?.addEventListener(
-                "click",
-                window.clearSelectedSpots
-            );
-    },
-    500
-);
+document
+    .getElementById(
+        "clear-route"
+    )
+    ?.addEventListener(
+        "click",
+        window.clearSelectedSpots
+    );
 // ==========================================
 // デバッグ：マウスがある場所の座標を記録
 // ==========================================

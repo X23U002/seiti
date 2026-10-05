@@ -1,0 +1,67 @@
+@charset "UTF-8";
+
+/* 共通スタイルは common.css。ここは操作ガイド画面専用 */
+
+.guide-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.guide-item {
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.guide-item summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 0 16px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    list-style: none;
+}
+
+.guide-item summary::-webkit-details-marker { display: none; }
+
+/* 右端の開閉マーク */
+.guide-item summary::after {
+    content: "›";
+    margin-left: auto;
+    font-size: 22px;
+    color: #b4bcc4;
+    transition: transform 0.2s;
+}
+
+.guide-item[open] summary::after { transform: rotate(90deg); }
+
+.guide-item summary:hover { background-color: #f6f8f9; }
+
+.guide-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background-color: var(--color-primary-light);
+    font-size: 16px;
+}
+
+.guide-item ul {
+    margin: 0;
+    padding: 4px 20px 16px 40px;
+    font-size: 14px;
+    line-height: 1.8;
+}
+
+.guide-item li + li { margin-top: 6px; }
+
+.guide-item b { color: var(--color-primary); }
+
+.guide-back { margin-top: 24px; }

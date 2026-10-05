@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>操作ガイド - 聖地巡礼NAVI</title>
+    <link rel="stylesheet" href="../css/common.css">
+    <link rel="stylesheet" href="../css/guide.css">
+</head>
+<body>
+
+    <!-- アプリ共通ヘッダー -->
+    <header class="app-header">
+        <a href="map.html" class="back-btn" aria-label="マップに戻る">＜ マップ</a>
+        <h1>操作ガイド</h1>
+    </header>
+
+    <main class="content">
+
+        <div class="instruction">
+            <p>聖地巡礼NAVIの使い方をまとめました。気になる項目をタップすると説明が開きます。</p>
+        </div>
+
+        <!-- details/summary を使って、タップで開閉できるようにする -->
+        <section class="guide-list">
+
+            <details class="guide-item" open>
+                <summary><span class="guide-icon" aria-hidden="true">🗺</span>地図を見る</summary>
+                <ul>
+                    <li>指でドラッグして移動、2本指でピンチして拡大・縮小できます。</li>
+                    <li>右下の <b>📍</b> ボタンで現在地に移動します。</li>
+                    <li>右下の <b>🔄 3D</b> ボタンで、建物が立体的に見える3D表示に切り替わります。</li>
+                </ul>
+            </details>
+
+            <details class="guide-item">
+                <summary><span class="guide-icon" aria-hidden="true">📍</span>聖地（スポット）を見る</summary>
+                <ul>
+                    <li>地図上のピンをタップすると、スポットの画像・登場シーンが表示されます。</li>
+                    <li>ピンの色は作品ごとに分かれています。</li>
+                    <li>地図を縮小しているときは、近くのスポットがまとめて <b>数字の丸</b> で表示されます。タップすると含まれるスポット名が見られます。</li>
+                    <li>🌐 ボタンで作品の公式サイトが開きます。</li>
+                </ul>
+            </details>
+
+            <details class="guide-item">
+                <summary><span class="guide-icon" aria-hidden="true">🔍</span>探す・絞り込む</summary>
+                <ul>
+                    <li>画面上の検索バーに、地名やスポット名を入力して探せます。</li>
+                    <li><b>🎬 アニメで絞り込み</b> から作品を選ぶと、その作品のスポットだけを表示できます。</li>
+                    <li>絞り込みを解除するときは「リセット」を押してください。</li>
+                </ul>
+            </details>
+
+            <details class="guide-item">
+                <summary><span class="guide-icon" aria-hidden="true">💮</span>スタンプを集める</summary>
+                <ul>
+                    <li>スポットの近く（おおむね <b>半径50m以内</b>）まで行くと、ポップアップの「スタンプを取得」ボタンが押せるようになります。</li>
+                    <li>GPSの精度が悪いときは取得できません。屋外の見晴らしの良い場所でお試しください。</li>
+                    <li>取得したスタンプにはピンに <b>✓</b> が付き、マイページの「獲得スタンプ一覧」で確認できます。</li>
+                </ul>
+            </details>
+
+            <details class="guide-item">
+                <summary><span class="guide-icon" aria-hidden="true">🚶</span>ルートを作る</summary>
+                <ul>
+                    <li>ポップアップの <b>📍ルートに追加</b> で、行きたい場所をリストに追加できます。</li>
+                    <li>追加した順番に巡るルートとして、<b>Googleマップで案内</b> から徒歩ルートを開けます。</li>
+                    <li>リストの × で1件ずつ、「全削除」でまとめて削除できます。</li>
+                </ul>
+            </details>
+
+            <details class="guide-item">
+                <summary><span class="guide-icon" aria-hidden="true">✍</span>聖地を登録・お問い合わせ</summary>
+                <ul>
+                    <li>まだ地図にない聖地は、メニューの「聖地登録」から申請できます。運営が確認後に追加します。</li>
+                    <li>不具合やご要望は、メニューの「お問い合わせ」からお送りください。</li>
+                </ul>
+            </details>
+
+        </section>
+
+        <a href="map.html" class="btn btn-primary guide-back">マップに戻る</a>
+
+    </main>
+
+    <script src="../js/common.js"></script>
+</body>
+</html>

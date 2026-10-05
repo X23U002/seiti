@@ -38,6 +38,34 @@ function logout() {
     document.getElementById("stamp-count").textContent = Array.isArray(stamps) ? stamps.length : 0;
 })();
 
+// ==========================================
+// プロフィール（名前・アイコン）を端末に保存して、次に開いた時も表示する
+// ==========================================
+const PROFILE_STORAGE_KEY = "seitiProfile";
+
+function loadProfile() {
+    try {
+        return JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY)) || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function saveProfileToStorage(name, icon) {
+    try {
+        localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify({ name: name, icon: icon }));
+    } catch (e) {
+        // 保存できない環境（プライベートモード等）では画面の表示だけ変える
+    }
+}
+
+(function showSavedProfile() {
+    const profile = loadProfile();
+    if (!profile) return;
+    if (profile.name) document.getElementById("current-name").textContent = profile.name;
+    if (profile.icon) document.getElementById("current-icon").textContent = profile.icon;
+})();
+
 // 選択中のアイコンを一時的に覚えておく変数
 let tempSelectedIcon = "👤";
 
@@ -92,6 +120,6 @@ function saveProfile() {
     // 画面上の名前とアイコンを、新しいものに書き換える
     document.getElementById("current-name").innerText = newName;
     document.getElementById("current-icon").innerText = tempSelectedIcon;
-
+    saveProfileToStorage(newName, tempSelectedIcon);
     closeEditModal();
 }
