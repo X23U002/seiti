@@ -1269,11 +1269,12 @@ window.searchAnime =
                         label.textContent
                     );
 
+                // "" にするとCSS側の表示方法（flex）に戻る
                 label.style.display =
                     title.includes(
                         keyword
                     )
-                        ? "block"
+                        ? ""
                         : "none";
             }
         );

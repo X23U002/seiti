@@ -1,182 +1,87 @@
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
-
     <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
-
-    <title>聖地登録</title>
-
-    <link rel="stylesheet"
-          href="../css/register.css">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聖地登録 - 聖地巡礼NAVI</title>
+    <link rel="stylesheet" href="../css/common.css">
+    <link rel="stylesheet" href="../css/register.css">
 </head>
-
 <body>
 
-<!-- =========================
-     入力画面
-========================= -->
-
-<div class="container" id="registerPage">
-
-    <a href="map.html"
-       class="close-btn">
-
-        ✖
-
-    </a>
-
-    <h2>
-
-        聖地登録
-
-    </h2>
-
-    <p class="description">
-
-        聖地スポットの追加に必要な情報を入力してください。
-
-    </p>
-
-    <hr>
-
-    <!-- 作品名 -->
-
-    <label>
-
-        作品名
-
-    </label>
-
-    <input
-        type="text"
-        id="animeName"
-        placeholder="正式名称を入力してください">
-
-    <p class="note">
-
-        ※略称ではなく正式名称で入力してください。
-
-    </p>
-
-    <hr>
-
-    <!-- 住所 -->
-
-    <label>
-
-        住所
-
-    </label>
-
-    <input
-        type="text"
-        id="address"
-        placeholder="住所を入力してください">
-
-    <hr>
-
-    <!-- 画像 -->
-
-    <label>
-
-        画像
-
-    </label>
-
-    <input
-        type="file"
-        id="image">
-
-    <p class="note">
-
-        ※スクリーンショットなどでもOK
-
-    </p>
-
-    <hr>
-
-    <!-- スポット説明 -->
-
-    <label>
-
-        スポットの説明
-
-    </label>
-
-    <textarea
-        id="spotText"
-        placeholder="何期・何話・どのシーンかなどを入力してください"></textarea>
-
-    <p class="note">
-
-        ※何期の何話のどのシーンかを書いていただけると助かります。
-
-    </p>
-
-    <button
-        class="register-btn"
-        onclick="completeRegister()">
-
-        聖地登録申請
-
-    </button>
-
-</div>
-<!-- =========================
-     登録完了画面
-========================= -->
-
-<div
-    class="container"
-    id="completePage"
-    style="display:none;">
-
-    <a href="map.html"
-       class="close-btn">
-
-        ✖
-
-    </a>
-
-    <h2>
-
-        登録申請が完了しました
-
-    </h2>
-
-    <p class="complete-text">
-
-        ご協力いただき、
-        ありがとうございました。<br><br>
-
-        運営で確認が完了しましたら
-        スポットの登録をいたします。<br><br>
-
-        スポットの登録が完了後、
-        マイページに登録完了の通知を
-        いたします。<br><br>
-
-        今後も当アプリをご愛用
-        いただけますと幸いです。
-
-    </p>
-
-    <button
-        class="map-btn"
-        onclick="location.href='map.html'">
-
-        マップに戻る
-
-    </button>
-
-</div>
-
-<script src="../js/register.js"></script>
-
+    <!-- アプリ共通ヘッダー -->
+    <header class="app-header">
+        <a href="map.html" class="back-btn" aria-label="マップに戻る">＜ マップ</a>
+        <h1>聖地登録</h1>
+    </header>
+
+    <main class="content">
+
+        <!-- =========================
+             入力画面
+        ========================= -->
+        <div id="registerPage">
+            <div class="instruction">
+                <p>聖地スポットの追加に必要な情報を入力してください。運営で確認後にマップへ追加されます。</p>
+            </div>
+
+            <form class="card" onsubmit="completeRegister(); return false;" novalidate>
+                <!-- 作品名 -->
+                <div class="form-group">
+                    <label for="animeName">作品名<span class="required">必須</span></label>
+                    <input type="text" id="animeName" placeholder="(例) 君の名は。" aria-describedby="animeName-hint">
+                    <p class="form-hint" id="animeName-hint">略称ではなく正式名称で入力してください。</p>
+                    <p class="error-text">作品名を入力してください。</p>
+                </div>
+
+                <!-- 住所 -->
+                <div class="form-group">
+                    <label for="address">住所<span class="required">必須</span></label>
+                    <input type="text" id="address" placeholder="(例) 東京都新宿区須賀町5" autocomplete="street-address">
+                    <p class="error-text">住所を入力してください。</p>
+                </div>
+
+                <!-- 画像 -->
+                <div class="form-group">
+                    <span class="form-label">画像<span class="optional">任意</span></span>
+                    <label class="file-input">
+                        <span class="file-input-icon" aria-hidden="true">🖼</span>
+                        <span class="file-input-text">タップして画像を選択</span>
+                        <input type="file" id="image" accept="image/*" data-preview="image-preview">
+                    </label>
+                    <img id="image-preview" class="file-preview" alt="選択した画像のプレビュー">
+                    <p class="form-hint">スクリーンショットなどでもOKです。</p>
+                </div>
+
+                <!-- スポット説明 -->
+                <div class="form-group">
+                    <label for="spotText">スポットの説明<span class="required">必須</span></label>
+                    <textarea id="spotText" placeholder="(例) 2期3話、主人公たちが待ち合わせをした階段" aria-describedby="spotText-hint"></textarea>
+                    <p class="form-hint" id="spotText-hint">何期・何話・どのシーンかを書いていただけると助かります。</p>
+                    <p class="error-text">スポットの説明を入力してください。</p>
+                </div>
+
+                <button type="submit" class="btn btn-primary">聖地登録を申請する</button>
+            </form>
+        </div>
+
+        <!-- =========================
+             登録完了画面
+        ========================= -->
+        <div id="completePage" class="card complete-box" style="display:none;">
+            <div class="complete-icon" aria-hidden="true">✓</div>
+            <h2 class="complete-title">登録申請が完了しました</h2>
+            <p class="complete-text">
+                ご協力いただき、ありがとうございました。<br>
+                運営で確認が完了しましたら、スポットを登録いたします。<br>
+                登録完了後、マイページにてお知らせします。
+            </p>
+            <a href="map.html" class="btn btn-primary">マップに戻る</a>
+        </div>
+
+    </main>
+
+    <script src="../js/common.js"></script>
+    <script src="../js/register.js"></script>
 </body>
-
 </html>

@@ -1,75 +1,50 @@
 @charset "UTF-8";
 
-body {
-    margin: 0;
-    padding: 0;
-    font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
-    background-color: #f4f7f6;
+/* 共通スタイルは common.css。ここは履歴・ルート案内画面専用 */
+
+.section-title {
+    margin: 0 0 12px;
+    font-size: 16px;
+    color: var(--color-primary);
 }
 
-/* ヘッダー */
-.app-header {
-    background-color: #0b3c5d;
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 60px;
-    position: relative;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
-.app-header h1 { font-size: 18px; margin: 0; letter-spacing: 1px; }
-.back-btn {
-    position: absolute;
-    left: 15px;
-    background: none;
-    border: none;
-    color: white;
-    font-size: 14px;
-    cursor: pointer;
-    padding: 10px;
-}
-
-.content { padding: 20px; }
-.section-title { font-size: 16px; color: #0b3c5d; margin-bottom: 15px; border-bottom: 2px solid #dcdde1; padding-bottom: 5px; }
+.history-section { margin-top: 32px; }
 
 /* タイムライン表示（ルート案内） */
 .timeline-container {
-    background: white;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    margin-bottom: 20px;
+    margin: 0 0 16px;
+    list-style: none;
 }
 
 .timeline-node {
     position: relative;
-    padding-left: 30px;
-    padding-bottom: 20px;
+    padding-left: 32px;
+    padding-bottom: 22px;
 }
 
 /* タイムラインの丸印 */
 .timeline-node::before {
-    content: '';
+    content: "";
     position: absolute;
-    left: 6px;
+    left: 5px;
     top: 4px;
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
-    background-color: #0b3c5d;
+    background-color: #fff;
+    border: 3px solid var(--color-primary);
     z-index: 2;
 }
 
 /* タイムラインの縦線 */
 .timeline-node::after {
-    content: '';
+    content: "";
     position: absolute;
     left: 11px;
-    top: 16px;
+    top: 20px;
     width: 2px;
-    height: calc(100% - 10px);
-    background-color: #dcdde1;
+    height: calc(100% - 16px);
+    background-color: var(--color-border);
     z-index: 1;
 }
 
@@ -79,43 +54,68 @@ body {
 
 /* 現在地の強調 */
 .timeline-node.current::before {
-    background-color: #f39c12; /* アクセントカラーのオレンジ */
-    box-shadow: 0 0 0 3px rgba(243, 156, 18, 0.3);
+    background-color: var(--color-accent);
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 4px rgba(243, 156, 18, 0.25);
 }
 
-.timeline-title { font-size: 15px; font-weight: bold; color: #2c3e50; }
-.timeline-time { font-size: 12px; color: #7f8c8d; margin-top: 4px; }
+/* 目的地 */
+.timeline-node.goal::before {
+    background-color: var(--color-primary);
+}
 
-/* 案内開始ボタン */
-.start-btn {
-    width: 100%;
-    padding: 15px;
-    background-color: #2ecc71; /* 緑色でポジティブなアクションを表現 */
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 16px;
+.timeline-title { font-size: 15px; font-weight: bold; }
+
+.timeline-time {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--color-text-sub);
+}
+
+.badge {
+    padding: 2px 8px;
+    border-radius: 10px;
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+    font-size: 11px;
     font-weight: bold;
-    cursor: pointer;
-    box-shadow: 0 4px 6px rgba(46, 204, 113, 0.2);
-    transition: background-color 0.2s;
 }
-.start-btn:active { transform: translateY(2px); box-shadow: none; }
+
+.badge-goal {
+    background-color: #fdebd0;
+    color: #b9770e;
+}
 
 /* 履歴リスト */
 .history-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
 .history-item {
-    background: white;
-    padding: 16px;
-    border-radius: 10px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    border-left: 5px solid #0b3c5d;
+    padding: 14px 16px;
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    border-left: 4px solid var(--color-primary);
+    box-shadow: var(--shadow-sm);
 }
 
-.history-route { font-size: 15px; font-weight: bold; color: #2c3e50; margin-bottom: 6px; }
-.history-date { font-size: 12px; color: #7f8c8d; }
+.history-route {
+    margin-bottom: 4px;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.history-route .arrow {
+    margin: 0 4px;
+    color: var(--color-accent);
+}
+
+.history-date { font-size: 12px; color: var(--color-text-sub); }

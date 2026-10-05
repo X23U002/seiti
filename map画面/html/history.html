@@ -4,76 +4,80 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>履歴・ルート案内 - 聖地巡礼NAVI</title>
-    <!-- cssフォルダにあるhistory.cssを読み込む -->
+    <link rel="stylesheet" href="../css/common.css">
     <link rel="stylesheet" href="../css/history.css">
 </head>
 <body>
 
     <!-- アプリ共通ヘッダー -->
     <header class="app-header">
-        <button class="back-btn" onclick="goToMyPage()">＜ 戻る</button>
+        <button type="button" class="back-btn" onclick="goToMyPage()" aria-label="マイページに戻る">＜ 戻る</button>
         <h1>履歴・ルート案内</h1>
     </header>
 
-    <div class="content">
-        
+    <main class="content">
+
         <!-- 現在のルート案内（タイムライン） -->
-        <h2 class="section-title">📍 現在のルート</h2>
-        <div class="timeline-container">
-            
-            <div class="timeline-node current">
-                <div class="timeline-title">現在地</div>
-                <div class="timeline-time">出発点</div>
-            </div>
-            
-            <div class="timeline-node">
-                <div class="timeline-title">〇〇神社</div>
-                <div class="timeline-time">徒歩 8分 (14:30 着予定)</div>
-            </div>
-            
-            <div class="timeline-node">
-                <div class="timeline-title">〇〇駅</div>
-                <div class="timeline-time">徒歩 15分 (14:45 着予定)</div>
-            </div>
-            
-            <div class="timeline-node">
-                <div class="timeline-title">〇〇広場</div>
-                <div class="timeline-time">最終目的地 (15:00 着予定)</div>
-            </div>
-            
-        </div>
-        
-        <button class="start-btn" onclick="startRoute()">案内開始</button>
+        <section>
+            <h2 class="section-title"><span aria-hidden="true">📍</span> 現在のルート</h2>
+            <ol class="timeline-container card">
+
+                <li class="timeline-node current">
+                    <div class="timeline-title">現在地</div>
+                    <div class="timeline-time">出発点</div>
+                </li>
+
+                <li class="timeline-node">
+                    <div class="timeline-title">〇〇神社</div>
+                    <div class="timeline-time"><span class="badge">徒歩 8分</span> 14:30 着予定</div>
+                </li>
+
+                <li class="timeline-node">
+                    <div class="timeline-title">〇〇駅</div>
+                    <div class="timeline-time"><span class="badge">徒歩 15分</span> 14:45 着予定</div>
+                </li>
+
+                <li class="timeline-node goal">
+                    <div class="timeline-title">〇〇広場</div>
+                    <div class="timeline-time"><span class="badge badge-goal">目的地</span> 15:00 着予定</div>
+                </li>
+
+            </ol>
+
+            <button type="button" class="btn btn-success" onclick="startRoute()">▶ 案内開始</button>
+        </section>
 
         <!-- 過去の履歴リスト -->
-        <h2 class="section-title" style="margin-top: 30px;">🕒 過去の巡礼履歴</h2>
-        <div class="history-list">
-            
-            <div class="history-item">
-                <div class="history-route">〇〇神社 ➔ 〇〇公園</div>
-                <div class="history-date">2026年05月15日(金) 14:30</div>
-            </div>
-            
-            <div class="history-item">
-                <div class="history-route">〇〇公園 ➔ 〇〇広場</div>
-                <div class="history-date">2026年05月15日(金) 16:00</div>
-            </div>
-            
-            <div class="history-item">
-                <div class="history-route">〇〇ベンチ ➔ 〇〇山</div>
-                <div class="history-date">2026年05月02日(土) 11:15</div>
-            </div>
-            
-            <div class="history-item">
-                <div class="history-route">〇〇学校 ➔ 〇〇駅</div>
-                <div class="history-date">2026年04月20日(月) 15:45</div>
-            </div>
-            
-        </div>
+        <section class="history-section">
+            <h2 class="section-title"><span aria-hidden="true">🕒</span> 過去の巡礼履歴</h2>
+            <ul class="history-list">
 
-    </div>
+                <li class="history-item">
+                    <div class="history-route">〇〇神社 <span class="arrow" aria-label="から">→</span> 〇〇公園</div>
+                    <div class="history-date">2026年05月15日(金) 14:30</div>
+                </li>
 
-    <!-- jsフォルダにあるhistory.jsを読み込む -->
+                <li class="history-item">
+                    <div class="history-route">〇〇公園 <span class="arrow" aria-label="から">→</span> 〇〇広場</div>
+                    <div class="history-date">2026年05月15日(金) 16:00</div>
+                </li>
+
+                <li class="history-item">
+                    <div class="history-route">〇〇ベンチ <span class="arrow" aria-label="から">→</span> 〇〇山</div>
+                    <div class="history-date">2026年05月02日(土) 11:15</div>
+                </li>
+
+                <li class="history-item">
+                    <div class="history-route">〇〇学校 <span class="arrow" aria-label="から">→</span> 〇〇駅</div>
+                    <div class="history-date">2026年04月20日(月) 15:45</div>
+                </li>
+
+            </ul>
+        </section>
+
+    </main>
+
+    <script src="../js/common.js"></script>
     <script src="../js/history.js"></script>
 </body>
 </html>

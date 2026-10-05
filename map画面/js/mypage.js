@@ -1,13 +1,11 @@
-
 // マップ画面に戻る
 function goToMap() {
-    // マップのHTMLファイル名に合わせてください
     window.location.href = "map.html";
 }
 
 // 履歴画面へ
 function goToHistory() {
-    window.location.href = "history.html"
+    window.location.href = "history.html";
 }
 
 // スタンプ画面へ
@@ -15,33 +13,50 @@ function goToStamp() {
     window.location.href = "stamp.html";
 }
 
-// 新規聖地登録画面へ
-function goToRegister() {
-    alert("新規聖地登録画面へ遷移します（作成予定）");
+// ログアウト確認ポップアップを開く／閉じる
+function openLogoutModal() {
+    document.getElementById("logout-modal").style.display = "flex";
+}
+
+function closeLogoutModal() {
+    document.getElementById("logout-modal").style.display = "none";
 }
 
 // ログアウト処理
 function logout() {
-    // 確認のポップアップを出す
-    const result = confirm("ログアウトしますか？");
-    if (result) {
-        // ログイン画面に戻る
-        window.location.href = "login.html";
+    window.location.href = "login.html";
+}
+
+// 獲得スタンプ数を表示（スタンプ画面と同じデータを使う）
+(function showStampCount() {
+    let stamps = [];
+    try {
+        stamps = JSON.parse(localStorage.getItem("collectedStamps")) || [];
+    } catch (e) {
+        stamps = [];
     }
-}   
-// ====== （ここから上は既存のコードを残してください） ====== //
+    document.getElementById("stamp-count").textContent = Array.isArray(stamps) ? stamps.length : 0;
+})();
 
 // 選択中のアイコンを一時的に覚えておく変数
-let tempSelectedIcon = "👤"; 
+let tempSelectedIcon = "👤";
 
 // 編集ポップアップを開く
 function openEditModal() {
-    // 現在設定されている名前を入力欄にセットする
+    // 現在設定されている名前とアイコンを編集欄に反映する
     const currentName = document.getElementById("current-name").innerText;
+    const currentIcon = document.getElementById("current-icon").innerText;
     document.getElementById("edit-name-input").value = currentName;
-    
-    // ポップアップを表示
+    setFieldError("edit-name-input", false);
+
+    document.querySelectorAll(".icon-option").forEach(function (opt) {
+        if (opt.textContent.trim() === currentIcon) {
+            selectIcon(opt, currentIcon);
+        }
+    });
+
     document.getElementById("edit-modal").style.display = "flex";
+    document.getElementById("edit-name-input").focus();
 }
 
 // 編集ポップアップを閉じる
@@ -51,34 +66,32 @@ function closeEditModal() {
 
 // アイコンを選択したときの処理
 function selectIcon(element, icon) {
-    // 選択されたアイコンを覚える
     tempSelectedIcon = icon;
-    
-    // すべてのアイコンから "selected" クラス（青枠）を消す
-    const options = document.querySelectorAll(".icon-option");
-    options.forEach(opt => {
+
+    // すべてのアイコンの選択を外してから、クリックされたものだけ選択状態にする
+    document.querySelectorAll(".icon-option").forEach(function (opt) {
         opt.classList.remove("selected");
+        opt.setAttribute("aria-checked", "false");
     });
-    
-    // クリックされたアイコンにだけ "selected" クラス（青枠）をつける
+
     element.classList.add("selected");
+    element.setAttribute("aria-checked", "true");
 }
 
 // プロフィールを保存する処理
 function saveProfile() {
-    // 入力された名前を取得（前後の空白を消す）
     const newName = document.getElementById("edit-name-input").value.trim();
-    
+
     // 名前が空っぽの場合はエラー
     if (newName === "") {
-        alert("名前を入力してください。");
+        setFieldError("edit-name-input", true);
+        document.getElementById("edit-name-input").focus();
         return;
     }
-    
+
     // 画面上の名前とアイコンを、新しいものに書き換える
     document.getElementById("current-name").innerText = newName;
     document.getElementById("current-icon").innerText = tempSelectedIcon;
-    
-    // ポップアップを閉じる
+
     closeEditModal();
 }

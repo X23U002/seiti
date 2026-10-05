@@ -3,40 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>聖地巡礼アプリ - ログイン</title>
-    <!-- cssフォルダにあるlogin.cssを読み込む -->
+    <title>ログイン - 聖地巡礼NAVI</title>
+    <link rel="stylesheet" href="../css/common.css">
     <link rel="stylesheet" href="../css/login.css">
 </head>
 <body>
 
-    <div class="login-container">
+    <main class="login-container">
+        <div class="app-logo" aria-hidden="true">⛩️</div>
         <h1 class="app-title">聖地巡礼NAVI</h1>
-        
-        <div class="instruction">
-            <p>ユーザーIDとパスワードを入力してください。</p>
-            <p class="small-text">※忘れた場合は新規登録時の確認メールを確認</p>
-        </div>
+        <p class="app-catch">アニメの聖地をめぐって、スタンプを集めよう</p>
 
-        <div class="form-group">
-            <label for="userid">ユーザーID</label>
-            <input type="text" id="userid" placeholder="(例) u1">
-        </div>
+        <!-- formにしてEnterキーでもログインできるようにする -->
+        <form class="login-form" onsubmit="goToMap(); return false;">
+            <div class="form-group">
+                <label for="userid">ユーザーID</label>
+                <input type="text" id="userid" placeholder="(例) u1" autocomplete="username">
+            </div>
 
-        <div class="form-group">
-            <label for="password">パスワード</label>
-            <input type="password" id="password" placeholder="(例) seiti555">
-        </div>
+            <div class="form-group">
+                <label for="password">パスワード</label>
+                <div class="password-wrap">
+                    <input type="password" id="password" placeholder="(例) seiti555" autocomplete="current-password">
+                    <button type="button" class="password-toggle" data-target="password" aria-pressed="false" aria-label="パスワードを表示">表示</button>
+                </div>
+            </div>
 
-        <!-- ログインボタン（クリックするとgoToMap関数が動く） -->
-        <button class="login-btn" onclick="goToMap()">ログイン</button>
+            <button type="submit" class="btn btn-primary">ログイン</button>
+        </form>
 
         <div class="links">
-            <a href="newaccount.html">新規登録</a>
             <a href="forgot_password.html">パスワードを忘れた場合</a>
         </div>
-    </div>
 
-    <!-- jsフォルダにあるlogin.jsを読み込む -->
+        <div class="divider"><span>はじめての方</span></div>
+
+        <a href="newaccount.html" class="btn btn-secondary">新規登録</a>
+    </main>
+
+    <script src="../js/common.js"></script>
     <script src="../js/login.js"></script>
 </body>
 </html>
