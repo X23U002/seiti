@@ -9,7 +9,7 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>聖地巡礼アプリ</title>
+    <title>聖地巡礼NAVI</title>
 
     <!-- Mapbox -->
     <link
@@ -50,44 +50,66 @@
 
 
     <!-- 左サイドメニュー -->
-    <div id="side-menu">
+    <nav id="side-menu" aria-label="メニュー">
 
-        <button
-            id="close-menu"
-            type="button"
-            onclick="toggleMenu()"
-        >
-            ❮❮
-        </button>
+        <div class="side-menu-header">
 
-        <h2>メニュー</h2>
+            <span class="side-menu-logo">⛩️ 聖地巡礼NAVI</span>
+
+            <button
+                id="close-menu"
+                type="button"
+                onclick="toggleMenu()"
+                aria-label="メニューを閉じる"
+            >
+                ✕
+            </button>
+
+        </div>
 
         <ul>
-            <li onclick="location.href='information.html'">
-                お問い合わせ
+            <li>
+                <a href="mypage.html"><span aria-hidden="true">👤</span>マイページ</a>
             </li>
 
-            <li onclick="location.href='register.html'">
-                聖地登録
+            <li>
+                <a href="stamp.html"><span aria-hidden="true">💮</span>獲得スタンプ</a>
             </li>
 
-            <li onclick="location.href='guide.html'">
-                操作ガイド
+            <li>
+                <a href="register.html"><span aria-hidden="true">📍</span>聖地登録</a>
+            </li>
+
+            <li>
+                <a href="information.html"><span aria-hidden="true">✉</span>お問い合わせ</a>
+            </li>
+
+            <li>
+                <a href="guide.html"><span aria-hidden="true">📖</span>操作ガイド</a>
             </li>
         </ul>
 
-    </div>
+    </nav>
+
+    <!-- メニュー表示中の背景（タップで閉じる） -->
+    <div
+        id="menu-backdrop"
+        onclick="toggleMenu()"
+    ></div>
 
 
     <!-- ハンバーガーボタン -->
-    <div
+    <button
         id="hamburger-btn"
+        type="button"
         onclick="toggleMenu()"
+        aria-label="メニューを開く"
+        aria-controls="side-menu"
     >
         <span></span>
         <span></span>
         <span></span>
-    </div>
+    </button>
 
 
     <!-- 検索バー -->
@@ -99,6 +121,8 @@
         id="profile-btn"
         type="button"
         onclick="location.href='mypage.html'"
+        aria-label="マイページ"
+        title="マイページ"
     >
         👤
     </button>
@@ -124,6 +148,7 @@
             <button
                 type="button"
                 onclick="closeFilter()"
+                aria-label="閉じる"
             >
                 ✕
             </button>
@@ -133,7 +158,8 @@
         <input
             type="text"
             id="anime-search"
-            placeholder="作品名を入力"
+            placeholder="🔍 作品名で検索"
+            aria-label="作品名で検索"
             onkeyup="searchAnime()"
         >
 
@@ -162,11 +188,20 @@
     </div>
 
 
+    <!-- 絞り込み表示中の背景（タップで閉じる） -->
+    <div
+        id="filter-backdrop"
+        onclick="closeFilter()"
+    ></div>
+
+
     <!-- 現在地 -->
     <button
         id="location-btn"
         type="button"
         onclick="moveToCurrentLocation()"
+        aria-label="現在地へ移動"
+        title="現在地へ移動"
     >
         📍
     </button>
@@ -177,6 +212,7 @@
         id="toggle-view-btn"
         type="button"
         onclick="toggleView()"
+        aria-label="2D・3D表示の切り替え"
     >
         🔄 3D
     </button>
@@ -241,6 +277,22 @@
         type="module"
         src="../js/Script.js"
     ></script>
+
+
+    <!-- Escキーでメニュー・絞り込みを閉じる -->
+    <script>
+        document.addEventListener("keydown", function (event) {
+            if (event.key !== "Escape") return;
+
+            if (document.getElementById("side-menu").classList.contains("open")) {
+                window.toggleMenu();
+            }
+
+            if (document.getElementById("filter-modal").style.display === "block") {
+                window.closeFilter();
+            }
+        });
+    </script>
 
 </body>
 

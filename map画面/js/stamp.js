@@ -6,22 +6,19 @@ function goToMyPage() {
 // 絞り込みメニューの 表示/非表示 を切り替える
 function toggleFilter() {
     const filterMenu = document.getElementById("filter-menu");
-    if (filterMenu.style.display === "none" || filterMenu.style.display === "") {
-        filterMenu.style.display = "flex";
-    } else {
-        filterMenu.style.display = "none";
-    }
+    const isOpen = filterMenu.style.display !== "none" && filterMenu.style.display !== "";
+    filterMenu.style.display = isOpen ? "none" : "flex";
+    document.getElementById("filter-toggle").setAttribute("aria-expanded", String(!isOpen));
 }
 
 // スタンプ詳細ポップアップを開く
 function openStampModal(title, date, anime, scene, address) {
-    document.getElementById("modal-title").innerText = title;
-    document.getElementById("modal-date").innerText = "訪問日時：" + date;
-    document.getElementById("modal-anime").innerText = anime;
-    document.getElementById("modal-scene").innerText = scene;
-    document.getElementById("modal-address").innerText = address;
-    
-    // モーダルを表示する
+    document.getElementById("modal-title").innerText = title || "";
+    document.getElementById("modal-date").innerText = "訪問日時：" + (date || "-");
+    document.getElementById("modal-anime").innerText = anime || "-";
+    document.getElementById("modal-scene").innerText = scene || "-";
+    document.getElementById("modal-address").innerText = address || "-";
+
     document.getElementById("stamp-modal").style.display = "flex";
 }
 
@@ -33,42 +30,67 @@ function closeStampModal() {
 // ==========================================
 // データの取得
 // ==========================================
-const stamps = JSON.parse(localStorage.getItem("collectedStamps")) || [];
+let stamps = [];
+try {
+    stamps = JSON.parse(localStorage.getItem("collectedStamps")) || [];
+} catch (e) {
+    stamps = [];
+}
+if (!Array.isArray(stamps)) stamps = [];
+
 const stampList = document.getElementById("stampList");
 
 // ==========================================
 // スタンプを画面に表示する関数
+// filterAnimes が null のときは全件表示
 // ==========================================
 function renderStamps(filterAnimes = null) {
-    if (!stampList) return; // エラー防止
-    stampList.innerHTML = ""; 
+    if (!stampList) return;
+    stampList.innerHTML = "";
 
-    // 万が一ローカルストレージのデータがおかしい場合のエラー防止
-    if (!stamps || !Array.isArray(stamps)) return;
+    const visible = stamps.filter(function (stamp) {
+        return filterAnimes === null || filterAnimes.includes(stamp.anime);
+    });
 
-    stamps.forEach(function(stamp) {
-        // 【修正ポイント】 length（個数）ではなく、nullかどうかだけで判定します
-        // filterAnimes が null ではなく、かつチェックされたアニメに含まれていない場合は非表示
-        if (filterAnimes !== null && !filterAnimes.includes(stamp.anime)) {
-            return; 
-        }
+    document.getElementById("stamp-count").textContent = visible.length;
 
-        const div = document.createElement("div");
-        div.className = "stamp-item";
+    // 1件もない場合は案内を表示
+    if (visible.length === 0) {
+        stampList.innerHTML = stamps.length === 0
+            ? '<div class="empty-state"><div class="empty-state-icon">⛩️</div><p>まだスタンプがありません</p><small>マップで聖地を訪れてスタンプを集めよう</small></div>'
+            : '<div class="empty-state"><div class="empty-state-icon">🔍</div><p>該当するスタンプがありません</p></div>';
+        return;
+    }
 
-        // クリックされたらポップアップを開く
-        div.onclick = function() {
+    visible.forEach(function (stamp) {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "stamp-item";
+        item.onclick = function () {
             openStampModal(stamp.name, stamp.date, stamp.anime, stamp.scene, stamp.address);
         };
 
-        // 獲得済みのデザイン
-        div.innerHTML = `
-            <div class="stamp-circle earned">⛩️</div>
-            <div class="stamp-label">${stamp.name}</div>
-        `;
+        const circle = document.createElement("div");
+        circle.className = "stamp-circle earned";
+        circle.setAttribute("aria-hidden", "true");
+        circle.textContent = "⛩️";
 
-        stampList.appendChild(div);
+        // 名前は textContent で入れる（HTMLとして解釈させない）
+        const label = document.createElement("div");
+        label.className = "stamp-label";
+        label.textContent = stamp.name;
+
+        item.appendChild(circle);
+        item.appendChild(label);
+        stampList.appendChild(item);
     });
+}
+
+// 絞り込み中の件数をボタンに表示
+function updateFilterBadge(count) {
+    const badge = document.getElementById("filter-active-count");
+    badge.hidden = count === 0;
+    badge.textContent = count;
 }
 
 // ==========================================
@@ -76,72 +98,67 @@ function renderStamps(filterAnimes = null) {
 // ==========================================
 function initFilterMenu() {
     const filterMenu = document.getElementById("filter-menu");
-    filterMenu.innerHTML = ""; // 中身を初期化
+    filterMenu.innerHTML = "";
 
-    // 獲得したスタンプの中から、作品名（アニメ名）の重複をなくしてリストアップする
-    const animeNames = [...new Set(stamps.map(s => s.anime))];
+    // 獲得したスタンプの中から、作品名の重複をなくしてリストアップする
+    const animeNames = [...new Set(stamps.map(s => s.anime))].filter(Boolean);
 
     if (animeNames.length === 0) {
-        filterMenu.innerHTML = "<p style='font-size:13px; color:#7f8c8d; text-align:center;'>獲得したスタンプがありません</p>";
+        filterMenu.innerHTML = '<p class="filter-empty">獲得したスタンプがありません</p>';
         return;
     }
 
     // アニメ名ごとにチェックボックスを作る
-    animeNames.forEach(function(anime) {
+    animeNames.forEach(function (anime) {
         const label = document.createElement("label");
-        label.innerHTML = `<input type="checkbox" value="${anime}" class="anime-filter-cb"> ${anime}`;
+        label.className = "filter-option";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = anime;
+        checkbox.className = "anime-filter-cb";
+
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(anime));
         filterMenu.appendChild(label);
     });
 
-    // 「決定」「リセット」ボタンのエリアを作る
-    const btnDiv = document.createElement("div");
-    btnDiv.style.display = "flex";
-    btnDiv.style.gap = "10px";
-    btnDiv.style.marginTop = "15px";
+    // 「決定」「リセット」ボタンのエリア
+    const actions = document.createElement("div");
+    actions.className = "filter-actions";
 
-    // リセットボタン
     const resetBtn = document.createElement("button");
+    resetBtn.type = "button";
+    resetBtn.className = "btn btn-secondary";
     resetBtn.textContent = "リセット";
-    resetBtn.style.flex = "1";
-    resetBtn.style.padding = "10px";
-    resetBtn.style.background = "#7f8c8d";
-    resetBtn.style.color = "white";
-    resetBtn.style.border = "none";
-    resetBtn.style.borderRadius = "6px";
-    resetBtn.onclick = function() {
-        // チェックを全部外して、全件表示
-        const checkboxes = document.querySelectorAll(".anime-filter-cb");
-        checkboxes.forEach(cb => cb.checked = false);
-        renderStamps(); 
-        toggleFilter(); // メニューを閉じる
+    resetBtn.onclick = function () {
+        document.querySelectorAll(".anime-filter-cb").forEach(cb => cb.checked = false);
+        renderStamps();
+        updateFilterBadge(0);
+        toggleFilter();
     };
 
-    // 決定ボタン
     const applyBtn = document.createElement("button");
+    applyBtn.type = "button";
+    applyBtn.className = "btn btn-primary";
     applyBtn.textContent = "決定";
-    applyBtn.style.flex = "1";
-    applyBtn.style.padding = "10px";
-    applyBtn.style.background = "#0b3c5d";
-    applyBtn.style.color = "white";
-    applyBtn.style.border = "none";
-    applyBtn.style.borderRadius = "6px";
-    applyBtn.onclick = function() {
-        // チェックがついているアニメ名だけを集める
-        const checkboxes = document.querySelectorAll(".anime-filter-cb:checked");
-        const selectedAnimes = Array.from(checkboxes).map(cb => cb.value);
-        
-        // 選ばれたアニメだけを表示する
-        renderStamps(selectedAnimes);
-        toggleFilter(); // メニューを閉じる
+    applyBtn.onclick = function () {
+        const checked = document.querySelectorAll(".anime-filter-cb:checked");
+        const selectedAnimes = Array.from(checked).map(cb => cb.value);
+
+        // 何もチェックしていない場合は全件表示
+        renderStamps(selectedAnimes.length > 0 ? selectedAnimes : null);
+        updateFilterBadge(selectedAnimes.length);
+        toggleFilter();
     };
 
-    btnDiv.appendChild(resetBtn);
-    btnDiv.appendChild(applyBtn);
-    filterMenu.appendChild(btnDiv);
+    actions.appendChild(resetBtn);
+    actions.appendChild(applyBtn);
+    filterMenu.appendChild(actions);
 }
 
 // ==========================================
 // 画面を開いた時の最初の処理
 // ==========================================
-renderStamps(); // スタンプを全て表示
-initFilterMenu(); // 絞り込みメニューの準備
+renderStamps();
+initFilterMenu();

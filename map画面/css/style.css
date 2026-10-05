@@ -1082,3 +1082,226 @@ button:active {
 
     cursor: not-allowed;
 }
+
+/* =========================================================
+   UI改善（ここから下で上の指定を上書きしている）
+========================================================= */
+
+html,
+body {
+    font-family:
+        "Helvetica Neue",
+        Arial,
+        "Hiragino Kaku Gothic ProN",
+        "Hiragino Sans",
+        "Noto Sans JP",
+        Meiryo,
+        sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* キーボード操作時のフォーカス枠 */
+:focus-visible {
+    outline: 3px solid rgba(11, 60, 93, .5);
+    outline-offset: 2px;
+}
+
+/* ---------- 地図上の丸ボタン ---------- */
+#hamburger-btn {
+    padding: 0;
+}
+
+#profile-btn,
+#location-btn {
+    font-size: 22px;
+}
+
+#filter-btn {
+    color: #0b3c5d;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+/* 2D・3D切り替え：他のボタンと同じ白基調、3D中は紺で強調 */
+#toggle-view-btn {
+    width: auto;
+    min-width: 48px;
+    height: 48px;
+    padding: 0 16px;
+    background: white;
+    color: #0b3c5d;
+    font-size: 15px;
+    border-radius: 24px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, .25);
+}
+
+#toggle-view-btn.mode3d {
+    background: #0b3c5d;
+    color: white;
+}
+
+/* ---------- サイドメニュー ---------- */
+#side-menu {
+    left: -300px;
+    width: 280px;
+    max-width: 85vw;
+    padding-top: 0;
+    background: #ffffff;
+    box-shadow: 3px 0 20px rgba(0, 0, 0, .25);
+    transition: left .3s ease;
+    overflow-y: auto;
+}
+
+#side-menu.open {
+    left: 0;
+}
+
+.side-menu-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    padding: 0 8px 0 20px;
+    background: #0b3c5d;
+    color: white;
+}
+
+.side-menu-logo {
+    font-size: 17px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+#close-menu {
+    position: static;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    color: white;
+    font-size: 20px;
+}
+
+#close-menu:hover {
+    background: rgba(255, 255, 255, .15);
+    transform: none;
+}
+
+#side-menu ul {
+    padding: 8px 0;
+}
+
+#side-menu li,
+#side-menu li:hover {
+    padding: 0;
+    background: none;
+}
+
+#side-menu li a {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 24px;
+    font-size: 16px;
+    font-weight: bold;
+    color: #2c3e50;
+    text-decoration: none;
+    transition: background .2s;
+}
+
+#side-menu li a span {
+    width: 24px;
+    text-align: center;
+    font-size: 18px;
+}
+
+#side-menu li a:hover {
+    background: #e6f0f6;
+    color: #0b3c5d;
+}
+
+/* ---------- メニュー・絞り込み表示中の背景 ---------- */
+#menu-backdrop,
+#filter-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .35);
+}
+
+#menu-backdrop {
+    z-index: 290;
+}
+
+#filter-backdrop {
+    z-index: 9998;
+}
+
+#side-menu.open + #menu-backdrop,
+#filter-modal[style*="block"] + #filter-backdrop {
+    display: block;
+}
+
+/* ---------- アニメ絞り込み（下から出るシート） ---------- */
+#filter-modal {
+    left: 50%;
+    max-width: 640px;
+    transform: translateX(-50%);
+    padding: 16px 20px calc(20px + env(safe-area-inset-bottom));
+}
+
+.filter-header h2 {
+    color: #0b3c5d;
+}
+
+.filter-header button {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    font-size: 22px;
+}
+
+.filter-header button:hover {
+    background: #f0f2f4;
+    transform: none;
+}
+
+#anime-search {
+    padding-left: 16px;
+    border: 1px solid #dcdde1;
+    border-radius: 22px;
+}
+
+#anime-search:focus {
+    outline: none;
+    border-color: #0b3c5d;
+    box-shadow: 0 0 0 3px rgba(11, 60, 93, .2);
+}
+
+#anime-list label {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    padding: 0 10px;
+    border-radius: 6px;
+}
+
+#anime-list label:hover {
+    background: #f6f8f9;
+}
+
+#anime-list input {
+    width: 18px;
+    height: 18px;
+    margin-right: 12px;
+    accent-color: #0b3c5d;
+}
+
+/* 動きを減らす設定のユーザー向け */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition: none !important;
+        animation: none !important;
+    }
+}

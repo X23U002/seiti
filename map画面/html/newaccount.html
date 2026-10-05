@@ -4,46 +4,54 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>新規登録 - 聖地巡礼NAVI</title>
-    <!-- cssフォルダにあるregister.cssを読み込む -->
+    <link rel="stylesheet" href="../css/common.css">
     <link rel="stylesheet" href="../css/newaccount.css">
 </head>
 <body>
 
     <!-- アプリ共通ヘッダー -->
     <header class="app-header">
-        <button class="back-btn" onclick="goToLogin()">＜ 戻る</button>
+        <button type="button" class="back-btn" onclick="goToLogin()" aria-label="ログイン画面に戻る">＜ 戻る</button>
         <h1>新規登録</h1>
     </header>
 
-    <div class="content">
-        <!-- 案内テキスト -->
-        <div class="instruction">
-            <p>名前、パスワード、メールアドレスを入力してください。</p>
-        </div>
+    <main class="content">
+        <!-- 進捗表示 -->
+        <ol class="steps" aria-label="登録の流れ">
+            <li class="step active" aria-current="step"><span>1</span>入力</li>
+            <li class="step"><span>2</span>確認</li>
+            <li class="step"><span>3</span>完了</li>
+        </ol>
 
-        <!-- 入力フォーム -->
-        <div class="form-group">
-            <label for="username">名前</label>
-            <input type="text" id="username" placeholder="(例) 田中太郎">
-        </div>
+        <form class="card" onsubmit="goToConfirm(); return false;" novalidate>
+            <div class="form-group">
+                <label for="username">名前<span class="required">必須</span></label>
+                <input type="text" id="username" placeholder="(例) 田中太郎" autocomplete="name">
+                <p class="error-text">名前を入力してください。</p>
+            </div>
 
-        <div class="form-group">
-            <label for="password">パスワード</label>
-            <input type="password" id="password" placeholder="(例) seiti555">
-            <!-- 注意書き -->
-            <p class="form-hint">※英数字8文字以上 / 記号不可</p>
-        </div>
+            <div class="form-group">
+                <label for="password">パスワード<span class="required">必須</span></label>
+                <div class="password-wrap">
+                    <input type="password" id="password" placeholder="(例) seiti555" autocomplete="new-password" aria-describedby="password-hint">
+                    <button type="button" class="password-toggle" data-target="password" aria-pressed="false" aria-label="パスワードを表示">表示</button>
+                </div>
+                <p class="form-hint" id="password-hint">英数字8文字以上（記号は使えません）</p>
+                <p class="error-text">英数字8文字以上で入力してください。</p>
+            </div>
 
-        <div class="form-group">
-            <label for="email">メールアドレス</label>
-            <input type="email" id="email" placeholder="(例) seiti150@seiti.ac.jp">
-        </div>
+            <div class="form-group">
+                <label for="email">メールアドレス<span class="required">必須</span></label>
+                <input type="email" id="email" placeholder="(例) seiti150@seiti.ac.jp" autocomplete="email">
+                <p class="error-text">正しいメールアドレスを入力してください。</p>
+            </div>
 
-        <!-- 登録確認画面へ進むボタン -->
-        <button class="register-btn" onclick="goToConfirm()">登録確認へ</button>
-    </div>
+            <!-- 登録確認画面へ進むボタン -->
+            <button type="submit" class="btn btn-primary">登録確認へ</button>
+        </form>
+    </main>
 
-    <!-- jsフォルダにあるregister.jsを読み込む -->
+    <script src="../js/common.js"></script>
     <script src="../js/newaccount.js"></script>
 </body>
 </html>
