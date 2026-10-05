@@ -1305,3 +1305,245 @@ body {
         animation: none !important;
     }
 }
+
+
+/* =========================================================
+   ピン・ポップアップの見た目改善（CSSのみ）
+   ※ JS側でstyle属性を直接指定している箇所は !important で上書きしている
+========================================================= */
+
+/* ---------- スポットのピン ---------- */
+.mapboxgl-marker[data-spot-id] {
+    cursor: pointer;
+}
+
+.mapboxgl-marker[data-spot-id] svg {
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .3));
+    transition: filter .2s;
+}
+
+.mapboxgl-marker[data-spot-id]:hover svg {
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .4)) brightness(1.08);
+}
+
+/* スタンプ取得済みのピンに ✓ バッジを付ける */
+.mapboxgl-marker.stamp-completed-marker::after {
+    content: "✓";
+    position: absolute;
+    top: -4px;
+    right: -6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid white;
+    background: #f59e0b;
+    color: white;
+    font-size: 11px;
+    font-weight: bold;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+    pointer-events: none;
+}
+
+/* ---------- ズームアウト時のまとめピン（件数表示） ---------- */
+.mapboxgl-marker:not([data-spot-id]):not(.mapboxgl-user-location):not(:has(svg)) {
+    width: 34px !important;
+    height: 34px !important;
+    background-color: #0b3c5d !important;
+    border: 3px solid white !important;
+    box-shadow: 0 0 0 4px rgba(11, 60, 93, .25), 0 3px 8px rgba(0, 0, 0, .3);
+    font-size: 14px;
+}
+
+/* ---------- ポップアップ共通 ---------- */
+.mapboxgl-popup {
+    max-width: min(300px, calc(100vw - 32px)) !important;
+}
+
+.mapboxgl-popup-content {
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
+    font-family: inherit;
+}
+
+/* まとめピンを押したときの一覧ポップアップ */
+.mapboxgl-popup-content:not(:has(.popup-card)) {
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 1.9;
+    color: #2c3e50;
+}
+
+/* ---------- スポット詳細ポップアップ ---------- */
+.mapboxgl-popup-content:has(.popup-card) {
+    padding: 0;
+    /* 画面からはみ出しにくいよう高さを抑え、超えた分は中でスクロール */
+    max-height: min(500px, 65vh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+/* 並び順を変更：画像を一番上に大きく表示する */
+.popup-card {
+    display: flex;
+    flex-direction: column;
+    max-width: none;
+    padding: 0 16px 16px;
+}
+
+.popup-image {
+    order: -1;
+    margin: 0 -16px 14px;
+}
+
+.popup-image img {
+    display: block;
+    height: 110px;
+    border-radius: 0;
+}
+
+.popup-title {
+    align-self: flex-start;
+    margin-bottom: 6px;
+    padding: 4px 12px;
+    font-size: 12px;
+    letter-spacing: .5px;
+}
+
+.popup-spot {
+    margin: 0 0 10px;
+    font-size: 19px;
+    line-height: 1.4;
+    color: #0b3c5d;
+    word-break: break-word;
+}
+
+.popup-section {
+    margin-top: 0;
+    padding: 10px 12px;
+    background: #f4f7f6;
+    border-radius: 10px;
+}
+
+.popup-section strong {
+    margin-bottom: 2px;
+    font-size: 12px;
+    color: #6b7b8c;
+}
+
+/* 長い説明は3行まで表示し、残りは枠内でスクロール */
+.popup-section p {
+    max-height: 5.1em;
+    overflow-y: auto;
+    font-size: 14px;
+    line-height: 1.7;
+    color: #2c3e50;
+}
+
+/* 閉じるボタン：画像の上でも見えるよう白い丸に */
+.mapboxgl-popup-content:has(.popup-card) .mapboxgl-popup-close-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .92);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+    font-size: 22px;
+    line-height: 30px;
+    color: #2c3e50;
+}
+
+.mapboxgl-popup-content:has(.popup-card) .mapboxgl-popup-close-button:hover {
+    background: white;
+    transform: none;
+}
+
+/* ---------- スタンプ取得エリア ---------- */
+.stamp-popup-area {
+    margin-top: 14px !important;
+    padding-top: 12px;
+    border-top: 1px dashed #dcdde1;
+}
+
+.stamp-distance-message {
+    margin: 0 0 8px !important;
+    font-size: 12px !important;
+    color: #6b7b8c !important;
+}
+
+.stamp-distance-message::before {
+    content: "📍 ";
+}
+
+.popup-card .stamp-button {
+    min-height: 48px !important;
+    margin-bottom: 0;
+    border-radius: 10px !important;
+    background: #f59e0b !important;
+    box-shadow: 0 3px 8px rgba(245, 158, 11, .35);
+    font-size: 15px !important;
+}
+
+.popup-card .stamp-button:disabled {
+    background: #eef1f3 !important;
+    color: #6b7b8c !important;
+    box-shadow: none;
+    opacity: 1 !important;
+}
+
+.popup-card .stamp-button:disabled:hover,
+.popup-card .stamp-button:disabled:active {
+    transform: none;
+}
+
+/* ---------- 公式サイト・ルート追加ボタン ---------- */
+.popup-buttons {
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.popup-home {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    background: white;
+    border: 2px solid #dcdde1;
+    font-size: 20px;
+    transition: border-color .2s, background .2s;
+}
+
+.popup-home:hover {
+    border-color: #0b3c5d;
+    background: #e6f0f6;
+}
+
+.popup-buttons button {
+    min-height: 48px;
+    background: #0b3c5d;
+    font-size: 15px;
+    box-shadow: 0 3px 8px rgba(11, 60, 93, .25);
+}
+
+.popup-buttons button:hover {
+    background: #14537f;
+    transform: none;
+}
+
+/* ---------- ルート案内パネル ---------- */
+#routePanel {
+    width: min(280px, calc(100vw - 30px));
+    border-radius: 16px;
+}
+
+.routeItem button {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    margin-left: 8px;
+}
