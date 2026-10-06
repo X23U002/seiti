@@ -177,7 +177,7 @@ function createWalkerLayer(map) {
                 const clip = model.animations[0];
 
                 if (clip) {
-                    removeRootMotion(clip);
+                    removeRootMotion(clip, model);
                     mixer = new THREE.AnimationMixer(model);
                     walkAction = mixer.clipAction(clip);
                     walkAction.play();
@@ -264,15 +264,26 @@ function createWalkerLayer(map) {
 
     // アニメーション自体が前に進む動き（ルートモーション）を消し、
     // その場で足踏みするようにする。位置はGPSで動かすため
-    function removeRootMotion(clip) {
+    // また、アニメーションの腰の高さがモデル本来の腰の高さとずれていると
+    // 歩く時に宙に浮いたり沈んだりするため、モデル本来の位置に合わせる
+    function removeRootMotion(clip, model) {
         clip.tracks.forEach(function (track) {
             if (!/Hips\.position$/.test(track.name)) {
                 return;
             }
+
             const values = track.values;
+            const hips = model.getObjectByName(track.name.replace(/\.position$/, ""));
+
+            // モデル本来の腰の位置（無ければアニメーションの最初の位置）
+            const baseX = hips ? hips.position.x : values[0];
+            const baseZ = hips ? hips.position.z : values[2];
+            const offsetY = hips ? hips.position.y - values[1] : 0;
+
             for (let i = 0; i < values.length; i += 3) {
-                values[i] = values[0];
-                values[i + 2] = values[2];
+                values[i] = baseX;
+                values[i + 1] += offsetY;
+                values[i + 2] = baseZ;
             }
         });
     }
