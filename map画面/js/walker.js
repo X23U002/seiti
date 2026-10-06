@@ -3,7 +3,8 @@
 //
 // ・GPSで現在地が更新されると、キャラクターがその場所まで歩いて移動する
 // ・進む方向に体を向け、移動中だけ歩くアニメーションを再生する
-// ・2D表示（真上から見る）の時は、画面に向かって起き上がった姿勢で表示する
+// ・3D表示の時だけ表示する（2D表示では隠して、青い現在地の点を表示する）
+// ・ビルの陰に隠れないよう、建物より手前に描く
 //
 // Script.js から initWalker(map, geolocate) を呼び出して使う
 // =========================================================
@@ -19,7 +20,7 @@ import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 const MODEL_URL = "../models/walking.fbx";
 
 // 画面上でのキャラクターの高さ（px）。ズームしても同じ大きさに見える
-const MODEL_HEIGHT_PX = 70;
+const MODEL_HEIGHT_PX = 130;
 
 // キャラクターの色
 const MODEL_COLOR = 0x2f80c0;
@@ -140,6 +141,12 @@ function updatePosition(now) {
     return true;
 }
 
+// 3D表示中かどうか（Script.js の 2D/3D 切り替えボタンの状態で判断する）
+function is3DMode() {
+    const button = document.getElementById("toggle-view-btn");
+    return Boolean(button && button.classList.contains("mode3d"));
+}
+
 // ---------------------------------------------------------
 // Mapboxのカスタムレイヤー（three.jsで描画）
 // ---------------------------------------------------------
@@ -152,11 +159,7 @@ function createWalkerLayer(map) {
     let walkAction = null;
     let lastFrameTime = performance.now();
 
-    // キャラクターの向き・傾きを合わせるための作業用オブジェクト
-    const headingQuat = new THREE.Quaternion();
-    const tiltQuat = new THREE.Quaternion();
-    const yAxis = new THREE.Vector3(0, 1, 0);
-    const screenRightAxis = new THREE.Vector3();
+    const mapElement = document.getElementById("map");
 
     function loadModel() {
         new FBXLoader().load(
@@ -184,7 +187,6 @@ function createWalkerLayer(map) {
                 }
 
                 character.add(model);
-                document.getElementById("map")?.classList.add("walker-active");
                 map.triggerRepaint();
             },
             undefined,
@@ -260,8 +262,16 @@ function createWalkerLayer(map) {
             const delta = (now - lastFrameTime) / 1000;
             lastFrameTime = now;
 
+            // 2D表示中も位置だけは更新しておく（3Dに切り替えた時に正しい場所に出す）
             const moving = updatePosition(now);
 
+            // 2D表示ではキャラクターを隠し、青い現在地の点を表示する
+            const visible = is3DMode();
+            mapElement?.classList.toggle("walker-active", visible);
+
+            if (!visible) {
+                return;
+            }
             // 移動中だけ歩くアニメーションを再生、止まったら立ち姿勢に戻す
             if (moving) {
                 walkAction.paused = false;
@@ -290,17 +300,8 @@ function createWalkerLayer(map) {
 
             // --- 向き ---
             // モデルは +Z が正面。地図上では +X が東、-Z が北になる
-            headingQuat.setFromAxisAngle(yAxis, Math.PI - state.heading);
-
-            // 2D表示（傾き0）の時は画面に向かって起き上がらせ、
-            // 3D表示（傾き60°以上）では地面にまっすぐ立たせる
-            const pitch = map.getPitch();
-            const tilt = Math.max(0, Math.min(1, (60 - pitch) / 60)) * (Math.PI / 2);
-            const bearing = map.getBearing() * Math.PI / 180;
-            screenRightAxis.set(Math.cos(bearing), 0, Math.sin(bearing));
-            tiltQuat.setFromAxisAngle(screenRightAxis, -tilt);
-
-            character.quaternion.copy(tiltQuat).multiply(headingQuat);
+            // 常に地面にまっすぐ立たせ、進む方向へ向ける
+            character.rotation.set(0, Math.PI - state.heading, 0);
 
             // --- 地図の座標系へ変換して描画 ---
             const modelMatrix = new THREE.Matrix4()
@@ -313,6 +314,9 @@ function createWalkerLayer(map) {
                 .multiply(modelMatrix);
 
             renderer.resetState();
+
+            // 建物の奥行き情報を消してから描くことで、ビルに埋もれず常に手前に見せる
+            renderer.clearDepth();
             renderer.render(scene, camera);
 
             // 歩いている・向きを変えている間は次のフレームも描く
