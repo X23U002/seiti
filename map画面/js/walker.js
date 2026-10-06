@@ -19,8 +19,14 @@ import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 // 3Dモデル（Mixamoの歩行アニメーション付きFBX）
 const MODEL_URL = "../models/walking.fbx";
 
-// 画面上でのキャラクターの高さ（px）。ズームしても同じ大きさに見える
+// 画面上でのキャラクターの高さ（px）
+// ズーム FIXED_SIZE_ZOOM 以上ではこの大きさで一定。それより引くと、
+// 実際の大きさ（ズーム17で130px分 ≒ 約60m）のまま小さくなる（引いても巨人にならない）
 const MODEL_HEIGHT_PX = 130;
+const FIXED_SIZE_ZOOM = 17;
+
+// 画面上でこれより小さくなったらキャラクターを隠し、青い現在地の点を表示する（px）
+const MIN_VISIBLE_PX = 20;
 
 // キャラクターのテクスチャ（画像）。walking.fbx と同じ時に書き出した画像を置く
 // ※ FBXの中にテクスチャが埋め込まれている場合は、そちらを優先して使う
@@ -397,8 +403,13 @@ function createWalkerLayer(map) {
                 updateByKeys(delta, map.getBearing(), map.getZoom()) ||
                 updatePosition(now);
 
-            // 2D表示ではキャラクターを隠し、青い現在地の点を表示する
-            const visible = is3DMode();
+            // 画面上の大きさ（px）：ズーム17以上は一定、引くとズームに合わせて小さくなる
+            const zoom = map.getZoom();
+            const screenHeightPx =
+                MODEL_HEIGHT_PX * Math.pow(2, Math.min(0, zoom - FIXED_SIZE_ZOOM));
+
+            // 2D表示の時と、引きすぎて小さくなった時はキャラクターを隠し、青い現在地の点を表示する
+            const visible = is3DMode() && screenHeightPx >= MIN_VISIBLE_PX;
             mapElement?.classList.toggle("walker-active", visible);
 
             if (!visible) {
@@ -425,11 +436,9 @@ function createWalkerLayer(map) {
             const lngLat = [state.position.lng, state.position.lat];
             const mercator = mapboxgl.MercatorCoordinate.fromLngLat(lngLat, 0);
 
-            // 画面上で MODEL_HEIGHT_PX になる大きさ（m）
-            const heightMeters = Math.max(
-                2,
-                MODEL_HEIGHT_PX * metersPerPixel(state.position.lat, map.getZoom())
-            );
+            // 画面上で screenHeightPx になる大きさ（m）
+            const heightMeters =
+                screenHeightPx * metersPerPixel(state.position.lat, zoom);
             const scale = mercator.meterInMercatorCoordinateUnits() * heightMeters;
 
             // --- 向き ---
