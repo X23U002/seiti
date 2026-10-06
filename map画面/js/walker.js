@@ -22,7 +22,11 @@ const MODEL_URL = "../models/walking.fbx";
 // 画面上でのキャラクターの高さ（px）。ズームしても同じ大きさに見える
 const MODEL_HEIGHT_PX = 130;
 
-// キャラクターの色
+// キャラクターのテクスチャ（画像）。walking.fbx と同じ時に書き出した画像を置く
+// ※ FBXの中にテクスチャが埋め込まれている場合は、そちらを優先して使う
+const TEXTURE_URL = "../models/walking_texture.png";
+
+// テクスチャが読み込めなかった時の色
 const MODEL_COLOR = 0x2f80c0;
 
 // これより小さい移動はGPSの揺れとみなして歩かない（m）
@@ -165,15 +169,47 @@ function createWalkerLayer(map) {
         new FBXLoader().load(
             MODEL_URL,
             function (model) {
-                // 灰色の既定マテリアルを、見やすい色に置き換える
+                // FBXに埋め込まれたテクスチャがあれば、それを使う
+                let embeddedTexture = null;
+
                 model.traverse(function (child) {
                     if (child.isMesh) {
-                        child.material = new THREE.MeshLambertMaterial({
-                            color: MODEL_COLOR
+                        [].concat(child.material).forEach(function (original) {
+                            if (original && original.map) {
+                                embeddedTexture = original.map;
+                            }
                         });
+                    }
+                });
+
+                // 灰色の既定マテリアルを置き換える
+                // テクスチャが無ければ単色で表示し、読み込めたら貼り替える
+                const material = new THREE.MeshLambertMaterial({
+                    color: embeddedTexture ? 0xffffff : MODEL_COLOR,
+                    map: embeddedTexture
+                });
+
+                model.traverse(function (child) {
+                    if (child.isMesh) {
+                        child.material = material;
                         child.frustumCulled = false;
                     }
                 });
+
+                if (!embeddedTexture) new THREE.TextureLoader().load(
+                    TEXTURE_URL,
+                    function (texture) {
+                        texture.colorSpace = THREE.SRGBColorSpace;
+                        material.map = texture;
+                        material.color.set(0xffffff);
+                        material.needsUpdate = true;
+                        map.triggerRepaint();
+                    },
+                    undefined,
+                    function () {
+                        console.info("テクスチャが無いため、単色で表示します:", TEXTURE_URL);
+                    }
+                );
 
                 // 歩行アニメーション
                 const clip = model.animations[0];
