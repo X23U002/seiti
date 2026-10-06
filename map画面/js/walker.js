@@ -161,6 +161,7 @@ function createWalkerLayer(map) {
     let character = null;
     let mixer = null;
     let walkAction = null;
+    let modelLoaded = false;
     let lastFrameTime = performance.now();
 
     const mapElement = document.getElementById("map");
@@ -169,49 +170,10 @@ function createWalkerLayer(map) {
         new FBXLoader().load(
             MODEL_URL,
             function (model) {
-                // FBXに埋め込まれたテクスチャがあれば、それを使う
-                let embeddedTexture = null;
+                applyMaterial(model);
+                const normalized = normalizeSize(model);
 
-                model.traverse(function (child) {
-                    if (child.isMesh) {
-                        [].concat(child.material).forEach(function (original) {
-                            if (original && original.map) {
-                                embeddedTexture = original.map;
-                            }
-                        });
-                    }
-                });
-
-                // 灰色の既定マテリアルを置き換える
-                // テクスチャが無ければ単色で表示し、読み込めたら貼り替える
-                const material = new THREE.MeshLambertMaterial({
-                    color: embeddedTexture ? 0xffffff : MODEL_COLOR,
-                    map: embeddedTexture
-                });
-
-                model.traverse(function (child) {
-                    if (child.isMesh) {
-                        child.material = material;
-                        child.frustumCulled = false;
-                    }
-                });
-
-                if (!embeddedTexture) new THREE.TextureLoader().load(
-                    TEXTURE_URL,
-                    function (texture) {
-                        texture.colorSpace = THREE.SRGBColorSpace;
-                        material.map = texture;
-                        material.color.set(0xffffff);
-                        material.needsUpdate = true;
-                        map.triggerRepaint();
-                    },
-                    undefined,
-                    function () {
-                        console.info("テクスチャが無いため、単色で表示します:", TEXTURE_URL);
-                    }
-                );
-
-                // 歩行アニメーション
+                // 歩行アニメーション（無いモデルは歩かずに位置だけ移動する）
                 const clip = model.animations[0];
 
                 if (clip) {
@@ -222,7 +184,8 @@ function createWalkerLayer(map) {
                     walkAction.paused = true;
                 }
 
-                character.add(model);
+                character.add(normalized);
+                modelLoaded = true;
                 map.triggerRepaint();
             },
             undefined,
@@ -230,6 +193,73 @@ function createWalkerLayer(map) {
                 console.warn("3Dキャラクターの読み込みに失敗しました:", error);
             }
         );
+    }
+
+    // マテリアル（色・テクスチャ）の設定
+    function applyMaterial(model) {
+        let hasEmbeddedTexture = false;
+
+        model.traverse(function (child) {
+            if (child.isMesh) {
+                child.frustumCulled = false;
+                [].concat(child.material).forEach(function (original) {
+                    if (original && original.map) {
+                        hasEmbeddedTexture = true;
+                    }
+                });
+            }
+        });
+
+        // FBXにテクスチャが埋め込まれていれば、FBXのマテリアルをそのまま使う
+        // （ノーマルマップなども一緒に使われる）
+        if (hasEmbeddedTexture) {
+            return;
+        }
+
+        // テクスチャが無い時は単色で表示し、TEXTURE_URL の画像が読み込めたら貼り替える
+        const material = new THREE.MeshLambertMaterial({
+            color: MODEL_COLOR
+        });
+
+        model.traverse(function (child) {
+            if (child.isMesh) {
+                child.material = material;
+            }
+        });
+
+        new THREE.TextureLoader().load(
+            TEXTURE_URL,
+            function (texture) {
+                texture.colorSpace = THREE.SRGBColorSpace;
+                material.map = texture;
+                material.color.set(0xffffff);
+                material.needsUpdate = true;
+                map.triggerRepaint();
+            },
+            undefined,
+            function () {
+                console.info("テクスチャが無いため、単色で表示します:", TEXTURE_URL);
+            }
+        );
+    }
+
+    // モデルによって大きさの単位が違う（1 や 190cm など）ため、
+    // 高さを 1 にそろえ、足元が地面（原点）に来るように位置を合わせる
+    function normalizeSize(model) {
+        model.updateMatrixWorld(true);
+
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+
+        model.position.x -= center.x;
+        model.position.y -= box.min.y;
+        model.position.z -= center.z;
+
+        const wrapper = new THREE.Group();
+        wrapper.scale.setScalar(1 / (size.y || 1));
+        wrapper.add(model);
+        return wrapper;
     }
 
     // アニメーション自体が前に進む動き（ルートモーション）を消し、
@@ -290,7 +320,7 @@ function createWalkerLayer(map) {
         },
 
         render: function (gl, matrix) {
-            if (!state.position || !mixer) {
+            if (!state.position || !modelLoaded) {
                 return;
             }
 
@@ -309,7 +339,9 @@ function createWalkerLayer(map) {
                 return;
             }
             // 移動中だけ歩くアニメーションを再生、止まったら立ち姿勢に戻す
-            if (moving) {
+            if (!walkAction) {
+                // アニメーションの無いモデルは何もしない
+            } else if (moving) {
                 walkAction.paused = false;
                 mixer.update(Math.min(delta, 0.1));
             } else if (!walkAction.paused) {
