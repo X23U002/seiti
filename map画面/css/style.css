@@ -1629,3 +1629,14 @@ body {
 .popup-image.no-image::after {
     content: "⛩️ 画像はまだありません";
 }
+
+
+/* =========================================================
+   現在地の3Dキャラクター
+   キャラクター表示中は青い現在地の点を隠す（足元に重なるため）
+   ※ 誤差の範囲を示す薄い円はそのまま表示する
+========================================================= */
+#map.walker-active .mapboxgl-user-location-dot,
+#map.walker-active .mapboxgl-user-location-heading {
+    display: none;
+}
