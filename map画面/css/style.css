@@ -1698,3 +1698,9 @@ body {
 #walk-test-panel button[hidden] {
     display: none;
 }
+
+
+/* ログイン確認が終わるまで画面を隠す（auth.js） */
+.auth-pending body {
+    visibility: hidden;
+}

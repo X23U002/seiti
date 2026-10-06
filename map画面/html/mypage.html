@@ -1,11 +1,15 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" data-require-login>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>マイページ - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css">
     <link rel="stylesheet" href="../css/mypage.css">
+    <!-- ログイン（Firebase Authentication） -->
+    <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-auth-compat.js"></script>
+    <script src="../js/auth.js"></script>
 </head>
 <body>
 
@@ -20,8 +24,8 @@
         <section class="profile-card">
             <div class="profile-icon" id="current-icon" aria-hidden="true">👤</div>
             <div class="profile-info">
-                <h2 class="user-name" id="current-name">田中 太郎</h2>
-                <p class="user-id">ID: u1</p>
+                <h2 class="user-name" id="current-name"></h2>
+                <p class="user-id" id="current-email"></p>
             </div>
             <button type="button" class="edit-profile-btn" onclick="openEditModal()">✎ 編集</button>
         </section>
@@ -72,7 +76,7 @@
             <!-- 名前入力 -->
             <div class="form-group">
                 <label for="edit-name-input">名前</label>
-                <input type="text" id="edit-name-input" value="田中 太郎">
+                <input type="text" id="edit-name-input">
                 <p class="error-text">名前を入力してください。</p>
             </div>
 
@@ -91,7 +95,8 @@
             </div>
 
             <!-- 保存ボタン -->
-            <button type="button" class="btn btn-primary" onclick="saveProfile()">保存する</button>
+            <p class="form-error" id="edit-error" role="alert" hidden></p>
+            <button type="button" class="btn btn-primary" id="save-profile-btn" onclick="saveProfile()">保存する</button>
         </div>
     </div>
 

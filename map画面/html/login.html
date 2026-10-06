@@ -6,6 +6,10 @@
     <title>ログイン - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css">
     <link rel="stylesheet" href="../css/login.css">
+    <!-- ログイン（Firebase Authentication） -->
+    <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-auth-compat.js"></script>
+    <script src="../js/auth.js"></script>
 </head>
 <body>
 
@@ -15,21 +19,26 @@
         <p class="app-catch">アニメの聖地をめぐって、スタンプを集めよう</p>
 
         <!-- formにしてEnterキーでもログインできるようにする -->
-        <form class="login-form" onsubmit="goToMap(); return false;">
+        <form class="login-form" onsubmit="login(); return false;" novalidate>
+            <!-- ログインに失敗した時のメッセージ -->
+            <p class="form-error" id="login-error" role="alert" hidden></p>
+
             <div class="form-group">
-                <label for="userid">ユーザーID</label>
-                <input type="text" id="userid" placeholder="(例) u1" autocomplete="username">
+                <label for="email">メールアドレス</label>
+                <input type="email" id="email" placeholder="(例) seiti150@seiti.ac.jp" autocomplete="email">
+                <p class="error-text">メールアドレスを入力してください。</p>
             </div>
 
             <div class="form-group">
                 <label for="password">パスワード</label>
                 <div class="password-wrap">
-                    <input type="password" id="password" placeholder="(例) seiti555" autocomplete="current-password">
+                    <input type="password" id="password" placeholder="パスワード" autocomplete="current-password">
                     <button type="button" class="password-toggle" data-target="password" aria-pressed="false" aria-label="パスワードを表示">表示</button>
                 </div>
+                <p class="error-text">パスワードを入力してください。</p>
             </div>
 
-            <button type="submit" class="btn btn-primary">ログイン</button>
+            <button type="submit" class="btn btn-primary" id="login-btn">ログイン</button>
         </form>
 
         <div class="links">

@@ -1,43 +1,106 @@
-// ログイン画面に戻る
-function goToLogin() {
-    window.location.href = "login.html";
+// 新規登録画面（入力 → 確認 → 完了 を1つの画面で切り替える）
+// ※ パスワードを別の画面へ持ち越さないよう、確認も同じ画面で行う
+
+// すでにログインしていればマップへ
+window.seitiAuth.ready.then(function (user) {
+    if (window.seitiAuth.isLoggedIn(user)) {
+        location.replace("map.html");
+    }
+});
+
+// 進捗表示を切り替える
+function setStep(current) {
+    const order = ["input", "confirm", "done"];
+    order.forEach(function (name, index) {
+        const step = document.getElementById("step-" + name);
+        const currentIndex = order.indexOf(current);
+        step.classList.toggle("active", index === currentIndex);
+        step.classList.toggle("done", index < currentIndex);
+        step.querySelector("span").textContent = index < currentIndex ? "✓" : String(index + 1);
+        if (index === currentIndex) {
+            step.setAttribute("aria-current", "step");
+        } else {
+            step.removeAttribute("aria-current");
+        }
+    });
 }
 
-// 入力チェックをしてから登録確認画面へ進む
+// 入力画面を表示
+function showInput() {
+    document.getElementById("input-section").hidden = false;
+    document.getElementById("confirm-section").hidden = true;
+    setStep("input");
+    window.scrollTo(0, 0);
+}
+
+// 戻るボタン：確認画面なら入力画面へ、入力画面ならログイン画面へ
+function goBack() {
+    if (!document.getElementById("confirm-section").hidden) {
+        showInput();
+    } else {
+        location.href = "login.html";
+    }
+}
+
+// 入力チェックをしてから確認画面へ
 function goToConfirm() {
     const name = document.getElementById("username").value.trim();
-    const password = document.getElementById("password").value;
     const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const passwordConfirm = document.getElementById("password-confirm").value;
 
     const nameError = name === "";
-    const passwordError = !/^[A-Za-z0-9]{8,}$/.test(password);
     const emailError = !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const passwordError = !/^[A-Za-z0-9]{8,}$/.test(password);
+    const confirmError = passwordConfirm !== password;
 
     setFieldError("username", nameError);
-    setFieldError("password", passwordError);
     setFieldError("email", emailError);
+    setFieldError("password", passwordError);
+    setFieldError("password-confirm", confirmError);
 
-    if (nameError || passwordError || emailError) {
-        // 最初のエラー項目にカーソルを移す
-        const firstError = document.querySelector(".form-group.has-error input");
-        if (firstError) firstError.focus();
+    if (nameError || emailError || passwordError || confirmError) {
+        document.querySelector(".form-group.has-error input").focus();
         return;
     }
 
-    // 確認画面で表示するため一時的に保存（パスワードは文字数だけ）
-    sessionStorage.setItem("newAccount", JSON.stringify({
-        name: name,
-        email: email,
-        passwordLength: password.length
-    }));
+    document.getElementById("confirm-name").textContent = name;
+    document.getElementById("confirm-email").textContent = email;
+    document.getElementById("confirm-password").textContent = "•".repeat(password.length) + "（非表示）";
+    document.getElementById("register-error").hidden = true;
 
-    window.location.href = "confirm.html";
+    document.getElementById("input-section").hidden = true;
+    document.getElementById("confirm-section").hidden = false;
+    setStep("confirm");
+    window.scrollTo(0, 0);
 }
 
-// 確認画面から戻ってきたときは入力内容を復元する
-(function restoreInput() {
-    const saved = JSON.parse(sessionStorage.getItem("newAccount") || "null");
-    if (!saved) return;
-    document.getElementById("username").value = saved.name;
-    document.getElementById("email").value = saved.email;
-})();
+// 登録する
+async function register() {
+    const name = document.getElementById("username").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const button = document.getElementById("register-btn");
+    const errorBox = document.getElementById("register-error");
+
+    button.disabled = true;
+    button.textContent = "登録中…";
+    errorBox.hidden = true;
+
+    try {
+        await window.seitiAuth.register(name, email, password);
+        setStep("done");
+        document.getElementById("complete-modal").style.display = "flex";
+    } catch (error) {
+        console.warn("登録に失敗しました:", error);
+        errorBox.textContent = window.seitiAuth.errorMessage(error);
+        errorBox.hidden = false;
+        button.disabled = false;
+        button.textContent = "登録する";
+    }
+}
+
+// マップ画面へ
+function goToMap() {
+    location.replace("map.html");
+}

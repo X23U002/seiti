@@ -23,8 +23,13 @@ function closeLogoutModal() {
 }
 
 // ログアウト処理
-function logout() {
-    window.location.href = "login.html";
+async function logout() {
+    try {
+        await window.seitiAuth.logout();
+    } catch (error) {
+        console.warn("ログアウトに失敗しました:", error);
+    }
+    window.location.replace("login.html");
 }
 
 // 獲得スタンプ数を表示（スタンプ画面と同じデータを使う）
@@ -39,7 +44,9 @@ function logout() {
 })();
 
 // ==========================================
-// プロフィール（名前・アイコン）を端末に保存して、次に開いた時も表示する
+// プロフィール
+// ・名前とメールアドレスはログイン中のアカウント（Firebase）から表示する
+// ・アイコンは端末に保存して、次に開いた時も表示する
 // ==========================================
 const PROFILE_STORAGE_KEY = "seitiProfile";
 
@@ -51,9 +58,9 @@ function loadProfile() {
     }
 }
 
-function saveProfileToStorage(name, icon) {
+function saveProfileToStorage(icon) {
     try {
-        localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify({ name: name, icon: icon }));
+        localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify({ icon: icon }));
     } catch (e) {
         // 保存できない環境（プライベートモード等）では画面の表示だけ変える
     }
@@ -61,9 +68,16 @@ function saveProfileToStorage(name, icon) {
 
 (function showSavedProfile() {
     const profile = loadProfile();
-    if (!profile) return;
-    if (profile.name) document.getElementById("current-name").textContent = profile.name;
-    if (profile.icon) document.getElementById("current-icon").textContent = profile.icon;
+    if (profile && profile.icon) {
+        document.getElementById("current-icon").textContent = profile.icon;
+    }
+
+    // ログイン中のアカウントの名前とメールアドレス
+    window.seitiAuth.ready.then(function (user) {
+        if (!window.seitiAuth.isLoggedIn(user)) return;
+        document.getElementById("current-name").textContent = user.displayName || "名前未設定";
+        document.getElementById("current-email").textContent = user.email || "";
+    });
 })();
 
 // 選択中のアイコンを一時的に覚えておく変数
@@ -76,6 +90,7 @@ function openEditModal() {
     const currentIcon = document.getElementById("current-icon").innerText;
     document.getElementById("edit-name-input").value = currentName;
     setFieldError("edit-name-input", false);
+    document.getElementById("edit-error").hidden = true;
 
     document.querySelectorAll(".icon-option").forEach(function (opt) {
         if (opt.textContent.trim() === currentIcon) {
@@ -107,7 +122,7 @@ function selectIcon(element, icon) {
 }
 
 // プロフィールを保存する処理
-function saveProfile() {
+async function saveProfile() {
     const newName = document.getElementById("edit-name-input").value.trim();
 
     // 名前が空っぽの場合はエラー
@@ -118,8 +133,25 @@ function saveProfile() {
     }
 
     // 画面上の名前とアイコンを、新しいものに書き換える
+    const button = document.getElementById("save-profile-btn");
+    const errorBox = document.getElementById("edit-error");
+    button.disabled = true;
+    errorBox.hidden = true;
+
+    try {
+        // 名前はアカウント（Firebase）に保存する
+        await window.seitiAuth.updateName(newName);
+    } catch (error) {
+        console.warn("名前の保存に失敗しました:", error);
+        errorBox.textContent = window.seitiAuth.errorMessage(error);
+        errorBox.hidden = false;
+        button.disabled = false;
+        return;
+    }
+
     document.getElementById("current-name").innerText = newName;
     document.getElementById("current-icon").innerText = tempSelectedIcon;
-    saveProfileToStorage(newName, tempSelectedIcon);
+    saveProfileToStorage(tempSelectedIcon);
+    button.disabled = false;
     closeEditModal();
 }
