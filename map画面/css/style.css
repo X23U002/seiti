@@ -1640,3 +1640,61 @@ body {
 #map.walker-active .mapboxgl-user-location-heading {
     display: none;
 }
+
+
+/* =========================================================
+   3Dキャラクターの動作テスト用パネル（map.html?walktest の時だけ表示）
+========================================================= */
+#walk-test-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 40px;
+    z-index: 300;
+    max-width: calc(100vw - 110px);
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .95);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .2);
+    font-size: 13px;
+    color: #2c3e50;
+}
+
+#walk-test-panel strong {
+    display: block;
+    margin-bottom: 6px;
+    color: #0b3c5d;
+}
+
+#walk-test-panel ul {
+    margin: 0 0 8px;
+    padding-left: 18px;
+    line-height: 1.8;
+}
+
+#walk-test-panel kbd {
+    display: inline-block;
+    min-width: 20px;
+    margin-right: 2px;
+    padding: 0 4px;
+    border: 1px solid #c9d1d8;
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: #f6f8f9;
+    font-family: inherit;
+    font-size: 12px;
+    text-align: center;
+}
+
+#walk-test-panel button {
+    width: 100%;
+    height: 36px;
+    border-radius: 8px;
+    background: #0b3c5d;
+    color: white;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+#walk-test-panel button[hidden] {
+    display: none;
+}

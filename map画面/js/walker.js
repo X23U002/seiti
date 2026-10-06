@@ -22,7 +22,11 @@ const MODEL_URL = "../models/walking.fbx";
 // 画面上でのキャラクターの高さ（px）。ズームしても同じ大きさに見える
 const MODEL_HEIGHT_PX = 130;
 
-// キャラクターの色
+// キャラクターのテクスチャ（画像）。walking.fbx と同じ時に書き出した画像を置く
+// ※ FBXの中にテクスチャが埋め込まれている場合は、そちらを優先して使う
+const TEXTURE_URL = "../models/walking_texture.png";
+
+// テクスチャが読み込めなかった時の色
 const MODEL_COLOR = 0x2f80c0;
 
 // これより小さい移動はGPSの揺れとみなして歩かない（m）
@@ -36,6 +40,17 @@ const MAX_MOVE_DURATION_MS = 2000;
 const TURN_SPEED = 8;
 
 const LAYER_ID = "walker-3d";
+
+// 動作テストモード（map.html?walktest で開いた時）の歩く速さ（画面上の px/秒）
+// ズームを変えても同じ速さで動いて見えるよう、画面上の距離で決めている
+const TEST_SPEED_PX = 150;
+
+// 動作テストモードの状態
+const test = {
+    enabled: false,
+    // 押されている W/A/S/D キー
+    keys: new Set()
+};
 
 // ---------------------------------------------------------
 // 位置・向きの状態
@@ -76,6 +91,11 @@ function bearingBetween(a, b) {
     return Math.atan2(dLng, dLat);
 }
 
+// 地図上で 1px が何mか（Mapboxのタイルは512px）
+function metersPerPixel(lat, zoom) {
+    return 40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * Math.pow(2, zoom));
+}
+
 // 角度の差を -π〜π に収める（遠回りして回転しないように）
 function angleDiff(target, current) {
     return Math.atan2(Math.sin(target - current), Math.cos(target - current));
@@ -84,7 +104,8 @@ function angleDiff(target, current) {
 // ---------------------------------------------------------
 // 新しい位置を受け取る
 // ---------------------------------------------------------
-function moveTo(lat, lng, accuracy) {
+// durationMs を指定すると、その時間をかけて歩く（動作テスト用）
+function moveTo(lat, lng, accuracy, durationMs) {
     const next = { lat: lat, lng: lng };
     const now = performance.now();
 
@@ -111,12 +132,48 @@ function moveTo(lat, lng, accuracy) {
     state.from = { ...state.position };
     state.to = next;
     state.moveStart = now;
-    state.moveDuration = Math.min(
+    state.moveDuration = durationMs || Math.min(
         MAX_MOVE_DURATION_MS,
         Math.max(MIN_MOVE_DURATION_MS, sinceLastFix)
     );
     state.targetHeading = bearingBetween(state.from, state.to);
     state.lastFixTime = now;
+}
+
+// W/A/S/D キーで歩かせる（動作テスト用）。歩いたら true を返す
+// bearing は地図の回転角（度）。W は常に画面の上方向に進む
+function updateByKeys(delta, bearing, zoom) {
+    if (!state.position || test.keys.size === 0) {
+        return false;
+    }
+
+    let x = 0;
+    let y = 0;
+    if (test.keys.has("w")) y += 1;
+    if (test.keys.has("s")) y -= 1;
+    if (test.keys.has("d")) x += 1;
+    if (test.keys.has("a")) x -= 1;
+
+    if (x === 0 && y === 0) {
+        return false;
+    }
+
+    // 画面上の方向 → 地図上の方位（北=0、時計回り）
+    const direction = Math.atan2(x, y) + bearing * Math.PI / 180;
+    const step =
+        TEST_SPEED_PX * metersPerPixel(state.position.lat, zoom) * Math.min(delta, 0.1);
+
+    state.position = {
+        lat: state.position.lat + Math.cos(direction) * step / 111320,
+        lng: state.position.lng + Math.sin(direction) * step /
+            (111320 * Math.cos(state.position.lat * Math.PI / 180))
+    };
+    state.targetHeading = direction;
+
+    // クリックで指定した移動は取り消す
+    state.from = null;
+    state.to = null;
+    return true;
 }
 
 // 移動中なら位置を進める。移動中かどうかを返す
@@ -157,6 +214,7 @@ function createWalkerLayer(map) {
     let character = null;
     let mixer = null;
     let walkAction = null;
+    let modelLoaded = false;
     let lastFrameTime = performance.now();
 
     const mapElement = document.getElementById("map");
@@ -165,28 +223,22 @@ function createWalkerLayer(map) {
         new FBXLoader().load(
             MODEL_URL,
             function (model) {
-                // 灰色の既定マテリアルを、見やすい色に置き換える
-                model.traverse(function (child) {
-                    if (child.isMesh) {
-                        child.material = new THREE.MeshLambertMaterial({
-                            color: MODEL_COLOR
-                        });
-                        child.frustumCulled = false;
-                    }
-                });
+                applyMaterial(model);
+                const normalized = normalizeSize(model);
 
-                // 歩行アニメーション
+                // 歩行アニメーション（無いモデルは歩かずに位置だけ移動する）
                 const clip = model.animations[0];
 
                 if (clip) {
-                    removeRootMotion(clip);
+                    removeRootMotion(clip, model);
                     mixer = new THREE.AnimationMixer(model);
                     walkAction = mixer.clipAction(clip);
                     walkAction.play();
                     walkAction.paused = true;
                 }
 
-                character.add(model);
+                character.add(normalized);
+                modelLoaded = true;
                 map.triggerRepaint();
             },
             undefined,
@@ -196,17 +248,95 @@ function createWalkerLayer(map) {
         );
     }
 
+    // マテリアル（色・テクスチャ）の設定
+    function applyMaterial(model) {
+        let hasEmbeddedTexture = false;
+
+        model.traverse(function (child) {
+            if (child.isMesh) {
+                child.frustumCulled = false;
+                [].concat(child.material).forEach(function (original) {
+                    if (original && original.map) {
+                        hasEmbeddedTexture = true;
+                    }
+                });
+            }
+        });
+
+        // FBXにテクスチャが埋め込まれていれば、FBXのマテリアルをそのまま使う
+        // （ノーマルマップなども一緒に使われる）
+        if (hasEmbeddedTexture) {
+            return;
+        }
+
+        // テクスチャが無い時は単色で表示し、TEXTURE_URL の画像が読み込めたら貼り替える
+        const material = new THREE.MeshLambertMaterial({
+            color: MODEL_COLOR
+        });
+
+        model.traverse(function (child) {
+            if (child.isMesh) {
+                child.material = material;
+            }
+        });
+
+        new THREE.TextureLoader().load(
+            TEXTURE_URL,
+            function (texture) {
+                texture.colorSpace = THREE.SRGBColorSpace;
+                material.map = texture;
+                material.color.set(0xffffff);
+                material.needsUpdate = true;
+                map.triggerRepaint();
+            },
+            undefined,
+            function () {
+                console.info("テクスチャが無いため、単色で表示します:", TEXTURE_URL);
+            }
+        );
+    }
+
+    // モデルによって大きさの単位が違う（1 や 190cm など）ため、
+    // 高さを 1 にそろえ、足元が地面（原点）に来るように位置を合わせる
+    function normalizeSize(model) {
+        model.updateMatrixWorld(true);
+
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+
+        model.position.x -= center.x;
+        model.position.y -= box.min.y;
+        model.position.z -= center.z;
+
+        const wrapper = new THREE.Group();
+        wrapper.scale.setScalar(1 / (size.y || 1));
+        wrapper.add(model);
+        return wrapper;
+    }
+
     // アニメーション自体が前に進む動き（ルートモーション）を消し、
     // その場で足踏みするようにする。位置はGPSで動かすため
-    function removeRootMotion(clip) {
+    // また、アニメーションの腰の高さがモデル本来の腰の高さとずれていると
+    // 歩く時に宙に浮いたり沈んだりするため、モデル本来の位置に合わせる
+    function removeRootMotion(clip, model) {
         clip.tracks.forEach(function (track) {
             if (!/Hips\.position$/.test(track.name)) {
                 return;
             }
+
             const values = track.values;
+            const hips = model.getObjectByName(track.name.replace(/\.position$/, ""));
+
+            // モデル本来の腰の位置（無ければアニメーションの最初の位置）
+            const baseX = hips ? hips.position.x : values[0];
+            const baseZ = hips ? hips.position.z : values[2];
+            const offsetY = hips ? hips.position.y - values[1] : 0;
+
             for (let i = 0; i < values.length; i += 3) {
-                values[i] = values[0];
-                values[i + 2] = values[2];
+                values[i] = baseX;
+                values[i + 1] += offsetY;
+                values[i + 2] = baseZ;
             }
         });
     }
@@ -254,7 +384,7 @@ function createWalkerLayer(map) {
         },
 
         render: function (gl, matrix) {
-            if (!state.position || !mixer) {
+            if (!state.position || !modelLoaded) {
                 return;
             }
 
@@ -263,7 +393,9 @@ function createWalkerLayer(map) {
             lastFrameTime = now;
 
             // 2D表示中も位置だけは更新しておく（3Dに切り替えた時に正しい場所に出す）
-            const moving = updatePosition(now);
+            const moving =
+                updateByKeys(delta, map.getBearing(), map.getZoom()) ||
+                updatePosition(now);
 
             // 2D表示ではキャラクターを隠し、青い現在地の点を表示する
             const visible = is3DMode();
@@ -273,7 +405,9 @@ function createWalkerLayer(map) {
                 return;
             }
             // 移動中だけ歩くアニメーションを再生、止まったら立ち姿勢に戻す
-            if (moving) {
+            if (!walkAction) {
+                // アニメーションの無いモデルは何もしない
+            } else if (moving) {
                 walkAction.paused = false;
                 mixer.update(Math.min(delta, 0.1));
             } else if (!walkAction.paused) {
@@ -292,10 +426,10 @@ function createWalkerLayer(map) {
             const mercator = mapboxgl.MercatorCoordinate.fromLngLat(lngLat, 0);
 
             // 画面上で MODEL_HEIGHT_PX になる大きさ（m）
-            const metersPerPixel =
-                40075016.686 * Math.cos(state.position.lat * Math.PI / 180) /
-                (512 * Math.pow(2, map.getZoom()));
-            const heightMeters = Math.max(2, MODEL_HEIGHT_PX * metersPerPixel);
+            const heightMeters = Math.max(
+                2,
+                MODEL_HEIGHT_PX * metersPerPixel(state.position.lat, map.getZoom())
+            );
             const scale = mercator.meterInMercatorCoordinateUnits() * heightMeters;
 
             // --- 向き ---
@@ -350,7 +484,7 @@ export function initWalker(map, geolocate) {
     // （PCなどでは現在地の通知が最初の1回しか来ないことがあるため）
     const lastPosition = geolocate._lastKnownPosition;
 
-    if (lastPosition) {
+    if (lastPosition && !test.enabled) {
         moveTo(
             lastPosition.coords.latitude,
             lastPosition.coords.longitude,
@@ -360,7 +494,7 @@ export function initWalker(map, geolocate) {
         navigator.geolocation.getCurrentPosition(
             function (position) {
                 // 先に通知で位置を受け取っていたら何もしない
-                if (state.position) {
+                if (state.position || test.enabled) {
                     return;
                 }
                 moveTo(
@@ -382,6 +516,10 @@ export function initWalker(map, geolocate) {
 
     // 現在地が更新されたらキャラクターを動かす
     geolocate.on("geolocate", function (event) {
+        // 動作テスト中はGPSで位置を戻さない
+        if (test.enabled) {
+            return;
+        }
         moveTo(
             event.coords.latitude,
             event.coords.longitude,
@@ -396,4 +534,97 @@ export function initWalker(map, geolocate) {
         moveTo(lat, lng, 0);
         map.triggerRepaint();
     };
+
+    // map.html?walktest で開いた時は動作テストモードにする
+    if (new URLSearchParams(location.search).has("walktest")) {
+        startWalkTest(map);
+    }
+}
+
+// ---------------------------------------------------------
+// 動作テストモード
+// ・地図をクリックすると、その場所まで歩く
+// ・W/A/S/D キーを押している間、画面の上下左右に歩く
+// ---------------------------------------------------------
+function startWalkTest(map) {
+    test.enabled = true;
+
+    // 位置情報が使えない時のために、地図の中心からスタートする
+    if (!state.position) {
+        const center = map.getCenter();
+        moveTo(center.lat, center.lng, 0);
+    }
+
+    // 操作説明のパネル
+    const panel = document.createElement("div");
+    panel.id = "walk-test-panel";
+    panel.innerHTML = `
+        <strong>🚶 キャラクターの動作テスト</strong>
+        <ul>
+            <li>地図をクリック：その場所まで歩く</li>
+            <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>：押している間、上下左右に歩く（地図が追いかける）</li>
+        </ul>
+        <button type="button" id="walk-test-3d">3D表示にする</button>
+    `;
+    document.body.appendChild(panel);
+
+    // キャラクターは3D表示の時だけ見えるので、3Dへ切り替えるボタンを用意する
+    const button3d = panel.querySelector("#walk-test-3d");
+    function updateButton() {
+        button3d.hidden = is3DMode();
+    }
+    button3d.addEventListener("click", function () {
+        if (!is3DMode()) {
+            document.getElementById("toggle-view-btn")?.click();
+        }
+        updateButton();
+    });
+    document.getElementById("toggle-view-btn")?.addEventListener("click", function () {
+        setTimeout(updateButton, 0);
+    });
+    updateButton();
+
+    // クリックした場所まで歩く（画面上で遠いほど時間をかける）
+    map.on("click", function (event) {
+        if (!state.position) {
+            return;
+        }
+        const target = { lat: event.lngLat.lat, lng: event.lngLat.lng };
+        const from = map.project([state.position.lng, state.position.lat]);
+        const pixels = Math.hypot(event.point.x - from.x, event.point.y - from.y);
+        const duration = Math.min(6000, Math.max(300, pixels / TEST_SPEED_PX * 1000));
+        moveTo(target.lat, target.lng, 0, duration);
+        map.triggerRepaint();
+    });
+
+    // W/A/S/D キー（検索欄などに入力している時は反応しない）
+    document.addEventListener("keydown", function (event) {
+        const key = event.key.toLowerCase();
+        if (!["w", "a", "s", "d"].includes(key)) {
+            return;
+        }
+        if (event.target.closest && event.target.closest("input, textarea, [contenteditable='true']")) {
+            return;
+        }
+        test.keys.add(key);
+        map.triggerRepaint();
+    });
+
+    document.addEventListener("keyup", function (event) {
+        test.keys.delete(event.key.toLowerCase());
+    });
+
+    // ウィンドウから離れたらキーを離したことにする
+    window.addEventListener("blur", function () {
+        test.keys.clear();
+    });
+
+    // キーで歩いている間は、キャラクターが画面の外に出ないよう地図を追いかけさせる
+    function follow() {
+        if (test.keys.size > 0 && state.position) {
+            map.setCenter([state.position.lng, state.position.lat]);
+        }
+        requestAnimationFrame(follow);
+    }
+    follow();
 }
