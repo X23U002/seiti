@@ -333,10 +333,47 @@ export function initWalker(map, geolocate) {
         }
     }
 
-    if (map.isStyleLoaded()) {
+    // スタイルの読み込みが終わっていればすぐ追加、まだなら終わるのを待つ。
+    // ※ map.isStyleLoaded() は建物などのタイルを読み込んでいる間も false を返すため、
+    //   判定には使わない（使うと、もう来ない style.load を待ち続けて表示されない）
+    try {
         addLayer();
-    } else {
+    } catch (error) {
         map.once("style.load", addLayer);
+    }
+
+    // このファイルの読み込み前に取得済みの現在地があれば、そこに表示する
+    // （PCなどでは現在地の通知が最初の1回しか来ないことがあるため）
+    const lastPosition = geolocate._lastKnownPosition;
+
+    if (lastPosition) {
+        moveTo(
+            lastPosition.coords.latitude,
+            lastPosition.coords.longitude,
+            lastPosition.coords.accuracy
+        );
+    } else if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function (position) {
+                // 先に通知で位置を受け取っていたら何もしない
+                if (state.position) {
+                    return;
+                }
+                moveTo(
+                    position.coords.latitude,
+                    position.coords.longitude,
+                    position.coords.accuracy
+                );
+                map.triggerRepaint();
+            },
+            function () {
+                // 位置情報が使えない時はキャラクターを表示しない
+            },
+            {
+                enableHighAccuracy: true,
+                maximumAge: 60000
+            }
+        );
     }
 
     // 現在地が更新されたらキャラクターを動かす
