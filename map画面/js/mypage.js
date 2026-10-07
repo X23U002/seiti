@@ -24,18 +24,162 @@ function closeLogoutModal() {
 
 // ログアウト処理
 function logout() {
+    try {
+        localStorage.removeItem("seitiCurrentUserId");
+    } catch (e) {
+        // 保存できない環境では何もしない
+    }
     window.location.href = "login.html";
 }
 
-// 獲得スタンプ数を表示（スタンプ画面と同じデータを使う）
-(function showStampCount() {
-    let stamps = [];
+// ==========================================
+// 巡礼の記録（獲得スタンプ・作品ごとの達成度・最近のスタンプ）
+// スタンプは stamp.html と同じ collectedStamps、
+// 作品ごとの聖地の件数は地図画面が記録した seitiSpotSummary を使う
+// ==========================================
+function readJson(key, fallback) {
     try {
-        stamps = JSON.parse(localStorage.getItem("collectedStamps")) || [];
+        const value = JSON.parse(localStorage.getItem(key));
+        return value === null ? fallback : value;
     } catch (e) {
-        stamps = [];
+        return fallback;
     }
-    document.getElementById("stamp-count").textContent = Array.isArray(stamps) ? stamps.length : 0;
+}
+
+(function renderRecord() {
+    let stamps = readJson("collectedStamps", []);
+    if (!Array.isArray(stamps)) stamps = [];
+
+    const summary = readJson("seitiSpotSummary", null);
+
+    // 同じスポットのスタンプは1つと数える
+    const uniqueStamps = [];
+    const seen = new Set();
+    stamps.forEach(function (stamp) {
+        if (!seen.has(String(stamp.id))) {
+            seen.add(String(stamp.id));
+            uniqueStamps.push(stamp);
+        }
+    });
+
+    // --- 集計 ---
+    const animeNames = new Set(uniqueStamps.map(function (s) { return s.anime; }));
+    document.getElementById("stamp-count").textContent = uniqueStamps.length;
+    document.getElementById("anime-count").textContent = animeNames.size;
+
+    if (summary && summary.total > 0) {
+        document.getElementById("progress-rate").textContent =
+            Math.round(uniqueStamps.length / summary.total * 100);
+    }
+
+    // --- 作品ごとの達成度 ---
+    const progressList = document.getElementById("progress-list");
+    progressList.innerHTML = "";
+
+    if (!summary || !summary.titles) {
+        progressList.innerHTML =
+            '<li class="list-empty">地図を一度開くと、作品ごとの達成度が表示されます。</li>';
+    } else {
+        Object.keys(summary.titles)
+            .map(function (title) {
+                const got = uniqueStamps.filter(function (s) { return s.anime === title; }).length;
+                const total = summary.titles[title].count;
+                return {
+                    title: title,
+                    color: summary.titles[title].color,
+                    got: Math.min(got, total),
+                    total: total
+                };
+            })
+            // 進んでいる作品を上に
+            .sort(function (a, b) {
+                return (b.got / b.total) - (a.got / a.total) || b.total - a.total;
+            })
+            .forEach(function (item) {
+                const li = document.createElement("li");
+                li.className = "progress-item";
+
+                const head = document.createElement("div");
+                head.className = "progress-head";
+
+                const dot = document.createElement("span");
+                dot.className = "color-dot";
+                dot.style.background = item.color;
+
+                const name = document.createElement("span");
+                name.className = "progress-name";
+                name.textContent = item.title;
+
+                const count = document.createElement("span");
+                count.className = "progress-count";
+                count.textContent = item.got + " / " + item.total;
+
+                head.append(dot, name, count);
+
+                const bar = document.createElement("div");
+                bar.className = "progress-bar";
+                bar.setAttribute("role", "progressbar");
+                bar.setAttribute("aria-label", item.title + "の達成度");
+                bar.setAttribute("aria-valuemin", "0");
+                bar.setAttribute("aria-valuemax", String(item.total));
+                bar.setAttribute("aria-valuenow", String(item.got));
+
+                const fill = document.createElement("span");
+                fill.style.width = (item.got / item.total * 100) + "%";
+                fill.style.background = item.color;
+                bar.appendChild(fill);
+
+                li.append(head, bar);
+                progressList.appendChild(li);
+            });
+    }
+
+    // --- 最近獲得したスタンプ（新しい順に3件） ---
+    const recentList = document.getElementById("recent-list");
+    recentList.innerHTML = "";
+
+    if (uniqueStamps.length === 0) {
+        recentList.innerHTML =
+            '<li class="list-empty">まだスタンプがありません。地図で聖地を訪れてスタンプを集めよう。</li>';
+    } else {
+        uniqueStamps.slice(-3).reverse().forEach(function (stamp) {
+            const li = document.createElement("li");
+            li.className = "recent-item";
+
+            const badge = document.createElement("span");
+            badge.className = "recent-badge";
+            badge.setAttribute("aria-hidden", "true");
+            badge.textContent = "⛩️";
+            if (summary && summary.titles && summary.titles[stamp.anime]) {
+                badge.style.background = summary.titles[stamp.anime].color;
+            }
+
+            const body = document.createElement("div");
+            body.className = "recent-body";
+
+            const name = document.createElement("strong");
+            name.textContent = stamp.name || "無題のスポット";
+
+            const meta = document.createElement("span");
+            meta.textContent = (stamp.anime || "") + (stamp.date ? "・" + stamp.date : "");
+
+            body.append(name, meta);
+            li.append(badge, body);
+            recentList.appendChild(li);
+        });
+    }
+})();
+
+// ログイン中のユーザーIDを表示
+(function showUserId() {
+    let userId = null;
+    try {
+        userId = localStorage.getItem("seitiCurrentUserId");
+    } catch (e) {
+        userId = null;
+    }
+    document.getElementById("current-user-id").textContent =
+        "ID: " + (userId || "ゲスト");
 })();
 
 // ==========================================

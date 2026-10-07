@@ -79,23 +79,23 @@
 
         <ul>
             <li>
-                <a href="mypage.html"><span aria-hidden="true">👤</span>マイページ</a>
+                <a href="mypage.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>マイページ</a>
             </li>
 
             <li>
-                <a href="stamp.html"><span aria-hidden="true">💮</span>獲得スタンプ</a>
+                <a href="stamp.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="6"/><path d="M8.5 14 7 22l5-3 5 3-1.5-8"/></svg>獲得スタンプ</a>
             </li>
 
             <li>
-                <a href="register.html"><span aria-hidden="true">📍</span>聖地登録</a>
+                <a href="register.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-7.2 7-12.5A7 7 0 0 0 5 9.5C5 14.8 12 22 12 22z"/><circle cx="12" cy="9.5" r="2.5"/></svg>聖地登録</a>
             </li>
 
             <li>
-                <a href="information.html"><span aria-hidden="true">✉</span>お問い合わせ</a>
+                <a href="information.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>お問い合わせ</a>
             </li>
 
             <li>
-                <a href="guide.html"><span aria-hidden="true">📖</span>操作ガイド</a>
+                <a href="guide.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4z"/><path d="M20 4h-6a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h7z"/></svg>操作ガイド</a>
             </li>
         </ul>
 
@@ -134,18 +134,28 @@
         aria-label="マイページ"
         title="マイページ"
     >
-        👤
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
     </button>
 
 
-    <!-- 絞り込みボタン -->
-    <button
-        id="filter-btn"
-        type="button"
-        onclick="openFilter()"
-    >
-        🎬 アニメで絞り込み
-    </button>
+    <!-- 絞り込みボタンと、絞り込み中の作品の札（× で外せる） -->
+    <div id="filter-bar">
+
+        <button
+            id="filter-btn"
+            type="button"
+            onclick="openFilter()"
+        >
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>
+            作品で絞り込み
+        </button>
+
+        <div
+            id="filter-chips"
+            aria-live="polite"
+        ></div>
+
+    </div>
 
 
     <!-- アニメ絞り込み画面 -->
@@ -153,7 +163,7 @@
 
         <div class="filter-header">
 
-            <h2>アニメで絞り込み</h2>
+            <h2>作品で絞り込み</h2>
 
             <button
                 type="button"
@@ -168,10 +178,12 @@
         <input
             type="text"
             id="anime-search"
-            placeholder="🔍 作品名で検索"
+            placeholder="作品名で検索"
             aria-label="作品名で検索"
             onkeyup="searchAnime()"
         >
+
+        <p class="filter-note">ピンの色は作品ごとに決まっています。</p>
 
         <div id="anime-list"></div>
 
@@ -213,7 +225,7 @@
         aria-label="現在地へ移動"
         title="現在地へ移動"
     >
-        📍
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
     </button>
 
 
@@ -222,9 +234,11 @@
         id="toggle-view-btn"
         type="button"
         onclick="toggleView()"
-        aria-label="2D・3D表示の切り替え"
+        aria-label="3D表示"
+        aria-pressed="false"
     >
-        🔄 3D
+        <span class="seg seg-2d">2D</span>
+        <span class="seg seg-3d">3D</span>
     </button>
 
 
@@ -236,7 +250,22 @@
 
         <div class="route-header">
 
-            <h3>📍 ルート案内</h3>
+            <!-- 押すと一覧を折りたたむ／広げる -->
+            <button
+                id="route-toggle"
+                type="button"
+                aria-expanded="true"
+                aria-controls="route-body"
+                onclick="toggleRoutePanel()"
+            >
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16"/></svg>
+                <span>ルート案内</span>
+                <span
+                    id="route-count"
+                    class="route-count"
+                >0</span>
+                <svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
 
             <button
                 id="clear-route"
@@ -247,16 +276,20 @@
 
         </div>
 
-        <div id="routeList">
-            <!-- 追加したスポットが表示される -->
-        </div>
+        <div id="route-body">
 
-        <button
-            id="open-google-route"
-            type="button"
-        >
-            Googleマップで案内
-        </button>
+            <div id="routeList">
+                <!-- 追加したスポットが表示される -->
+            </div>
+
+            <button
+                id="open-google-route"
+                type="button"
+            >
+                Googleマップで案内
+            </button>
+
+        </div>
 
     </div>
 
@@ -292,8 +325,14 @@
     ></script>
 
 
-    <!-- Escキーでメニュー・絞り込みを閉じる -->
+    <!-- Escキーでメニュー・絞り込みを閉じる／ルート案内の折りたたみ -->
     <script>
+        function toggleRoutePanel() {
+            const panel = document.getElementById("routePanel");
+            const collapsed = panel.classList.toggle("collapsed");
+            document.getElementById("route-toggle").setAttribute("aria-expanded", String(!collapsed));
+        }
+
         document.addEventListener("keydown", function (event) {
             if (event.key !== "Escape") return;
 

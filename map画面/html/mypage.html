@@ -16,51 +16,86 @@
     </header>
 
     <main class="content">
-        <!-- ユーザープロフィール部分 -->
+        <!-- ユーザープロフィール -->
         <section class="profile-card">
             <div class="profile-icon" id="current-icon" aria-hidden="true">👤</div>
             <div class="profile-info">
                 <h2 class="user-name" id="current-name">田中 太郎</h2>
-                <p class="user-id">ID: u1</p>
+                <p class="user-id" id="current-user-id">ID: ゲスト</p>
             </div>
-            <button type="button" class="edit-profile-btn" onclick="openEditModal()">✎ 編集</button>
+            <button type="button" class="edit-profile-btn" onclick="openEditModal()">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>
+                編集
+            </button>
         </section>
 
-        <!-- 獲得スタンプ数 -->
-        <button type="button" class="stamp-summary" onclick="goToStamp()">
-            <span class="stamp-summary-label">獲得スタンプ</span>
-            <span class="stamp-summary-count"><strong id="stamp-count">0</strong> 個</span>
-        </button>
+        <!-- 集計（獲得スタンプ・巡った作品・達成率） -->
+        <section class="stats" aria-label="巡礼の記録">
+            <button type="button" class="stat" onclick="goToStamp()">
+                <span class="stat-value"><strong id="stamp-count">0</strong>個</span>
+                <span class="stat-label">獲得スタンプ</span>
+            </button>
+            <div class="stat">
+                <span class="stat-value"><strong id="anime-count">0</strong>作品</span>
+                <span class="stat-label">巡った作品</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value"><strong id="progress-rate">—</strong>%</span>
+                <span class="stat-label">聖地の達成率</span>
+            </div>
+        </section>
 
-        <!-- メニューリスト -->
+        <!-- 作品ごとの達成度 -->
+        <section class="panel">
+            <div class="panel-head">
+                <h2>作品ごとの達成度</h2>
+            </div>
+            <ul class="progress-list" id="progress-list"></ul>
+        </section>
+
+        <!-- 最近獲得したスタンプ -->
+        <section class="panel">
+            <div class="panel-head">
+                <h2>最近獲得したスタンプ</h2>
+                <a href="stamp.html" class="panel-link">すべて見る ›</a>
+            </div>
+            <ul class="recent-list" id="recent-list"></ul>
+        </section>
+
+        <!-- メニュー -->
         <nav class="menu-list" aria-label="マイページメニュー">
             <button type="button" class="menu-item" onclick="goToHistory()">
-                <span class="menu-icon" aria-hidden="true">🕒</span>
+                <span class="menu-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
                 <span class="menu-text">巡礼履歴・ルート案内</span>
-                <span class="menu-arrow" aria-hidden="true">›</span>
+                <svg class="icon menu-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
             </button>
-
             <button type="button" class="menu-item" onclick="goToStamp()">
-                <span class="menu-icon" aria-hidden="true">💮</span>
+                <span class="menu-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="6"/><path d="M8.5 14 7 22l5-3 5 3-1.5-8"/></svg></span>
                 <span class="menu-text">獲得スタンプ一覧</span>
-                <span class="menu-arrow" aria-hidden="true">›</span>
+                <svg class="icon menu-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
             </button>
-
             <button type="button" class="menu-item" onclick="location.href='register.html'">
-                <span class="menu-icon" aria-hidden="true">📍</span>
+                <span class="menu-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-7.2 7-12.5A7 7 0 0 0 5 9.5C5 14.8 12 22 12 22z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span>
                 <span class="menu-text">聖地を登録する</span>
-                <span class="menu-arrow" aria-hidden="true">›</span>
+                <svg class="icon menu-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
             </button>
-
+            <button type="button" class="menu-item" onclick="location.href='guide.html'">
+                <span class="menu-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4z"/><path d="M20 4h-6a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h7z"/></svg></span>
+                <span class="menu-text">操作ガイド</span>
+                <svg class="icon menu-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            </button>
             <button type="button" class="menu-item" onclick="location.href='information.html'">
-                <span class="menu-icon" aria-hidden="true">✉</span>
+                <span class="menu-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span>
                 <span class="menu-text">お問い合わせ</span>
-                <span class="menu-arrow" aria-hidden="true">›</span>
+                <svg class="icon menu-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
             </button>
         </nav>
 
-        <!-- ログアウトボタン -->
-        <button type="button" class="logout-btn" onclick="openLogoutModal()">ログアウト</button>
+        <!-- ログアウト -->
+        <button type="button" class="logout-btn" onclick="openLogoutModal()">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l5-5-5-5M15 12H4"/></svg>
+            ログアウト
+        </button>
     </main>
 
     <!-- =============== プロフィール編集のポップアップ =============== -->

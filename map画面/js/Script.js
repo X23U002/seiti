@@ -50,18 +50,45 @@ let titleMap = {};
 let marker = null;
 let hoverPopup = null;
 
-const colors = [
-    "#E53935",
-    "#1E88E5",
-    "#43A047",
-    "#FB8C00",
+// =========================================================
+// 作品ごとのピンの色
+// データの読み込み順で色が変わらないよう、作品ごとに色を固定する。
+// ここに無い作品は、作品名から決まる色（毎回同じ色）になる
+// =========================================================
+const TITLE_COLORS = {
+    "ガールズバンドクライ": "#E53935",
+    "響け！ユーフォニアム": "#1E88E5",
+    "やはり俺の青春ラブコメはまちがっている。": "#5E35B1",
+    "超かぐや姫！": "#EC407A",
+    "青春ブタ野郎はバニーガール先輩の夢を見ない": "#00ACC1",
+    "ゆるキャン△": "#43A047",
+    "冴えない彼女の育てかた": "#F9A825",
+    "リコリス・リコイル": "#6D4C41",
+    "【推しの子】": "#FF7043",
+    "鬼滅の刃": "#00897B",
+    "その他": "#78909C"
+};
+
+// 上に無い作品に使う色
+const EXTRA_COLORS = [
     "#8E24AA",
-    "#FDD835",
-    "#00897B",
-    "#6D4C41",
-    "#EC407A",
-    "#5E35B1"
+    "#3949AB",
+    "#C0CA33",
+    "#D81B60",
+    "#546E7A",
+    "#7CB342"
 ];
+
+function getTitleColor(title) {
+    if (TITLE_COLORS[title]) {
+        return TITLE_COLORS[title];
+    }
+    let sum = 0;
+    for (const character of String(title)) {
+        sum += character.codePointAt(0);
+    }
+    return EXTRA_COLORS[sum % EXTRA_COLORS.length];
+}
 
 const titleColorMap = {};
 
@@ -258,8 +285,6 @@ async function loadData() {
 
     spots = [];
 
-    let colorIndex = 0;
-
     spotSnapshot.forEach(
         function (docSnap) {
             const data =
@@ -273,21 +298,12 @@ async function loadData() {
                 data.title_name ||
                 "その他";
 
-            if (
-                !titleColorMap[
+            titleColorMap[
+                titleName
+            ] =
+                getTitleColor(
                     titleName
-                ]
-            ) {
-                titleColorMap[
-                    titleName
-                ] =
-                    colors[
-                        colorIndex %
-                        colors.length
-                    ];
-
-                colorIndex++;
-            }
+                );
 
             spots.push({
                 id: docSnap.id,
@@ -298,6 +314,8 @@ async function loadData() {
 
     currentSpots = spots;
 
+    saveSpotSummary();
+
     // stampsyori.jsへ最新のスポット一覧を渡す
     window.spots = spots;
 
@@ -307,6 +325,147 @@ async function loadData() {
     ) {
         window.refreshStampUI();
     }
+}
+
+
+// =========================================================
+// 作品ごとの聖地の件数と色を端末に記録する
+// （マイページの「作品ごとの達成度」で使う）
+// =========================================================
+function saveSpotSummary() {
+    const titles = {};
+
+    spots.forEach(
+        function (spot) {
+            const title =
+                getTitleName(spot);
+
+            if (!titles[title]) {
+                titles[title] = {
+                    count: 0,
+                    color: getTitleColor(title)
+                };
+            }
+            titles[title].count++;
+        }
+    );
+
+    try {
+        localStorage.setItem(
+            "seitiSpotSummary",
+            JSON.stringify({
+                updatedAt: Date.now(),
+                total: spots.length,
+                titles: titles,
+                // スタンプ画面で「まだ集めていない聖地」も並べるための一覧
+                spots: spots.map(
+                    function (spot) {
+                        return {
+                            id: spot.id,
+                            name: spot.spot_name || "無題のスポット",
+                            title: getTitleName(spot),
+                            info: spot.spot_info || ""
+                        };
+                    }
+                )
+            })
+        );
+    } catch (error) {
+        // 保存できない環境では何もしない
+    }
+}
+
+
+// =========================================================
+// map.html?spot=スポットID で開いた時は、その聖地へ移動して詳細を開く
+// （スタンプ画面の「地図で見る」から使う）。処理した時は true を返す
+// =========================================================
+function openSpotFromUrl() {
+    const spotId =
+        new URLSearchParams(
+            location.search
+        ).get("spot");
+
+    if (!spotId) {
+        return false;
+    }
+
+    const spot =
+        spots.find(
+            function (item) {
+                return String(item.id) === spotId;
+            }
+        );
+
+    if (!spot || !spot.coord) {
+        return false;
+    }
+
+    map.jumpTo({
+        center: [
+            Number(spot.coord.longitude),
+            Number(spot.coord.latitude)
+        ],
+        zoom: 16
+    });
+
+    // ピンが描き直された後に、そのスポットの詳細を開く
+    map.once(
+        "idle",
+        function () {
+            const target =
+                spotMarkers.find(
+                    function (marker) {
+                        return marker.getElement().dataset.spotId === spotId;
+                    }
+                );
+            if (target && target.getPopup() && !target.getPopup().isOpen()) {
+                target.togglePopup();
+            }
+        }
+    );
+
+    return true;
+}
+
+
+// =========================================================
+// スポット詳細のポップアップ
+// スマホでは画面下からせり上がるパネルとして表示する（見た目は style.css）。
+// パネルにピンが隠れないよう、開いた時にピンを画面の上寄りへ動かす
+// =========================================================
+function createSpotPopup(html, longitude, latitude) {
+    const popup =
+        new mapboxgl.Popup({
+            offset: 25
+        }).setHTML(
+            html
+        );
+
+    popup.on(
+        "open",
+        function () {
+            if (
+                window.matchMedia(
+                    "(max-width: 600px)"
+                ).matches
+            ) {
+                map.easeTo({
+                    center: [
+                        longitude,
+                        latitude
+                    ],
+                    offset: [
+                        0,
+                        -window.innerHeight * 0.25
+                    ],
+                    duration: 400
+                });
+            }
+        }
+    );
+
+    return popup;
 }
 
 
@@ -585,7 +744,7 @@ function drawMarkers(list) {
                             aria-label="作品の公式サイトを開く"
                             title="作品の公式サイト"
                         >
-                            🌐
+                            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
                         </a>
                     `
                     : "";
@@ -657,7 +816,8 @@ function drawMarkers(list) {
                             type="button"
                             onclick="addSpotToRouteById('${data.id}')"
                         >
-                            📍ルートに追加
+                            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                            ルートに追加
                         </button>
 
                     </div>
@@ -676,10 +836,10 @@ function drawMarkers(list) {
                         latitude
                     ])
                     .setPopup(
-                        new mapboxgl.Popup({
-                            offset: 25
-                        }).setHTML(
-                            popupHTML
+                        createSpotPopup(
+                            popupHTML,
+                            longitude,
+                            latitude
                         )
                     )
                     .addTo(map);
@@ -990,26 +1150,30 @@ function initializeSearchBox() {
                             .remove();
                     }
 
+                    // 地図の移動（ズーム）が終わるとピンが描き直されて
+                    // 先に開いた吹き出しが消えるため、移動と描画が終わってから開く
                     setTimeout(
                         function () {
-                            if (
-                                spotMarkers
-                                    .length > 0
-                            ) {
-                                spotMarkers[0]
-                                    .togglePopup();
-                            }
+                            map.once(
+                                "idle",
+                                function () {
+                                    if (
+                                        spotMarkers
+                                            .length > 0 &&
+                                        spotMarkers[0].getPopup() &&
+                                        !spotMarkers[0].getPopup().isOpen()
+                                    ) {
+                                        spotMarkers[0]
+                                            .togglePopup();
+                                    }
+                                }
+                            );
                         },
-                        500
+                        100
                     );
                 }
             } else {
-                currentSpots =
-                    spots;
-
-                drawMarkers(
-                    currentSpots
-                );
+                applyActiveFilter();
             }
         }
     );
@@ -1018,12 +1182,7 @@ function initializeSearchBox() {
     geocoder.on(
         "clear",
         function () {
-            currentSpots =
-                spots;
-
-            drawMarkers(
-                currentSpots
-            );
+            applyActiveFilter();
         }
     );
 }
@@ -1070,9 +1229,22 @@ map.on(
         }
 
 
+        // URLで聖地が指定されていれば、そこを表示する
+        // （その時は現在地へカメラが動かないよう、現在地の自動取得はしない）
+        let openedSpot = false;
+        try {
+            openedSpot =
+                openSpotFromUrl();
+        } catch (error) {
+            console.warn(
+                "指定された聖地を開けませんでした:",
+                error
+            );
+        }
+
         // 現在地取得
         try {
-            geolocate.trigger();
+            if (!openedSpot) geolocate.trigger();
         } catch (error) {
             console.warn(
                 "現在地の取得に失敗:",
@@ -1209,11 +1381,12 @@ window.toggleView =
                 duration: 1500
             });
 
-            button.innerHTML =
-                "🔄 2D";
-
             button.classList.add(
                 "mode3d"
+            );
+            button.setAttribute(
+                "aria-pressed",
+                "true"
             );
 
             is3D = true;
@@ -1228,11 +1401,12 @@ window.toggleView =
                 duration: 1500
             });
 
-            button.innerHTML =
-                "🔄 3D";
-
             button.classList.remove(
                 "mode3d"
+            );
+            button.setAttribute(
+                "aria-pressed",
+                "false"
             );
 
             is3D = false;
@@ -1252,12 +1426,160 @@ window.moveToCurrentLocation =
 // =========================================================
 // 6. アニメで絞り込み
 // =========================================================
-function populateAnimeList() {
-    const availableTitles =
-        Object.keys(
-            titleColorMap
+
+// 今かかっている絞り込み（チェックした作品名と、入力したキーワード）
+const activeFilter = {
+    titles: [],
+    keyword: ""
+};
+
+// 絞り込みの条件に合うスポットを返す（条件が無ければ全件）
+function filterSpots() {
+    const keyword =
+        normalizeText(
+            activeFilter.keyword
         );
 
+    if (
+        keyword === "" &&
+        activeFilter.titles.length === 0
+    ) {
+        return spots;
+    }
+
+    return spots.filter(
+        function (spot) {
+            const rawTitle =
+                getTitleName(spot);
+
+            const isMatchKeyword =
+                keyword !== "" &&
+                normalizeText(rawTitle).includes(keyword);
+
+            const isMatchCheck =
+                activeFilter.titles.includes(rawTitle);
+
+            return isMatchKeyword || isMatchCheck;
+        }
+    );
+}
+
+// 絞り込みを地図に反映する
+function applyActiveFilter() {
+    currentSpots =
+        filterSpots();
+
+    drawMarkers(
+        currentSpots
+    );
+
+    renderFilterChips();
+}
+
+// 検索バーの下に「絞り込み中の作品」の札を並べる（× で1つずつ外せる）
+function renderFilterChips() {
+    const area =
+        document.getElementById(
+            "filter-chips"
+        );
+
+    if (!area) {
+        return;
+    }
+
+    area.innerHTML = "";
+
+    activeFilter.titles.forEach(
+        function (title) {
+            area.appendChild(
+                createFilterChip(
+                    title,
+                    getTitleColor(title),
+                    function () {
+                        activeFilter.titles =
+                            activeFilter.titles.filter(
+                                function (item) {
+                                    return item !== title;
+                                }
+                            );
+                        applyActiveFilter();
+                    }
+                )
+            );
+        }
+    );
+
+    if (activeFilter.keyword) {
+        area.appendChild(
+            createFilterChip(
+                `「${activeFilter.keyword}」`,
+                null,
+                function () {
+                    activeFilter.keyword = "";
+                    applyActiveFilter();
+                }
+            )
+        );
+    }
+
+    // 絞り込み中はボタンの色を変えて分かるようにする
+    document
+        .getElementById(
+            "filter-btn"
+        )
+        ?.classList
+        .toggle(
+            "is-active",
+            area.children.length > 0
+        );
+}
+
+function createFilterChip(label, color, onRemove) {
+    const chip =
+        document.createElement(
+            "button"
+        );
+    chip.type = "button";
+    chip.className = "filter-chip";
+    chip.setAttribute(
+        "aria-label",
+        `${label} の絞り込みを解除`
+    );
+
+    if (color) {
+        const dot =
+            document.createElement(
+                "span"
+            );
+        dot.className = "color-dot";
+        dot.style.background = color;
+        chip.appendChild(dot);
+    }
+
+    chip.appendChild(
+        document.createTextNode(
+            label
+        )
+    );
+
+    const cross =
+        document.createElement(
+            "span"
+        );
+    cross.className = "chip-x";
+    cross.setAttribute(
+        "aria-hidden",
+        "true"
+    );
+    cross.textContent = "×";
+    chip.appendChild(cross);
+
+    chip.onclick = onRemove;
+    return chip;
+}
+
+// 絞り込み画面の作品一覧（ピンの色と件数つき）
+function populateAnimeList() {
     const listContainer =
         document.getElementById(
             "anime-list"
@@ -1269,7 +1591,9 @@ function populateAnimeList() {
 
     listContainer.innerHTML = "";
 
-    availableTitles.forEach(
+    Object.keys(
+        titleColorMap
+    ).forEach(
         function (title) {
             if (!title) {
                 return;
@@ -1284,21 +1608,45 @@ function populateAnimeList() {
                 document.createElement(
                     "input"
                 );
+            checkbox.type = "checkbox";
+            checkbox.value = title;
+            // 今絞り込んでいる作品にはチェックを付けておく
+            checkbox.checked =
+                activeFilter.titles.includes(title);
 
-            checkbox.type =
-                "checkbox";
+            // ピンと同じ色の丸（凡例）
+            const dot =
+                document.createElement(
+                    "span"
+                );
+            dot.className = "color-dot";
+            dot.style.background =
+                getTitleColor(title);
 
-            checkbox.value =
-                title;
+            const name =
+                document.createElement(
+                    "span"
+                );
+            name.className = "anime-name";
+            name.textContent = title;
 
-            label.appendChild(
-                checkbox
-            );
+            const count =
+                document.createElement(
+                    "span"
+                );
+            count.className = "anime-count";
+            count.textContent =
+                spots.filter(
+                    function (spot) {
+                        return getTitleName(spot) === title;
+                    }
+                ).length + "件";
 
-            label.appendChild(
-                document.createTextNode(
-                    title
-                )
+            label.append(
+                checkbox,
+                dot,
+                name,
+                count
             );
 
             listContainer.appendChild(
@@ -1307,7 +1655,6 @@ function populateAnimeList() {
         }
     );
 }
-
 
 // =========================================================
 // 絞り込み画面を開く
@@ -1321,7 +1668,9 @@ window.openFilter =
                 "anime-search"
             );
 
-        searchInput.value = "";
+        // 今の絞り込みの状態を表示しておく
+        searchInput.value =
+            activeFilter.keyword;
 
         searchInput.onkeydown =
             function (event) {
@@ -1330,22 +1679,11 @@ window.openFilter =
                     "Enter"
                 ) {
                     event.preventDefault();
-
                     window.applyFilter();
                 }
             };
 
-        const checkboxes =
-            document.querySelectorAll(
-                "#anime-list input[type='checkbox']"
-            );
-
-        checkboxes.forEach(
-            function (checkbox) {
-                checkbox.checked =
-                    false;
-            }
-        );
+        window.searchAnime();
 
         document
             .getElementById(
@@ -1355,7 +1693,6 @@ window.openFilter =
             .display =
                 "block";
     };
-
 
 // =========================================================
 // 絞り込み画面を閉じる
@@ -1373,49 +1710,48 @@ window.closeFilter =
 
 
 // =========================================================
-// 作品検索
+// 作品検索（絞り込み画面の一覧を、入力した作品名で絞る）
 // =========================================================
 window.searchAnime =
     function () {
         const keyword =
             normalizeText(
-                document
-                    .getElementById(
-                        "anime-search"
-                    )
-                    .value
+                document.getElementById(
+                    "anime-search"
+                ).value
             );
 
-        const labels =
-            document.querySelectorAll(
+        document
+            .querySelectorAll(
                 "#anime-list label"
+            )
+            .forEach(
+                function (label) {
+                    const title =
+                        normalizeText(
+                            label.querySelector("input").value
+                        );
+
+                    // "" にするとCSS側の表示方法（flex）に戻る
+                    label.style.display =
+                        title.includes(keyword)
+                            ? ""
+                            : "none";
+                }
             );
-
-        labels.forEach(
-            function (label) {
-                const title =
-                    normalizeText(
-                        label.textContent
-                    );
-
-                // "" にするとCSS側の表示方法（flex）に戻る
-                label.style.display =
-                    title.includes(
-                        keyword
-                    )
-                        ? ""
-                        : "none";
-            }
-        );
     };
-
 
 // =========================================================
 // 絞り込み適用
 // =========================================================
 window.applyFilter =
     function () {
-        const rawKeyword =
+        const previous = {
+            titles: activeFilter.titles.slice(),
+            keyword: activeFilter.keyword
+        };
+
+        activeFilter.keyword =
             document
                 .getElementById(
                     "anime-search"
@@ -1423,133 +1759,57 @@ window.applyFilter =
                 .value
                 .trim();
 
-        const keyword =
-            normalizeText(
-                rawKeyword
-            );
-
-        const checkedBoxes =
-            document.querySelectorAll(
-                "#anime-list input[type='checkbox']:checked"
-            );
-
-        const selectedTitles =
+        activeFilter.titles =
             Array.from(
-                checkedBoxes
+                document.querySelectorAll(
+                    "#anime-list input[type='checkbox']:checked"
+                )
             ).map(
                 function (checkbox) {
                     return checkbox.value;
                 }
             );
 
-        if (
-            rawKeyword === "" &&
-            selectedTitles.length === 0
-        ) {
-            currentSpots =
-                spots;
-
-            drawMarkers(
-                currentSpots
-            );
-
-            window.closeFilter();
-
-            return;
-        }
-
-        const filteredSpots =
-            spots.filter(
-                function (spot) {
-                    const rawTitle =
-                        getTitleName(
-                            spot
-                        );
-
-                    const title =
-                        normalizeText(
-                            rawTitle
-                        );
-
-                    const isMatchKeyword =
-                        keyword !== "" &&
-                        title.includes(
-                            keyword
-                        );
-
-                    const isMatchCheck =
-                        selectedTitles.includes(
-                            rawTitle
-                        );
-
-                    return (
-                        isMatchKeyword ||
-                        isMatchCheck
-                    );
-                }
-            );
-
-        if (
-            filteredSpots.length > 0
-        ) {
-            currentSpots =
-                filteredSpots;
-
-            drawMarkers(
-                currentSpots
-            );
-        } else {
+        // 1件も無い時は元の絞り込みに戻し、画面は閉じずに知らせる
+        if (filterSpots().length === 0) {
+            activeFilter.titles = previous.titles;
+            activeFilter.keyword = previous.keyword;
             window.showToast(
                 "入力された作品名のスポットは見つかりませんでした",
                 "error"
             );
-
-            currentSpots =
-                spots;
-
-            drawMarkers(
-                currentSpots
-            );
+            return;
         }
 
+        applyActiveFilter();
         window.closeFilter();
     };
-
 
 // =========================================================
 // 絞り込みリセット
 // =========================================================
 window.resetFilter =
     function () {
-        const searchInput =
-            document.getElementById(
-                "anime-search"
-            );
+        document.getElementById(
+            "anime-search"
+        ).value = "";
 
-        if (searchInput) {
-            searchInput.value = "";
-        }
-
-        const checkboxes =
-            document.querySelectorAll(
+        document
+            .querySelectorAll(
                 "#anime-list input[type='checkbox']"
+            )
+            .forEach(
+                function (checkbox) {
+                    checkbox.checked = false;
+                }
             );
 
-        checkboxes.forEach(
-            function (checkbox) {
-                checkbox.checked =
-                    false;
-            }
-        );
+        window.searchAnime();
 
-        currentSpots =
-            spots;
-
-        drawMarkers(
-            currentSpots
-        );
+        activeFilter.titles = [];
+        activeFilter.keyword = "";
+        applyActiveFilter();
     };
-
 
 // =========================================================
 // 7. 経路案内
@@ -1717,6 +1977,16 @@ function updateRouteList() {
     }
 
     routeList.innerHTML = "";
+
+    // パネルの見出しに件数を表示
+    const routeCount =
+        document.getElementById(
+            "route-count"
+        );
+    if (routeCount) {
+        routeCount.textContent =
+            selectedSpots.length;
+    }
 
     if (
         selectedSpots.length === 0

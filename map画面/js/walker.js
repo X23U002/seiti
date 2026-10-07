@@ -587,6 +587,18 @@ function startWalkTest(map) {
             document.getElementById("toggle-view-btn")?.click();
         }
         updateButton();
+
+        // 引いた状態だとキャラクターが小さくて隠れるので、キャラクターの位置に寄る
+        // （3D表示への切り替えの動きを上書きしてしまうため、傾きも同じ値を指定する）
+        if (state.position) {
+            map.easeTo({
+                center: [state.position.lng, state.position.lat],
+                zoom: Math.max(map.getZoom(), FIXED_SIZE_ZOOM),
+                pitch: 70,
+                bearing: -20,
+                duration: 1500
+            });
+        }
     });
     document.getElementById("toggle-view-btn")?.addEventListener("click", function () {
         setTimeout(updateButton, 0);
