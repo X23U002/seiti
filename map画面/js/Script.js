@@ -187,9 +187,40 @@ function normalizeText(text) {
         )
 
         .replace(
-            /[  ・！!？\?△○〇\-ー]/g,
+            /[  ・！!？\?△○〇\-ー。、，,．.【】「」『』（）()〔〕［］\[\]“”"'’〜~：:]/g,
             ""
         );
+}
+
+// =========================================================
+// 作品の略称（検索欄に略称を入れても作品の聖地が出るように）
+// キー：略称、値：Firestore の title_name
+// =========================================================
+const TITLE_ALIASES = {
+    "ガルクラ": "ガールズバンドクライ",
+    "ユーフォ": "響け！ユーフォニアム",
+    "響け": "響け！ユーフォニアム",
+    "俺ガイル": "やはり俺の青春ラブコメはまちがっている。",
+    "はまち": "やはり俺の青春ラブコメはまちがっている。",
+    "かぐや姫": "超かぐや姫！",
+    "青ブタ": "青春ブタ野郎はバニーガール先輩の夢を見ない",
+    "ゆるキャン": "ゆるキャン△",
+    "冴えカノ": "冴えない彼女の育てかた",
+    "リコリコ": "リコリス・リコイル",
+    "推しの子": "【推しの子】",
+    "鬼滅": "鬼滅の刃"
+};
+
+// 入力が略称（またはその一部）なら、対応する作品名を返す
+function findAliasTitles(keyword) {
+    return Object.keys(TITLE_ALIASES)
+        .filter(function (alias) {
+            const normalizedAlias = normalizeText(alias);
+            return normalizedAlias.includes(keyword) || keyword.includes(normalizedAlias);
+        })
+        .map(function (alias) {
+            return normalizeText(TITLE_ALIASES[alias]);
+        });
 }
 
 
@@ -733,10 +764,13 @@ map.on(
 function searchCustomSpots(query) {
     const keyword =
         normalizeText(query);
-
     if (!keyword) {
         return [];
     }
+
+    // 略称で入力された時の作品名
+    const aliasTitles =
+        findAliasTitles(keyword);
 
     const matches =
         spots.filter(
@@ -767,6 +801,9 @@ function searchCustomSpots(query) {
                     ) ||
                     spotInfo.includes(
                         keyword
+                    ) ||
+                    aliasTitles.includes(
+                        titleName
                     )
                 );
             }
@@ -847,10 +884,66 @@ function initializeSearchBox() {
 
             localGeocoder:
                 searchCustomSpots,
-
             localGeocoderOnly:
-                false
+                false,
+            // 住所・地名の検索は日本国内・日本語に絞り、
+            // 今見ている場所の近くを優先する
+            countries:
+                "jp",
+            language:
+                "ja",
+            // 候補の最大件数（聖地が多い作品でも多めに出るように。指定できる最大は10）
+            limit:
+                10,
+            proximity: {
+                longitude: map.getCenter().lng,
+                latitude: map.getCenter().lat
+            }
         });
+
+    // 地図を動かしたら「近く」の基準も更新する
+    map.on(
+        "moveend",
+        function () {
+            const center =
+                map.getCenter();
+            geocoder.setProximity({
+                longitude: center.lng,
+                latitude: center.lat
+            });
+        }
+    );
+
+    // 聖地が1件も見つからない時は知らせる（入力が止まってから1回だけ）
+    let noSpotTimer = null;
+    geocoder.on(
+        "results",
+        function (event) {
+            clearTimeout(noSpotTimer);
+            const input =
+                container.querySelector("input");
+            const query =
+                input ? input.value.trim() : "";
+            if (
+                normalizeText(query).length < 2 ||
+                searchCustomSpots(query).length > 0
+            ) {
+                return;
+            }
+            noSpotTimer =
+                setTimeout(
+                    function () {
+                        if (typeof window.showToast === "function") {
+                            window.showToast(
+                                `「${query}」に該当する聖地はありません（住所・地名の候補を表示しています）`,
+                                "error"
+                            );
+                        }
+                    },
+                    800
+                );
+        }
+    );
 
     container.appendChild(
         geocoder.onAdd(map)
