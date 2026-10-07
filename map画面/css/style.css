@@ -1700,3 +1700,402 @@ body {
 #walk-test-panel button[hidden] {
     display: none;
 }
+
+
+/* =========================================================
+   地図画面の改善（アイコン・配色・配置）
+   色の役割：紺＝基本、オレンジ＝目立たせたい操作、赤＝削除
+========================================================= */
+
+/* ---------- 線のアイコン（絵文字の代わり。どの端末でも同じ見た目） ---------- */
+.icon {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
+}
+
+#profile-btn,
+#location-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #0b3c5d;
+}
+
+#profile-btn .icon,
+#location-btn .icon {
+    width: 24px;
+    height: 24px;
+}
+
+#side-menu li a .icon {
+    width: 22px;
+    height: 22px;
+    color: #0b3c5d;
+}
+
+/* ---------- 現在地ボタンは右下の1つにまとめる（Mapbox標準の◎は隠す） ---------- */
+.mapboxgl-ctrl-group:has(> .mapboxgl-ctrl-geolocate) {
+    display: none !important;
+}
+
+/* ---------- 2D｜3D の切り替えスイッチ（今の状態が紺色になる） ---------- */
+#toggle-view-btn,
+#toggle-view-btn.mode3d {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    width: auto;
+    min-width: 0;
+    height: 48px;
+    padding: 4px;
+    background: white;
+    color: #0b3c5d;
+    border-radius: 24px;
+}
+
+#toggle-view-btn .seg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 40px;
+    border-radius: 20px;
+    font-size: 15px;
+    font-weight: bold;
+    transition: background .2s, color .2s;
+}
+
+#toggle-view-btn:not(.mode3d) .seg-2d,
+#toggle-view-btn.mode3d .seg-3d {
+    background: #0b3c5d;
+    color: white;
+}
+
+/* ---------- 絞り込みボタンと、絞り込み中の作品の札 ---------- */
+#filter-bar {
+    position: absolute;
+    top: 80px;
+    left: 75px;
+    right: 75px;
+    z-index: 150;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 2px 8px;
+    pointer-events: none;
+}
+
+/* 札の並びの隙間では地図を操作できるようにする */
+#filter-bar > * {
+    pointer-events: auto;
+}
+
+#filter-btn {
+    position: static;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#filter-btn .icon {
+    width: 18px;
+    height: 18px;
+}
+
+/* 絞り込み中はボタンを紺色に */
+#filter-btn.is-active {
+    background: #0b3c5d;
+    color: white;
+}
+
+#filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+#filter-chips:empty {
+    display: none;
+}
+
+.filter-chip {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 6px 0 12px;
+    border-radius: 18px;
+    background: white;
+    color: #2c3e50;
+    font-size: 13px;
+    font-weight: bold;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+}
+
+.filter-chip:hover {
+    transform: none;
+    background: #f6f8f9;
+}
+
+.chip-x {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #eef1f3;
+    color: #6b7b8c;
+    font-size: 15px;
+}
+
+/* ピンの色を示す丸（凡例） */
+.color-dot {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px white, 0 0 0 3px rgba(0, 0, 0, .12);
+}
+
+/* 絞り込み画面の作品一覧：チェック・色・作品名・件数 */
+.filter-note {
+    margin: -6px 0 8px;
+    font-size: 12px;
+    color: #6b7b8c;
+}
+
+#anime-list label {
+    gap: 10px;
+}
+
+#anime-list input {
+    margin-right: 0;
+}
+
+#anime-list .anime-name {
+    flex: 1;
+}
+
+#anime-list .anime-count {
+    font-size: 12px;
+    color: #6b7b8c;
+}
+
+/* ---------- ルート案内パネル ---------- */
+.route-header {
+    gap: 8px;
+}
+
+#route-toggle {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 0;
+    background: none;
+    color: #0b3c5d;
+    font-size: 16px;
+    font-weight: bold;
+    text-align: left;
+}
+
+#route-toggle:hover {
+    transform: none;
+}
+
+#route-toggle .icon {
+    width: 20px;
+    height: 20px;
+}
+
+.route-count {
+    min-width: 22px;
+    padding: 1px 7px;
+    border-radius: 11px;
+    background: #f39c12;
+    color: white;
+    font-size: 12px;
+    text-align: center;
+}
+
+#route-toggle .chevron {
+    margin-left: auto;
+    transition: transform .2s;
+}
+
+#routePanel.collapsed #route-toggle .chevron {
+    transform: rotate(-90deg);
+}
+
+#route-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+/* 折りたたみ中は見出しだけにする */
+#routePanel.collapsed #route-body {
+    display: none;
+}
+
+#routePanel.collapsed .route-header {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+/* 削除は赤い文字の控えめなボタンに */
+#clear-route {
+    background: transparent;
+    border: 1px solid #f3c7c2;
+    color: #e74c3c;
+    box-shadow: none;
+}
+
+#clear-route:hover {
+    background: #fdf1f0;
+    transform: none;
+}
+
+/* 「Googleマップで案内」はメインの紺色に */
+#open-google-route {
+    background: #0b3c5d;
+}
+
+#open-google-route:hover {
+    background: #14537f;
+}
+
+/* ---------- ポップアップのアイコン ---------- */
+.popup-home {
+    color: #0b3c5d;
+}
+
+.popup-buttons button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.popup-buttons .icon {
+    width: 20px;
+    height: 20px;
+}
+
+/* =========================================================
+   PC：検索バーは横に伸ばしすぎない
+========================================================= */
+@media (min-width: 768px) {
+    #search-container {
+        right: auto;
+        width: 480px;
+    }
+
+    /* ルート案内は右上のズームボタンの下に置く */
+    #routePanel {
+        top: 180px;
+        max-height: calc(100vh - 360px);
+    }
+
+    #filter-bar {
+        right: auto;
+        max-width: calc(100vw - 160px);
+    }
+}
+
+/* =========================================================
+   スマホ
+========================================================= */
+@media (max-width: 600px) {
+
+    /* 指で拡大・縮小できるので ＋／− は隠す（方角を戻すボタンは残す） */
+    .mapboxgl-ctrl-zoom-in,
+    .mapboxgl-ctrl-zoom-out {
+        display: none !important;
+    }
+
+    /* 2D｜3D は縦に並べて右側を細くし、ルート案内と重ならないようにする */
+    #toggle-view-btn,
+    #toggle-view-btn.mode3d {
+        flex-direction: column;
+        height: auto;
+        bottom: 30px;
+        border-radius: 24px;
+    }
+
+    #location-btn {
+        bottom: 132px;
+    }
+
+    /* 通知は画面上部（絞り込みの下）に出し、下のパネルを隠さないようにする */
+    #toast {
+        top: 136px;
+        bottom: auto;
+    }
+
+    /* ルート案内は画面下に置き、地図の上部を覆わないようにする */
+    #routePanel {
+        top: auto;
+        bottom: 16px;
+        left: 16px;
+        right: 80px;
+        width: auto;
+        max-height: 45vh;
+    }
+
+    /* ---------- スポット詳細：画面下からせり上がるパネル ---------- */
+    .mapboxgl-popup:has(.popup-card) {
+        position: fixed !important;
+        top: auto !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        max-width: none !important;
+        transform: none !important;
+        animation: sheet-up .25s ease;
+    }
+
+    /* Mapboxのロゴより手前に出す */
+    .mapboxgl-popup:has(.popup-card) {
+        z-index: 3;
+    }
+
+    .mapboxgl-popup:has(.popup-card) .mapboxgl-popup-tip {
+        display: none;
+    }
+
+    .mapboxgl-popup:has(.popup-card) .mapboxgl-popup-content {
+        max-height: 62vh;
+        border-radius: 20px 20px 0 0;
+        padding-bottom: env(safe-area-inset-bottom);
+        box-shadow: 0 -6px 24px rgba(0, 0, 0, .2);
+    }
+
+    /* パネル表示中は、下側のボタンやルート案内を隠す */
+    body:has(.mapboxgl-popup .popup-card) #location-btn,
+    body:has(.mapboxgl-popup .popup-card) #toggle-view-btn,
+    body:has(.mapboxgl-popup .popup-card) #routePanel,
+    body:has(.mapboxgl-popup .popup-card) #walk-test-panel {
+        display: none !important;
+    }
+}
+
+/* Mapbox が位置指定に transform を使うため、動きは translate で付ける */
+@keyframes sheet-up {
+    from { translate: 0 40px; opacity: 0; }
+    to { translate: 0 0; opacity: 1; }
+}
