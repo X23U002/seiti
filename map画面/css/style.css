@@ -1348,7 +1348,8 @@ body {
 }
 
 /* ---------- ズームアウト時のまとめピン（件数表示） ---------- */
-.mapboxgl-marker:not([data-spot-id]):not(.mapboxgl-user-location):not(:has(svg)) {
+/* ※ 現在地の点（.mapboxgl-user-location）と誤差の円（-accuracy-circle）は対象外 */
+.mapboxgl-marker:not([data-spot-id]):not(.mapboxgl-user-location):not(.mapboxgl-user-location-accuracy-circle):not(:has(svg)) {
     width: 34px !important;
     height: 34px !important;
     background-color: #0b3c5d !important;
@@ -1633,11 +1634,12 @@ body {
 
 /* =========================================================
    現在地の3Dキャラクター
-   キャラクター表示中は青い現在地の点を隠す（足元に重なるため）
-   ※ 誤差の範囲を示す薄い円はそのまま表示する
+   キャラクター表示中は、足元に重なってモデルが見にくくなるため、
+   青い現在地の点と誤差の範囲を示す円を隠す
 ========================================================= */
 #map.walker-active .mapboxgl-user-location-dot,
-#map.walker-active .mapboxgl-user-location-heading {
+#map.walker-active .mapboxgl-user-location-heading,
+#map.walker-active .mapboxgl-user-location-accuracy-circle {
     display: none;
 }
 
