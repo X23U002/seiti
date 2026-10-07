@@ -468,25 +468,3 @@ textarea {
         transition: none !important;
     }
 }
-
-
-/* ログイン確認が終わるまで画面を隠す（auth.js） */
-.auth-pending body {
-    visibility: hidden;
-}
-
-
-/* フォーム全体のエラー（ログイン失敗など） */
-.form-error {
-    margin: 0 0 16px;
-    padding: 10px 12px;
-    border-radius: var(--radius-sm);
-    background-color: #fdecea;
-    color: #c0392b;
-    font-size: 13px;
-    line-height: 1.6;
-}
-
-.form-error[hidden] {
-    display: none;
-}

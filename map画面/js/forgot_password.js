@@ -3,40 +3,24 @@ function goToLogin() {
     window.location.href = "login.html";
 }
 
-// パスワード再設定メールを送る
-async function submitReissue() {
+// パスワード再発行ボタンを押したときの処理
+function submitReissue() {
+    const name = document.getElementById("username").value.trim();
     const email = document.getElementById("email").value.trim();
-    const button = document.getElementById("reset-btn");
-    const errorBox = document.getElementById("reset-error");
 
+    const nameError = name === "";
     const emailError = !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    setFieldError("email", emailError);
-    errorBox.hidden = true;
 
-    if (emailError) {
-        document.getElementById("email").focus();
+    setFieldError("username", nameError);
+    setFieldError("email", emailError);
+
+    if (nameError || emailError) {
+        document.querySelector(".form-group.has-error input").focus();
         return;
     }
 
-    button.disabled = true;
-    button.textContent = "送信中…";
-
-    try {
-        await window.seitiAuth.sendPasswordReset(email);
-        document.getElementById("completion-modal").style.display = "flex";
-    } catch (error) {
-        // 未登録のメールアドレスかどうかは知らせない（他人の登録状況が分からないように）
-        if (error && error.code === "auth/user-not-found") {
-            document.getElementById("completion-modal").style.display = "flex";
-        } else {
-            console.warn("再設定メールの送信に失敗しました:", error);
-            errorBox.textContent = window.seitiAuth.errorMessage(error);
-            errorBox.hidden = false;
-        }
-    }
-
-    button.disabled = false;
-    button.textContent = "再設定メールを送る";
+    // 実際にはここでメール送信のプログラムを動かしますが、今回はポップアップを表示します
+    document.getElementById("completion-modal").style.display = "flex";
 }
 
 // ポップアップのボタンを押したときの処理

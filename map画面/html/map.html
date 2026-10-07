@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja" data-require-login>
+<html lang="ja">
 
 <head>
     <meta charset="UTF-8">
@@ -51,10 +51,6 @@
             border-radius: 8px;
         }
     </style>
-    <!-- ログイン（Firebase Authentication） -->
-    <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-auth-compat.js"></script>
-    <script src="../js/auth.js"></script>
 </head>
 
 <body>
@@ -269,7 +265,10 @@
          Firebase compat
          必ずstampsyori.jsより先に読み込む
     ====================================================== -->
-    <!-- app・auth は head で読み込み済み（ログイン確認のため） -->
+    <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-auth-compat.js"></script>
+
     <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore-compat.js"></script>
 
 

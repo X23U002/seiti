@@ -61,39 +61,3 @@
 .step.active::before { background-color: var(--color-primary); }
 
 .card .btn { margin-top: 8px; }
-
-
-/* 登録内容の確認 */
-
-.confirm-box {
-    margin: 0 0 24px;
-}
-
-.info-group {
-    padding: 12px 0;
-    border-bottom: 1px dashed #e3e7ea;
-}
-
-.info-group:first-child { padding-top: 0; }
-
-.info-group:last-child {
-    padding-bottom: 0;
-    border-bottom: none;
-}
-
-.info-label {
-    margin-bottom: 4px;
-    font-size: 12px;
-    font-weight: bold;
-    color: var(--color-text-sub);
-}
-
-.info-text {
-    margin: 0;
-    font-size: 16px;
-    font-weight: bold;
-    color: var(--color-primary);
-    word-break: break-all;
-}
-
-.edit-btn { margin-top: 12px; }
