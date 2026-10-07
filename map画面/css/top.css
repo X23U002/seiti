@@ -1,0 +1,351 @@
+@charset "UTF-8";
+
+/* =========================================
+   トップページ（index.html）専用
+   色などの変数は common.css で定義
+========================================= */
+
+body {
+    background-color: var(--color-surface);
+}
+
+.sp-only { display: none; }
+
+/* ---------- メインビジュアル ---------- */
+.hero {
+    position: relative;
+    overflow: hidden;
+    padding: 64px 20px 72px;
+    background: linear-gradient(160deg, #0b3c5d 0%, #14537f 60%, #1f6b9e 100%);
+    color: #fff;
+    text-align: center;
+}
+
+/* うっすら地図の格子模様 */
+.hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, .06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .06) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+}
+
+.hero-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 560px;
+    margin: 0 auto;
+}
+
+.hero-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 84px;
+    height: 84px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    background: #fff;
+    font-size: 44px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+}
+
+.hero-title {
+    margin: 0;
+    font-size: 36px;
+    letter-spacing: 2px;
+}
+
+.hero-catch {
+    margin: 10px 0 32px;
+    font-size: 17px;
+    opacity: .9;
+}
+
+.hero-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.hero-actions .btn {
+    width: auto;
+    min-width: 180px;
+}
+
+.btn-start {
+    background-color: var(--color-accent);
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(243, 156, 18, .4);
+}
+
+.btn-start:hover { background-color: #e08e0b; }
+
+.btn-outline {
+    background: transparent;
+    border: 2px solid rgba(255, 255, 255, .7);
+    color: #fff;
+}
+
+.btn-outline:hover { background-color: rgba(255, 255, 255, .12); }
+
+.hero-sub-link {
+    display: inline-block;
+    margin-top: 18px;
+    color: #fff;
+    font-size: 14px;
+    opacity: .85;
+}
+
+.hero-sub-link:hover { opacity: 1; }
+
+/* 装飾のピン */
+.hero-pins .pin {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, .25);
+    animation: pin-float 3s ease-in-out infinite;
+}
+
+.hero-pins .pin::after {
+    content: "";
+    position: absolute;
+    top: 7px;
+    left: 7px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #fff;
+}
+
+.pin-1 { top: 18%; left: 10%; background: #e74c3c; }
+.pin-2 { top: 62%; left: 86%; background: var(--color-accent); animation-delay: -1s !important; }
+.pin-3 { top: 78%; left: 16%; background: #27ae60; animation-delay: -2s !important; }
+
+@keyframes pin-float {
+    0%, 100% { translate: 0 0; }
+    50% { translate: 0 -8px; }
+}
+
+/* ---------- セクション共通 ---------- */
+.section {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 56px 20px;
+}
+
+/* 背景色は画面いっぱい、中身は他のセクションと同じ幅で中央に置く */
+.section-alt {
+    max-width: none;
+    padding-left: max(20px, calc((100% - 920px) / 2));
+    padding-right: max(20px, calc((100% - 920px) / 2));
+    background-color: var(--color-bg);
+}
+
+.section-title {
+    margin: 0 0 28px;
+    font-size: 24px;
+    color: var(--color-primary);
+    text-align: center;
+}
+
+/* ---------- できること ---------- */
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.feature {
+    padding: 22px 18px;
+    background: var(--color-surface);
+    border: 1px solid #e6ebef;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.feature-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    background-color: var(--color-primary-light);
+    font-size: 24px;
+}
+
+.feature h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    color: var(--color-primary);
+}
+
+.feature p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--color-text-sub);
+}
+
+/* ---------- 使い方 ---------- */
+.steps-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    padding: 0;
+    list-style: none;
+}
+
+.steps-list li {
+    display: flex;
+    gap: 14px;
+    padding: 20px;
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.step-num {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: var(--color-primary);
+    color: #fff;
+    font-weight: bold;
+}
+
+.steps-list h3 {
+    margin: 4px 0 6px;
+    font-size: 15px;
+}
+
+.steps-list p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--color-text-sub);
+}
+
+.guide-link {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 14px;
+}
+
+.guide-link a { color: var(--color-primary); }
+
+/* ---------- スマホで開く（PCの時だけ表示） ---------- */
+.phone-card {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    padding: 28px;
+    border: 2px dashed #cfd8df;
+    border-radius: var(--radius-lg);
+}
+
+.qr {
+    flex-shrink: 0;
+    width: 132px;
+    height: 132px;
+    border-radius: 8px;
+}
+
+.phone-card h2 {
+    margin: 0 0 8px;
+    font-size: 20px;
+    color: var(--color-primary);
+}
+
+.phone-card p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.phone-card .url {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--color-text-sub);
+    word-break: break-all;
+}
+
+/* ---------- 最後のボタン ---------- */
+.cta {
+    text-align: center;
+}
+
+.cta h2 {
+    margin: 0 0 20px;
+    font-size: 22px;
+}
+
+.cta .btn {
+    display: inline-flex;
+    width: auto;
+    min-width: 240px;
+}
+
+/* ---------- フッター ---------- */
+.footer {
+    padding: 24px 20px 32px;
+    background-color: var(--color-primary);
+    color: rgba(255, 255, 255, .8);
+    font-size: 13px;
+    text-align: center;
+}
+
+.footer p { margin: 4px 0; }
+
+.footer-links a {
+    margin: 0 10px;
+    color: #fff;
+}
+
+/* =========================================
+   スマホ
+========================================= */
+@media (max-width: 720px) {
+    .sp-only { display: inline; }
+
+    .hero { padding: 48px 20px 56px; }
+
+    /* 装飾のピンがボタンに重ならない位置にする */
+    .pin-1 { top: 6%; left: 8%; }
+    .pin-2 { top: 10%; left: 84%; }
+    .pin-3 { display: none; }
+    .hero-title { font-size: 30px; }
+
+    .hero-actions {
+        flex-direction: column;
+        align-items: stretch;
+        max-width: 320px;
+        margin: 0 auto;
+    }
+
+    .section { padding: 44px 20px; }
+
+    .feature-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .feature { padding: 18px 14px; }
+
+    .steps-list { grid-template-columns: 1fr; }
+
+    /* スマホで見ている時はQRコードは不要 */
+    .phone-section { display: none; }
+}
+
+@media (max-width: 380px) {
+    .feature-grid { grid-template-columns: 1fr; }
+}

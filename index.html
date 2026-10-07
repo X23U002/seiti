@@ -3,11 +3,130 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>聖地巡礼NAVI</title>
-    <!-- GitHub Pages のトップ（/seiti/）を開いた時はログイン画面へ移動する -->
-    <meta http-equiv="refresh" content="0; url=map画面/html/login.html">
+    <title>聖地巡礼NAVI - アニメの聖地をめぐってスタンプを集めよう</title>
+    <meta name="description" content="アニメの聖地を地図で探して、現地でスタンプを集める聖地巡礼アプリです。">
+    <link rel="stylesheet" href="map画面/css/common.css">
+    <link rel="stylesheet" href="map画面/css/top.css">
 </head>
 <body>
-    <p><a href="map画面/html/login.html">聖地巡礼NAVI を開く</a></p>
+
+    <!-- =========================
+         メインビジュアル
+    ========================= -->
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-logo" aria-hidden="true">⛩️</div>
+            <h1 class="hero-title">聖地巡礼NAVI</h1>
+            <p class="hero-catch">アニメの聖地をめぐって、<br class="sp-only">スタンプを集めよう</p>
+
+            <div class="hero-actions">
+                <a href="map画面/html/login.html" class="btn btn-start">はじめる（ログイン）</a>
+                <a href="map画面/html/newaccount.html" class="btn btn-outline">新規登録</a>
+            </div>
+            <a href="map画面/html/map.html" class="hero-sub-link">まずは地図を見てみる ›</a>
+        </div>
+
+        <!-- 地図とピンのイメージ（装飾） -->
+        <div class="hero-pins" aria-hidden="true">
+            <span class="pin pin-1"></span>
+            <span class="pin pin-2"></span>
+            <span class="pin pin-3"></span>
+        </div>
+    </header>
+
+    <main>
+
+        <!-- =========================
+             できること
+        ========================= -->
+        <section class="section">
+            <h2 class="section-title">できること</h2>
+            <div class="feature-grid">
+                <article class="feature">
+                    <div class="feature-icon" aria-hidden="true">🗺</div>
+                    <h3>聖地を地図で探す</h3>
+                    <p>作品ごとに色分けされたピンで、近くの聖地がひと目で分かります。作品名で絞り込みもできます。</p>
+                </article>
+                <article class="feature">
+                    <div class="feature-icon" aria-hidden="true">💮</div>
+                    <h3>現地でスタンプ</h3>
+                    <p>聖地に着いたらスタンプを獲得。集めたスタンプはマイページでいつでも見返せます。</p>
+                </article>
+                <article class="feature">
+                    <div class="feature-icon" aria-hidden="true">🚶</div>
+                    <h3>キャラクターと歩く</h3>
+                    <p>3D表示にすると、あなたの現在地をキャラクターが一緒に歩いてくれます。</p>
+                </article>
+                <article class="feature">
+                    <div class="feature-icon" aria-hidden="true">📍</div>
+                    <h3>巡礼ルートを作る</h3>
+                    <p>行きたい聖地を選んで、Googleマップでそのまま徒歩ルートの案内を開けます。</p>
+                </article>
+            </div>
+        </section>
+
+        <!-- =========================
+             使い方
+        ========================= -->
+        <section class="section section-alt">
+            <h2 class="section-title">使い方</h2>
+            <ol class="steps-list">
+                <li>
+                    <span class="step-num">1</span>
+                    <div>
+                        <h3>地図で聖地を見つける</h3>
+                        <p>気になるピンをタップすると、登場シーンや写真が見られます。</p>
+                    </div>
+                </li>
+                <li>
+                    <span class="step-num">2</span>
+                    <div>
+                        <h3>実際に行ってみる</h3>
+                        <p>ルートに追加して、Googleマップで道案内。</p>
+                    </div>
+                </li>
+                <li>
+                    <span class="step-num">3</span>
+                    <div>
+                        <h3>スタンプを集める</h3>
+                        <p>聖地の近く（約50m以内）でスタンプを獲得しよう。</p>
+                    </div>
+                </li>
+            </ol>
+            <p class="guide-link"><a href="map画面/html/guide.html">くわしい操作ガイドを見る ›</a></p>
+        </section>
+
+        <!-- =========================
+             スマホで開く（PCの時だけ表示）
+        ========================= -->
+        <section class="section phone-section">
+            <div class="phone-card">
+                <img src="map画面/images/site-qr.svg" alt="このページのQRコード" class="qr" width="132" height="132">
+                <div>
+                    <h2>スマホで開くともっと楽しい</h2>
+                    <p>QRコードを読み取ると、スマホでこのページが開きます。現在地（GPS）を使って、実際に歩きながらスタンプを集められます。</p>
+                    <p class="url">https://x23u002.github.io/seiti/</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================
+             最後のボタン
+        ========================= -->
+        <section class="section cta">
+            <h2>さっそく聖地巡礼をはじめよう</h2>
+            <a href="map画面/html/login.html" class="btn btn-primary">はじめる</a>
+        </section>
+
+    </main>
+
+    <footer class="footer">
+        <p>© 聖地巡礼NAVI</p>
+        <p class="footer-links">
+            <a href="map画面/html/guide.html">操作ガイド</a>
+            <a href="map画面/html/information.html">お問い合わせ</a>
+        </p>
+    </footer>
+
 </body>
 </html>
