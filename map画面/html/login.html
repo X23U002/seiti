@@ -9,37 +9,72 @@
 </head>
 <body>
 
-    <main class="login-container">
-        <div class="app-logo" aria-hidden="true">⛩️</div>
-        <h1 class="app-title">聖地巡礼NAVI</h1>
-        <p class="app-catch">アニメの聖地をめぐって、スタンプを集めよう</p>
+    <div class="login-layout">
 
-        <!-- formにしてEnterキーでもログインできるようにする -->
-        <form class="login-form" onsubmit="goToMap(); return false;">
-            <div class="form-group">
-                <label for="userid">ユーザーID</label>
-                <input type="text" id="userid" placeholder="(例) u1" autocomplete="username">
+        <!-- =========================
+             アプリの紹介（PCでは左側、スマホでは上部）
+        ========================= -->
+        <section class="brand">
+            <a href="../../index.html" class="back-to-top">‹ トップへ</a>
+
+            <div class="brand-inner">
+                <div class="app-logo" aria-hidden="true">⛩️</div>
+                <h1 class="app-title">聖地巡礼NAVI</h1>
+                <p class="app-catch">アニメの聖地をめぐって、スタンプを集めよう</p>
+
+                <ul class="brand-points">
+                    <li><span aria-hidden="true">🗺</span>地図で聖地を探す</li>
+                    <li><span aria-hidden="true">💮</span>現地でスタンプを集める</li>
+                    <li><span aria-hidden="true">🚶</span>キャラクターと一緒に歩く</li>
+                </ul>
             </div>
+        </section>
 
-            <div class="form-group">
-                <label for="password">パスワード</label>
-                <div class="password-wrap">
-                    <input type="password" id="password" placeholder="(例) seiti555" autocomplete="current-password">
-                    <button type="button" class="password-toggle" data-target="password" aria-pressed="false" aria-label="パスワードを表示">表示</button>
-                </div>
+        <!-- =========================
+             ログインフォーム
+        ========================= -->
+        <main class="login-panel">
+            <div class="login-card">
+                <h2 class="login-title">ログイン</h2>
+                <p class="login-lead">ユーザーIDとパスワードを入力してください。</p>
+
+                <!-- formにしてEnterキーでもログインできるようにする -->
+                <form class="login-form" onsubmit="login(); return false;" novalidate>
+                    <div class="form-group">
+                        <label for="userid">ユーザーID</label>
+                        <input type="text" id="userid" placeholder="(例) u1" autocomplete="username" autocapitalize="off">
+                        <p class="error-text">ユーザーIDを入力してください。</p>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="label-row">
+                            <label for="password">パスワード</label>
+                            <a href="forgot_password.html" class="forgot-link">パスワードを忘れた場合</a>
+                        </div>
+                        <div class="password-wrap">
+                            <input type="password" id="password" placeholder="(例) seiti555" autocomplete="current-password">
+                            <button type="button" class="password-toggle" data-target="password" aria-pressed="false" aria-label="パスワードを表示">表示</button>
+                        </div>
+                        <p class="error-text">パスワードを入力してください。</p>
+                    </div>
+
+                    <label class="remember">
+                        <input type="checkbox" id="remember-id">
+                        ユーザーIDを保存する
+                    </label>
+
+                    <button type="submit" class="btn btn-login">ログイン</button>
+                </form>
+
+                <div class="divider"><span>はじめての方</span></div>
+
+                <a href="newaccount.html" class="btn btn-secondary">新規登録（無料）</a>
+
+                <a href="map.html" class="guest-link">ログインせずに地図を見る ›</a>
             </div>
+        </main>
 
-            <button type="submit" class="btn btn-primary">ログイン</button>
-        </form>
-
-        <div class="links">
-            <a href="forgot_password.html">パスワードを忘れた場合</a>
-        </div>
-
-        <div class="divider"><span>はじめての方</span></div>
-
-        <a href="newaccount.html" class="btn btn-secondary">新規登録</a>
-    </main>
+    </div>
 
     <script src="../js/common.js"></script>
     <script src="../js/login.js"></script>

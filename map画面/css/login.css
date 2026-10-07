@@ -3,70 +3,188 @@
 /* 共通スタイルは common.css。ここはログイン画面専用 */
 
 body {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    padding: 20px;
-    background: linear-gradient(160deg, #0b3c5d 0%, #14537f 45%, #f4f7f6 45.1%);
+    background-color: var(--color-bg);
 }
 
-.login-container {
-    width: 100%;
-    max-width: 360px;
-    padding: 32px 24px 28px;
-    background-color: var(--color-surface);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg);
+/* PCでは左右2列、スマホでは上下に並べる */
+.login-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 100vh;
+}
+
+/* ---------- アプリの紹介（トップページと同じ雰囲気） ---------- */
+.brand {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 48px 32px;
+    background: linear-gradient(160deg, #0b3c5d 0%, #14537f 60%, #1f6b9e 100%);
+    color: #fff;
+}
+
+/* うっすら地図の格子模様 */
+.brand::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, .06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .06) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+}
+
+.back-to-top {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 1;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    color: #fff;
+    font-size: 14px;
+    text-decoration: none;
+    opacity: .85;
+}
+
+.back-to-top:hover {
+    background-color: rgba(255, 255, 255, .12);
+    opacity: 1;
+}
+
+.brand-inner {
+    position: relative;
+    z-index: 1;
+    text-align: center;
 }
 
 .app-logo {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 64px;
-    height: 64px;
-    margin: 0 auto 12px;
+    width: 84px;
+    height: 84px;
+    margin: 0 auto 16px;
     border-radius: 50%;
-    background-color: var(--color-primary-light);
-    font-size: 32px;
+    background: #fff;
+    font-size: 44px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
 }
 
 .app-title {
     margin: 0;
-    text-align: center;
-    font-size: 24px;
-    color: var(--color-primary);
-    letter-spacing: 1px;
+    font-size: 32px;
+    letter-spacing: 2px;
 }
 
 .app-catch {
+    margin: 8px 0 28px;
+    font-size: 15px;
+    opacity: .9;
+}
+
+.brand-points {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    text-align: left;
+}
+
+.brand-points li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+}
+
+.brand-points span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, .15);
+}
+
+/* ---------- ログインフォーム ---------- */
+.login-panel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 380px;
+    padding: 32px 28px;
+    background-color: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+}
+
+.login-title {
+    margin: 0;
+    font-size: 22px;
+    color: var(--color-primary);
+}
+
+.login-lead {
     margin: 6px 0 24px;
-    text-align: center;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--color-text-sub);
 }
 
-.login-form .btn { margin-top: 8px; }
-
-.links {
-    margin-top: 14px;
-    text-align: center;
-    font-size: 13px;
+/* ラベルと「パスワードを忘れた場合」を横に並べる */
+.label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
 }
 
-.links a {
+.forgot-link {
+    margin-bottom: 8px;
+    font-size: 12px;
     color: var(--color-primary);
-    text-decoration: none;
 }
 
-.links a:hover { text-decoration: underline; }
+.remember {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: -4px 0 16px;
+    font-size: 13px;
+    color: var(--color-text-sub);
+    cursor: pointer;
+}
+
+.remember input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-primary);
+}
+
+/* トップページの「はじめる」と同じオレンジ */
+.btn-login {
+    background-color: var(--color-accent);
+    box-shadow: 0 6px 16px rgba(243, 156, 18, .35);
+}
+
+.btn-login:hover { background-color: #e08e0b; }
 
 .divider {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin: 22px 0 14px;
+    margin: 24px 0 14px;
     font-size: 12px;
     color: var(--color-text-sub);
 }
@@ -77,4 +195,52 @@ body {
     flex: 1;
     height: 1px;
     background-color: var(--color-border);
+}
+
+.guest-link {
+    display: block;
+    margin-top: 18px;
+    font-size: 13px;
+    color: var(--color-primary);
+    text-align: center;
+}
+
+/* =========================================
+   スマホ：紹介を上に小さく、フォームを重ねる
+========================================= */
+@media (max-width: 760px) {
+    .login-layout {
+        grid-template-columns: 1fr;
+        min-height: auto;
+    }
+
+    .brand {
+        padding: 56px 20px 72px;
+    }
+
+    .app-logo {
+        width: 64px;
+        height: 64px;
+        margin-bottom: 10px;
+        font-size: 34px;
+    }
+
+    .app-title { font-size: 26px; }
+
+    .app-catch { margin-bottom: 0; font-size: 13px; }
+
+    /* スマホでは紹介の箇条書きは省略してフォームを近くに */
+    .brand-points { display: none; }
+
+    .login-panel {
+        align-items: flex-start;
+        margin-top: -44px;
+        padding: 0 16px 32px;
+    }
+
+    .login-card {
+        position: relative;
+        padding: 26px 20px;
+        box-shadow: var(--shadow-lg);
+    }
 }
