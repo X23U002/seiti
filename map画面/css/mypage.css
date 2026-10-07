@@ -193,3 +193,243 @@
     border-color: var(--color-primary);
     background-color: var(--color-primary-light);
 }
+
+
+/* =========================================
+   マイページの改善（集計・達成度・最近のスタンプ・アイコン）
+========================================= */
+
+/* 線のアイコン */
+.icon {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
+}
+
+.edit-profile-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.edit-profile-btn .icon {
+    width: 14px;
+    height: 14px;
+}
+
+/* ---------- 集計 ---------- */
+.stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 14px 6px;
+    background: var(--color-surface);
+    border: none;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    color: var(--color-text);
+    font-family: inherit;
+}
+
+button.stat {
+    cursor: pointer;
+}
+
+button.stat:hover {
+    background: #f6f8f9;
+}
+
+.stat-value {
+    font-size: 12px;
+    color: var(--color-text-sub);
+}
+
+.stat-value strong {
+    margin-right: 2px;
+    font-size: 26px;
+    color: var(--color-primary);
+}
+
+/* 獲得スタンプだけオレンジで目立たせる */
+.stat:first-child .stat-value strong {
+    color: var(--color-accent);
+}
+
+.stat-label {
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* ---------- 見出し付きのパネル ---------- */
+.panel {
+    margin-bottom: 16px;
+    padding: 16px 18px;
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.panel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.panel-head h2 {
+    margin: 0;
+    font-size: 15px;
+    color: var(--color-primary);
+}
+
+.panel-link {
+    font-size: 13px;
+    color: var(--color-primary);
+}
+
+.list-empty {
+    padding: 8px 0;
+    font-size: 13px;
+    color: var(--color-text-sub);
+    line-height: 1.6;
+}
+
+/* ---------- 作品ごとの達成度 ---------- */
+.progress-list,
+.recent-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.progress-item + .progress-item {
+    margin-top: 12px;
+}
+
+.progress-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 13px;
+}
+
+.progress-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: bold;
+}
+
+.progress-count {
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--color-text-sub);
+}
+
+.progress-bar {
+    height: 8px;
+    overflow: hidden;
+    border-radius: 4px;
+    background: #eef1f3;
+}
+
+.progress-bar span {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    transition: width .4s ease;
+}
+
+/* ピンの色を示す丸 */
+.color-dot {
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+/* ---------- 最近獲得したスタンプ ---------- */
+.recent-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+}
+
+.recent-item + .recent-item {
+    border-top: 1px solid #eef1f3;
+}
+
+.recent-badge {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: var(--color-primary);
+    font-size: 18px;
+    box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.recent-body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.recent-body strong {
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.recent-body span {
+    font-size: 12px;
+    color: var(--color-text-sub);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---------- メニュー（線のアイコン） ---------- */
+.menu-icon {
+    color: var(--color-primary);
+}
+
+.menu-icon .icon {
+    width: 18px;
+    height: 18px;
+}
+
+.menu-arrow.icon {
+    width: 18px;
+    height: 18px;
+    color: #b4bcc4;
+}
+
+.logout-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}

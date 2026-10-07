@@ -31,6 +31,13 @@ function login() {
         // 保存できない環境では何もしない
     }
 
+    // マイページで表示するため、ログイン中のユーザーIDを記録する
+    try {
+        localStorage.setItem("seitiCurrentUserId", userId);
+    } catch (e) {
+        // 保存できない環境では何もしない
+    }
+
     // 今はプロトタイプなので、入力があればそのままマップ画面へ移動する
     window.location.href = "map.html";
 }

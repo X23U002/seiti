@@ -314,6 +314,8 @@ async function loadData() {
 
     currentSpots = spots;
 
+    saveSpotSummary();
+
     // stampsyori.jsへ最新のスポット一覧を渡す
     window.spots = spots;
 
@@ -322,6 +324,43 @@ async function loadData() {
         "function"
     ) {
         window.refreshStampUI();
+    }
+}
+
+
+// =========================================================
+// 作品ごとの聖地の件数と色を端末に記録する
+// （マイページの「作品ごとの達成度」で使う）
+// =========================================================
+function saveSpotSummary() {
+    const titles = {};
+
+    spots.forEach(
+        function (spot) {
+            const title =
+                getTitleName(spot);
+
+            if (!titles[title]) {
+                titles[title] = {
+                    count: 0,
+                    color: getTitleColor(title)
+                };
+            }
+            titles[title].count++;
+        }
+    );
+
+    try {
+        localStorage.setItem(
+            "seitiSpotSummary",
+            JSON.stringify({
+                updatedAt: Date.now(),
+                total: spots.length,
+                titles: titles
+            })
+        );
+    } catch (error) {
+        // 保存できない環境では何もしない
     }
 }
 
