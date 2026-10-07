@@ -1,121 +1,202 @@
 @charset "UTF-8";
 
-/* 共通スタイルは common.css。ここは獲得スタンプ画面専用 */
+/* 共通スタイルは common.css。ここはスタンプ帳画面専用 */
 
-/* 獲得数と絞り込みボタンの行 */
-.toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 14px;
+.content {
+    max-width: 720px;
 }
 
-.stamp-count {
+/* ---------- 全体の進み具合 ---------- */
+.overall {
+    margin-bottom: 16px;
+}
+
+.overall-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 12px;
+    margin-bottom: 10px;
+}
+
+.overall-count {
     margin: 0;
-    font-size: 14px;
+    font-size: 15px;
     color: var(--color-text-sub);
 }
 
-.stamp-count strong {
-    font-size: 26px;
+.overall-count strong {
+    font-size: 32px;
     color: var(--color-accent);
 }
 
-/* 絞り込みボタン */
-.filter-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 40px;
-    padding: 0 14px;
-    background-color: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 20px;
+.overall-rest {
+    margin: 0;
     font-size: 13px;
     font-weight: bold;
     color: var(--color-primary);
-    cursor: pointer;
-    box-shadow: var(--shadow-sm);
-    transition: background-color 0.2s;
 }
 
-.filter-btn:hover { background-color: var(--color-primary-light); }
-
-.filter-btn .chevron { transition: transform 0.2s; }
-.filter-btn[aria-expanded="true"] .chevron { transform: rotate(180deg); }
-
-.filter-active-count {
-    min-width: 20px;
-    padding: 1px 6px;
-    border-radius: 10px;
-    background-color: var(--color-primary);
-    color: #fff;
-    font-size: 11px;
-    text-align: center;
+.overall-bar {
+    height: 10px;
+    overflow: hidden;
+    border-radius: 5px;
+    background: #eef1f3;
 }
 
-.filter-dropdown {
-    flex-direction: column;
-    gap: 4px;
+.overall-bar span {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: 5px;
+    background: linear-gradient(90deg, var(--color-accent), #f7b733);
+    transition: width .5s ease;
+}
+
+/* ---------- 作品の札と「獲得済みだけ表示」 ---------- */
+.toolbar {
     margin-bottom: 16px;
-    padding: 12px;
-    background: var(--color-surface);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-md);
-    animation: pop-in 0.18s ease;
 }
 
-.filter-option {
+.title-chips {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    margin: 0 -20px 10px;
+    padding: 2px 20px 6px;
+    scrollbar-width: none;
+}
+
+.title-chips::-webkit-scrollbar {
+    display: none;
+}
+
+.title-chip {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
-    min-height: 44px;
-    padding: 0 8px;
-    border-radius: var(--radius-sm);
-    font-size: 14px;
+    gap: 6px;
+    height: 36px;
+    padding: 0 14px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 18px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--color-text);
+    white-space: nowrap;
     cursor: pointer;
 }
 
-.filter-option:hover { background-color: #f4f6f8; }
-
-.filter-option input {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--color-primary);
+.title-chip:hover {
+    background: #f6f8f9;
 }
 
-.filter-actions {
-    display: flex;
-    gap: 10px;
-    margin-top: 8px;
+/* 選んでいる作品は紺色 */
+.title-chip[aria-selected="true"] {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
 }
 
-.filter-actions .btn { min-height: 44px; font-size: 14px; }
-.filter-actions .btn-primary { flex: 2; }
-.filter-actions .btn-secondary { flex: 1; }
+.chip-count {
+    font-size: 11px;
+    font-weight: normal;
+    opacity: .75;
+}
 
-.filter-empty {
-    margin: 0;
-    padding: 8px;
-    text-align: center;
+.color-dot {
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px #fff;
+}
+
+/* 切り替えスイッチ */
+.only-earned {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     font-size: 13px;
+    color: var(--color-text-sub);
+    cursor: pointer;
+}
+
+.only-earned input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.switch {
+    position: relative;
+    width: 38px;
+    height: 22px;
+    border-radius: 11px;
+    background: #cfd6dc;
+    transition: background .2s;
+}
+
+.switch::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+    transition: transform .2s;
+}
+
+.only-earned input:checked + .switch {
+    background: var(--color-primary);
+}
+
+.only-earned input:checked + .switch::after {
+    transform: translateX(16px);
+}
+
+.only-earned input:focus-visible + .switch {
+    outline: 3px solid rgba(11, 60, 93, .45);
+    outline-offset: 2px;
+}
+
+/* ---------- 作品ごとのスタンプ ---------- */
+.stamp-section {
+    margin-bottom: 16px;
+}
+
+.section-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.section-head h2 {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 15px;
+    color: var(--color-primary);
+}
+
+.section-count {
+    flex-shrink: 0;
+    font-size: 13px;
+    font-weight: bold;
     color: var(--color-text-sub);
 }
 
-/* スタンプ一覧を囲むカード */
-.stamp-container {
-    padding: 24px 12px;
-    background: var(--color-surface);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-md);
-}
-
-/* スタンプのグリッド */
 .stamp-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-    gap: 22px 8px;
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    gap: 18px 8px;
 }
 
 .stamp-item {
@@ -126,6 +207,7 @@
     background: none;
     border: none;
     border-radius: var(--radius-sm);
+    font-family: inherit;
     text-align: center;
     cursor: pointer;
 }
@@ -134,35 +216,56 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 70px;
-    height: 70px;
-    margin-bottom: 8px;
+    width: 66px;
+    height: 66px;
+    margin-bottom: 6px;
     border-radius: 50%;
     border: 3px solid #fff;
-    font-size: 30px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12), 0 0 0 2px var(--color-accent);
-    transition: transform 0.2s;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 28px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, .12), 0 0 0 2px var(--color-accent);
+    transition: transform .2s;
 }
 
 .stamp-item:hover .stamp-circle { transform: rotate(-6deg) scale(1.05); }
-.stamp-item:active .stamp-circle { transform: scale(0.95); }
+.stamp-item:active .stamp-circle { transform: scale(.95); }
 
-.stamp-circle.earned { background-color: var(--color-primary); color: #fff; }
+/* まだ集めていない聖地 */
+.stamp-item.is-locked .stamp-circle {
+    background: #f1f4f6;
+    border: 2px dashed #c3ccd4;
+    color: #a4afb9;
+    font-size: 24px;
+    font-weight: bold;
+    box-shadow: none;
+}
 
 .stamp-label {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: bold;
+    line-height: 1.4;
     color: var(--color-text);
     word-break: break-all;
 }
 
-/* =========================================
-   スタンプ詳細ポップアップ
-========================================= */
+.stamp-item.is-locked .stamp-label {
+    color: var(--color-text-sub);
+    font-weight: normal;
+}
+
+.empty-state .btn {
+    display: inline-flex;
+    width: auto;
+    margin-top: 16px;
+    padding: 0 24px;
+}
+
+/* ---------- 詳細ポップアップ ---------- */
 .stamp-detail { text-align: center; }
 
 .stamp-big-circle {
@@ -177,7 +280,16 @@
     border-radius: 50%;
     border: 4px solid #fff;
     font-size: 40px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 3px var(--color-accent);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .15), 0 0 0 3px var(--color-accent);
+}
+
+.stamp-big-circle.is-locked {
+    background: #f1f4f6;
+    border: 3px dashed #c3ccd4;
+    color: #a4afb9;
+    font-size: 36px;
+    font-weight: bold;
+    box-shadow: none;
 }
 
 .spot-title {
@@ -195,6 +307,11 @@
     color: #b9770e;
     font-size: 12px;
     font-weight: bold;
+}
+
+.visit-date.is-locked {
+    background-color: #eef1f3;
+    color: var(--color-text-sub);
 }
 
 .info-group {
@@ -219,3 +336,7 @@
 }
 
 .info-text:last-child { margin-bottom: 0; }
+
+.map-link {
+    margin-top: 18px;
+}

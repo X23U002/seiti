@@ -356,12 +356,76 @@ function saveSpotSummary() {
             JSON.stringify({
                 updatedAt: Date.now(),
                 total: spots.length,
-                titles: titles
+                titles: titles,
+                // スタンプ画面で「まだ集めていない聖地」も並べるための一覧
+                spots: spots.map(
+                    function (spot) {
+                        return {
+                            id: spot.id,
+                            name: spot.spot_name || "無題のスポット",
+                            title: getTitleName(spot),
+                            info: spot.spot_info || ""
+                        };
+                    }
+                )
             })
         );
     } catch (error) {
         // 保存できない環境では何もしない
     }
+}
+
+
+// =========================================================
+// map.html?spot=スポットID で開いた時は、その聖地へ移動して詳細を開く
+// （スタンプ画面の「地図で見る」から使う）。処理した時は true を返す
+// =========================================================
+function openSpotFromUrl() {
+    const spotId =
+        new URLSearchParams(
+            location.search
+        ).get("spot");
+
+    if (!spotId) {
+        return false;
+    }
+
+    const spot =
+        spots.find(
+            function (item) {
+                return String(item.id) === spotId;
+            }
+        );
+
+    if (!spot || !spot.coord) {
+        return false;
+    }
+
+    map.jumpTo({
+        center: [
+            Number(spot.coord.longitude),
+            Number(spot.coord.latitude)
+        ],
+        zoom: 16
+    });
+
+    // ピンが描き直された後に、そのスポットの詳細を開く
+    map.once(
+        "idle",
+        function () {
+            const target =
+                spotMarkers.find(
+                    function (marker) {
+                        return marker.getElement().dataset.spotId === spotId;
+                    }
+                );
+            if (target && target.getPopup() && !target.getPopup().isOpen()) {
+                target.togglePopup();
+            }
+        }
+    );
+
+    return true;
 }
 
 
@@ -1165,9 +1229,22 @@ map.on(
         }
 
 
+        // URLで聖地が指定されていれば、そこを表示する
+        // （その時は現在地へカメラが動かないよう、現在地の自動取得はしない）
+        let openedSpot = false;
+        try {
+            openedSpot =
+                openSpotFromUrl();
+        } catch (error) {
+            console.warn(
+                "指定された聖地を開けませんでした:",
+                error
+            );
+        }
+
         // 現在地取得
         try {
-            geolocate.trigger();
+            if (!openedSpot) geolocate.trigger();
         } catch (error) {
             console.warn(
                 "現在地の取得に失敗:",

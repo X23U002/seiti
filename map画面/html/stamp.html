@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>獲得スタンプ - 聖地巡礼NAVI</title>
+    <title>スタンプ帳 - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css">
     <link rel="stylesheet" href="../css/stamp.css">
 </head>
@@ -12,50 +12,55 @@
     <!-- アプリ共通ヘッダー -->
     <header class="app-header">
         <button type="button" class="back-btn" onclick="goToMyPage()" aria-label="マイページに戻る">＜ 戻る</button>
-        <h1>獲得スタンプ</h1>
+        <h1>スタンプ帳</h1>
     </header>
 
     <main class="content">
-        <!-- 獲得数と絞り込み -->
-        <div class="toolbar">
-            <p class="stamp-count" aria-live="polite"><strong id="stamp-count">0</strong> 個 獲得</p>
-            <button type="button" class="filter-btn" id="filter-toggle" onclick="toggleFilter()" aria-expanded="false" aria-controls="filter-menu">
-                <span aria-hidden="true">🎛</span> 作品で絞り込み
-                <span class="filter-active-count" id="filter-active-count" hidden></span>
-                <span class="chevron" aria-hidden="true">▾</span>
-            </button>
-        </div>
 
-        <!-- 絞り込みメニュー（最初は隠しておく） -->
-        <div id="filter-menu" class="filter-dropdown" style="display: none;">
-        </div>
-
-        <!-- スタンプ一覧 -->
-        <div class="stamp-container">
-            <div id="stampList" class="stamp-grid">
+        <!-- 全体の進み具合 -->
+        <section class="overall card">
+            <div class="overall-head">
+                <p class="overall-count"><strong id="got-count">0</strong> / <span id="total-count">0</span> 個</p>
+                <p class="overall-rest" id="rest-text"></p>
             </div>
+            <div class="overall-bar" role="progressbar" aria-label="スタンプ帳の達成度" aria-valuemin="0" id="overall-bar">
+                <span id="overall-fill"></span>
+            </div>
+        </section>
+
+        <!-- 作品の切り替え（札）と「獲得済みだけ表示」 -->
+        <div class="toolbar">
+            <div class="title-chips" id="title-chips" role="tablist" aria-label="作品の切り替え"></div>
+            <label class="only-earned">
+                <input type="checkbox" id="only-earned">
+                <span class="switch" aria-hidden="true"></span>
+                獲得済みだけ表示
+            </label>
         </div>
+
+        <!-- スタンプ（作品ごと） -->
+        <div id="stamp-sections"></div>
+
     </main>
 
-    <!-- =============== スタンプ詳細のポップアップ（モーダル） =============== -->
+    <!-- =============== スタンプ詳細のポップアップ =============== -->
     <div id="stamp-modal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="modal-content stamp-detail">
             <button type="button" class="modal-close-btn" onclick="closeStampModal()" aria-label="閉じる" data-modal-close>✕</button>
 
-            <div class="stamp-big-circle" aria-hidden="true">⛩️</div>
+            <div class="stamp-big-circle" id="modal-circle" aria-hidden="true">⛩️</div>
             <h2 id="modal-title" class="spot-title">〇〇神社</h2>
-            <div id="modal-date" class="visit-date">訪問日時：2026年05月15日</div>
+            <div id="modal-date" class="visit-date">訪問日：2026年05月15日</div>
 
             <dl class="info-group">
-                <dt class="info-label">🎬 作品名</dt>
+                <dt class="info-label">作品名</dt>
                 <dd class="info-text" id="modal-anime">アニメ名</dd>
 
-                <dt class="info-label">📺 シーン</dt>
+                <dt class="info-label">シーン</dt>
                 <dd class="info-text" id="modal-scene">シーン</dd>
-
-                <dt class="info-label">📍 住所</dt>
-                <dd class="info-text" id="modal-address">住所</dd>
             </dl>
+
+            <a href="map.html" class="btn btn-primary map-link" id="modal-map-link">地図で見る</a>
         </div>
     </div>
 
