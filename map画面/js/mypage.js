@@ -94,13 +94,28 @@ function setupProgressToggle(titleCount) {
     });
 
     // --- 集計 ---
-    const animeNames = new Set(uniqueStamps.map(function (s) { return s.anime; }));
+    // スタンプを1個でも取った作品（作品名の無いスポットは作品として数えない）
+    const animeNames = new Set(
+        uniqueStamps
+            .map(function (s) { return s.anime; })
+            .filter(function (anime) { return anime && anime !== "作品名不明"; })
+    );
     document.getElementById("stamp-count").textContent = uniqueStamps.length;
     document.getElementById("anime-count").textContent = animeNames.size;
 
     if (summary && summary.total > 0) {
         document.getElementById("progress-rate").textContent =
             Math.round(uniqueStamps.length / summary.total * 100);
+    }
+
+    // その作品の聖地をすべて回った作品（作品ごとの聖地の件数が分かる時だけ数える）
+    if (summary && summary.titles) {
+        document.getElementById("complete-count").textContent =
+            Object.keys(summary.titles).filter(function (title) {
+                const total = summary.titles[title].count;
+                const got = uniqueStamps.filter(function (s) { return s.anime === title; }).length;
+                return title !== "作品名不明" && total > 0 && got >= total;
+            }).length;
     }
 
     // --- 作品ごとの達成度 ---
