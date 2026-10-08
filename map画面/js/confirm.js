@@ -16,7 +16,6 @@ function goToComplete() {
                 icon: profile.icon || "👤"
             }));
             localStorage.setItem("seitiAccount", JSON.stringify({
-                name: saved.name,
                 nickname: saved.nickname,
                 email: saved.email
             }));
@@ -41,7 +40,6 @@ function goToMap() {
 (function showInput() {
     const saved = JSON.parse(sessionStorage.getItem("newAccount") || "null");
     if (!saved) return;
-    document.getElementById("confirm-name").textContent = saved.name;
     document.getElementById("confirm-nickname").textContent = saved.nickname || "-";
     document.getElementById("confirm-email").textContent = saved.email;
     document.getElementById("confirm-password").textContent = "•".repeat(saved.passwordLength) + "（非表示）";
