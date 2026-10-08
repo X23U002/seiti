@@ -2099,3 +2099,70 @@ body {
     from { translate: 0 40px; opacity: 0; }
     to { translate: 0 0; opacity: 1; }
 }
+
+
+/* ---------- ルートの並べ替え（つまみ・▲▼ボタン） ---------- */
+.routeItem {
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.route-handle {
+    flex-shrink: 0;
+    width: 24px;
+    padding: 6px 0;
+    font-size: 18px;
+    line-height: 1;
+    color: #95a5a6;
+    text-align: center;
+    cursor: grab;
+    touch-action: none;           /* つまみを触っている間は画面をスクロールさせない */
+    user-select: none;
+}
+
+.route-name {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.route-move {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    gap: 2px;
+}
+
+.routeItem .route-move button {
+    width: 28px;
+    height: 18px;
+    margin: 0;
+    border-radius: 4px;
+    background: #e6f0f6;
+    color: #0b3c5d;
+    font-size: 10px;
+}
+
+.routeItem .route-move button:hover:not(:disabled) {
+    background: #cfe0ec;
+}
+
+.routeItem .route-move button:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.routeItem .route-remove {
+    margin-left: 0;
+}
+
+/* ドラッグ中の項目 */
+.routeItem.dragging {
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    opacity: 0.95;
+}
+
+.routeItem.dragging .route-handle {
+    cursor: grabbing;
+}
