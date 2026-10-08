@@ -24,11 +24,11 @@ function goToConfirm() {
         return;
     }
 
-    // 確認画面で表示するため一時的に保存（パスワードは文字数だけ）
+    // 確認画面で登録するまで一時的に保存（登録が終わったら確認画面で削除する）
     sessionStorage.setItem("newAccount", JSON.stringify({
         nickname: nickname,
         email: email,
-        passwordLength: password.length
+        password: password
     }));
 
     window.location.href = "confirm.html";

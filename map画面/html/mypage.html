@@ -29,7 +29,7 @@
             </button>
         </section>
 
-        <!-- 集計（獲得スタンプ・巡った作品・達成率） -->
+        <!-- 集計（獲得スタンプ・スタンプを取った作品・コンプリートした作品・達成率） -->
         <section class="stats" aria-label="巡礼の記録">
             <button type="button" class="stat" onclick="goToStamp()">
                 <span class="stat-value"><strong id="stamp-count">0</strong>個</span>
@@ -37,7 +37,11 @@
             </button>
             <div class="stat">
                 <span class="stat-value"><strong id="anime-count">0</strong>作品</span>
-                <span class="stat-label">巡った作品</span>
+                <span class="stat-label">スタンプを取った作品</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value"><strong id="complete-count">—</strong>作品</span>
+                <span class="stat-label">コンプリートした作品</span>
             </div>
             <div class="stat">
                 <span class="stat-value"><strong id="progress-rate">—</strong>%</span>

@@ -298,6 +298,19 @@ textarea {
 
 .file-preview.show { display: block; }
 
+/* フォーム全体のエラー（ログイン失敗など） */
+.form-alert {
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    background-color: #fdecea;
+    border-left: 4px solid var(--color-danger);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-size: 13px;
+    color: #b03a2e;
+}
+
+.form-alert[hidden] { display: none; }
+
 /* =========================================
    ボタン
 ========================================= */

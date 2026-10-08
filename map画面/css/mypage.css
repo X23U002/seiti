@@ -462,3 +462,13 @@ button.stat:hover {
 .more-btn[hidden] {
     display: none;
 }
+
+/* ---------- 集計は4つなので2×2で並べる ---------- */
+.stats {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+/* コンプリートした作品は緑で */
+.stat:nth-child(3) .stat-value strong {
+    color: var(--color-success);
+}

@@ -48,7 +48,8 @@
         </dl>
 
         <!-- 登録完了へ進むボタン -->
-        <button type="button" class="btn btn-success" onclick="goToComplete()">登録する</button>
+        <p class="form-alert" id="confirm-error" role="alert" hidden></p>
+        <button type="button" class="btn btn-success" id="register-btn" onclick="goToComplete()">登録する</button>
         <button type="button" class="btn btn-secondary edit-btn" onclick="goToRegister()">入力内容を修正する</button>
     </main>
 
@@ -57,12 +58,16 @@
         <div class="modal-content complete-box">
             <div class="complete-icon" aria-hidden="true">✓</div>
             <h2 class="complete-title" id="complete-title">登録が完了しました</h2>
-            <p class="complete-text">さっそく地図から聖地を探してみましょう。</p>
+            <p class="complete-text">
+                あなたのユーザーIDは<br>
+                <strong class="created-user-id" id="created-user-id">-</strong><br>
+                ログインの時に使うので、メモしておいてください。
+            </p>
             <button type="button" class="btn btn-primary" onclick="goToMap()" data-modal-close>マップへ進む</button>
         </div>
     </div>
 
     <script src="../js/common.js"></script>
-    <script src="../js/confirm.js"></script>
+    <script type="module" src="../js/confirm.js"></script>
 </body>
 </html>

@@ -34,3 +34,15 @@
 }
 
 .edit-btn { margin-top: 12px; }
+
+/* 登録完了で表示するユーザーID（ログインに使う） */
+.created-user-id {
+    display: inline-block;
+    margin: 8px 0;
+    padding: 6px 18px;
+    background-color: var(--color-primary-light);
+    border-radius: var(--radius-sm);
+    font-size: 26px;
+    letter-spacing: 1px;
+    color: var(--color-primary);
+}
