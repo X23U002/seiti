@@ -7,6 +7,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 import { db } from "./firebase-db.js";
+import { saveLoginState } from "./login-state.js";
 
 // 「ユーザーIDを保存する」で使う保存先
 const SAVED_ID_KEY = "seitiSavedUserId";

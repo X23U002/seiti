@@ -7,6 +7,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 import { db } from "./firebase-db.js";
+import { saveLoginState } from "./login-state.js";
 
 // 新規登録入力画面に戻る
 window.goToRegister = function () {
@@ -45,12 +46,14 @@ window.goToComplete = async function () {
     button.textContent = "登録中…";
     showConfirmError("");
 
+    let userId;
+
     try {
         const countRef = doc(db, "count", "user");
 
         // 連番の取得・ユーザー作成・連番の更新を1回の処理で行い、
         // 同時に登録した人がいてもIDが重ならないようにする
-        const userId = await runTransaction(db, async function (transaction) {
+        userId = await runTransaction(db, async function (transaction) {
             const countSnap = await transaction.get(countRef);
 
             if (!countSnap.exists()) {
@@ -80,22 +83,29 @@ window.goToComplete = async function () {
 
             return newUserId;
         });
-
-        // 登録したらそのままログインした状態にする
-        saveLoginState(userId, saved.nickname, saved.email, "no_image");
-
-        // 登録用データ（パスワードを含む）は不要なので削除
-        sessionStorage.removeItem("newAccount");
-
-        // 完了ポップアップ表示（ログインに使うユーザーIDを知らせる）
-        document.getElementById("created-user-id").textContent = userId;
-        document.getElementById("complete-modal").style.display = "flex";
     } catch (error) {
-        console.error(error);
+        console.error("登録エラー:", error);
         showConfirmError("登録に失敗しました。通信状況を確認して、もう一度お試しください。");
         button.disabled = false;
         button.textContent = "登録する";
+        return;
     }
+
+    // ここから先は登録済み。失敗しても「登録に失敗」とは表示しない
+    // （もう一度押されると同じ人が二重に登録されてしまうため）
+    sessionStorage.removeItem("newAccount");
+
+    // 登録したらそのままログインした状態にする
+    try {
+        saveLoginState(userId, saved.nickname, saved.email, "no_image");
+    } catch (error) {
+        console.error("ログイン状態の保存に失敗:", error);
+    }
+
+    // 完了ポップアップ表示（ログインに使うユーザーIDを知らせる）
+    button.textContent = "登録しました";
+    document.getElementById("created-user-id").textContent = userId;
+    document.getElementById("complete-modal").style.display = "flex";
 };
 
 // 新規登録画面で入力した内容を表示する
