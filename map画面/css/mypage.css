@@ -433,3 +433,32 @@ button.stat:hover {
     justify-content: center;
     gap: 8px;
 }
+
+
+/* ---------- 作品ごとの達成度：作品が多い時は上位だけ表示 ---------- */
+.progress-list:not(.is-expanded) .is-extra {
+    display: none;
+}
+
+.more-btn {
+    display: block;
+    width: 100%;
+    min-height: 40px;
+    margin-top: 14px;
+    background: var(--color-bg);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--color-primary);
+    cursor: pointer;
+}
+
+.more-btn:hover {
+    background: #e9eef1;
+}
+
+.more-btn[hidden] {
+    display: none;
+}

@@ -5,6 +5,27 @@ function goToRegister() {
 
 // 登録完了処理
 function goToComplete() {
+    const saved = JSON.parse(sessionStorage.getItem("newAccount") || "null");
+
+    // ニックネームをアプリ内の表示名として保存する（パスワードは保存しない）
+    if (saved) {
+        try {
+            const profile = JSON.parse(localStorage.getItem("seitiProfile") || "null") || {};
+            localStorage.setItem("seitiProfile", JSON.stringify({
+                name: saved.nickname,
+                icon: profile.icon || "👤"
+            }));
+            localStorage.setItem("seitiAccount", JSON.stringify({
+                nickname: saved.nickname,
+                email: saved.email
+            }));
+            // マイページの「ID」にはメールアドレスを表示する
+            localStorage.setItem("seitiCurrentUserId", saved.email);
+        } catch (e) {
+            // 保存できない環境では何もしない
+        }
+    }
+
     // 入力内容はもう不要なので消しておく
     sessionStorage.removeItem("newAccount");
     document.getElementById("complete-modal").style.display = "flex";
@@ -19,7 +40,7 @@ function goToMap() {
 (function showInput() {
     const saved = JSON.parse(sessionStorage.getItem("newAccount") || "null");
     if (!saved) return;
-    document.getElementById("confirm-name").textContent = saved.name;
+    document.getElementById("confirm-nickname").textContent = saved.nickname || "-";
     document.getElementById("confirm-email").textContent = saved.email;
     document.getElementById("confirm-password").textContent = "•".repeat(saved.passwordLength) + "（非表示）";
 })();

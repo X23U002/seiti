@@ -46,6 +46,37 @@ function readJson(key, fallback) {
     }
 }
 
+// 作品ごとの達成度で、最初に表示する作品の数
+// （作品が増えてもマイページが縦に伸びすぎないように）
+const PROGRESS_VISIBLE = 5;
+
+// 「すべての作品を表示」ボタン
+function setupProgressToggle(titleCount) {
+    const button = document.getElementById("progress-more");
+    const list = document.getElementById("progress-list");
+    const hiddenCount = titleCount - PROGRESS_VISIBLE;
+
+    if (hiddenCount <= 0) {
+        button.hidden = true;
+        return;
+    }
+
+    function update() {
+        const expanded = list.classList.contains("is-expanded");
+        button.textContent = expanded
+            ? "閉じる"
+            : "すべての作品を表示（あと " + hiddenCount + " 作品）";
+        button.setAttribute("aria-expanded", String(expanded));
+    }
+
+    button.hidden = false;
+    button.onclick = function () {
+        list.classList.toggle("is-expanded");
+        update();
+    };
+    update();
+}
+
 (function renderRecord() {
     let stamps = readJson("collectedStamps", []);
     if (!Array.isArray(stamps)) stamps = [];
@@ -95,9 +126,14 @@ function readJson(key, fallback) {
             .sort(function (a, b) {
                 return (b.got / b.total) - (a.got / a.total) || b.total - a.total;
             })
-            .forEach(function (item) {
+            .forEach(function (item, index) {
                 const li = document.createElement("li");
                 li.className = "progress-item";
+
+                // 上位 PROGRESS_VISIBLE 作品より後ろは、最初は隠しておく
+                if (index >= PROGRESS_VISIBLE) {
+                    li.classList.add("is-extra");
+                }
 
                 const head = document.createElement("div");
                 head.className = "progress-head";
@@ -132,6 +168,8 @@ function readJson(key, fallback) {
                 li.append(head, bar);
                 progressList.appendChild(li);
             });
+
+        setupProgressToggle(Object.keys(summary.titles).length);
     }
 
     // --- 最近獲得したスタンプ（新しい順に3件） ---

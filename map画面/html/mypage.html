@@ -49,8 +49,11 @@
         <section class="panel">
             <div class="panel-head">
                 <h2>作品ごとの達成度</h2>
+                <a href="stamp.html" class="panel-link">スタンプ帳で見る ›</a>
             </div>
             <ul class="progress-list" id="progress-list"></ul>
+            <!-- 作品が多い時は上位だけ表示し、残りはこのボタンで開く -->
+            <button type="button" class="more-btn" id="progress-more" aria-controls="progress-list" aria-expanded="false" hidden></button>
         </section>
 
         <!-- 最近獲得したスタンプ -->
@@ -106,9 +109,9 @@
 
             <!-- 名前入力 -->
             <div class="form-group">
-                <label for="edit-name-input">名前</label>
-                <input type="text" id="edit-name-input" value="田中 太郎">
-                <p class="error-text">名前を入力してください。</p>
+                <label for="edit-name-input">ニックネーム</label>
+                <input type="text" id="edit-name-input" value="田中 太郎" maxlength="20">
+                <p class="error-text">ニックネームを入力してください。</p>
             </div>
 
             <!-- アイコン選択 -->

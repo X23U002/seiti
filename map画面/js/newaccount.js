@@ -5,19 +5,19 @@ function goToLogin() {
 
 // 入力チェックをしてから登録確認画面へ進む
 function goToConfirm() {
-    const name = document.getElementById("username").value.trim();
-    const password = document.getElementById("password").value;
+    const nickname = document.getElementById("nickname").value.trim();
     const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
 
-    const nameError = name === "";
-    const passwordError = !/^[A-Za-z0-9]{8,}$/.test(password);
+    const nicknameError = nickname === "" || nickname.length > 20;
     const emailError = !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const passwordError = !/^[A-Za-z0-9]{8,}$/.test(password);
 
-    setFieldError("username", nameError);
-    setFieldError("password", passwordError);
+    setFieldError("nickname", nicknameError);
     setFieldError("email", emailError);
+    setFieldError("password", passwordError);
 
-    if (nameError || passwordError || emailError) {
+    if (nicknameError || emailError || passwordError) {
         // 最初のエラー項目にカーソルを移す
         const firstError = document.querySelector(".form-group.has-error input");
         if (firstError) firstError.focus();
@@ -26,7 +26,7 @@ function goToConfirm() {
 
     // 確認画面で表示するため一時的に保存（パスワードは文字数だけ）
     sessionStorage.setItem("newAccount", JSON.stringify({
-        name: name,
+        nickname: nickname,
         email: email,
         passwordLength: password.length
     }));
@@ -38,6 +38,6 @@ function goToConfirm() {
 (function restoreInput() {
     const saved = JSON.parse(sessionStorage.getItem("newAccount") || "null");
     if (!saved) return;
-    document.getElementById("username").value = saved.name;
+    document.getElementById("nickname").value = saved.nickname || "";
     document.getElementById("email").value = saved.email;
 })();
