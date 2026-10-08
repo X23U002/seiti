@@ -2007,13 +2007,71 @@ function updateRouteList() {
             routeItem.className =
                 "routeItem";
 
+            routeItem.dataset.index =
+                index;
+
+            // ドラッグで並べ替えるためのつまみ（スマホのタッチでも動く）
+            const handle =
+                document.createElement(
+                    "span"
+                );
+
+            handle.className =
+                "route-handle";
+
+            handle.textContent =
+                "⠿";
+
+            handle.title =
+                "ドラッグで並べ替え";
+
+            handle.setAttribute(
+                "aria-hidden",
+                "true"
+            );
+
+            handle.addEventListener(
+                "pointerdown",
+                startRouteDrag
+            );
+
             const nameSpan =
                 document.createElement(
                     "span"
                 );
 
+            nameSpan.className =
+                "route-name";
+
             nameSpan.textContent =
                 `${index + 1}. ${spot.name}`;
+
+            // ▲▼ボタンで1つずつ入れ替える
+            const moveButtons =
+                document.createElement(
+                    "div"
+                );
+
+            moveButtons.className =
+                "route-move";
+
+            moveButtons.appendChild(
+                createRouteMoveButton(
+                    "▲",
+                    `「${spot.name}」を1つ前へ`,
+                    index,
+                    index - 1
+                )
+            );
+
+            moveButtons.appendChild(
+                createRouteMoveButton(
+                    "▼",
+                    `「${spot.name}」を1つ後ろへ`,
+                    index,
+                    index + 1
+                )
+            );
 
             const removeButton =
                 document.createElement(
@@ -2023,8 +2081,16 @@ function updateRouteList() {
             removeButton.type =
                 "button";
 
+            removeButton.className =
+                "route-remove";
+
             removeButton.textContent =
                 "×";
+
+            removeButton.setAttribute(
+                "aria-label",
+                `「${spot.name}」をルートから外す`
+            );
 
             removeButton.onclick =
                 function () {
@@ -2034,7 +2100,15 @@ function updateRouteList() {
                 };
 
             routeItem.appendChild(
+                handle
+            );
+
+            routeItem.appendChild(
                 nameSpan
+            );
+
+            routeItem.appendChild(
+                moveButtons
             );
 
             routeItem.appendChild(
@@ -2045,6 +2119,196 @@ function updateRouteList() {
                 routeItem
             );
         }
+    );
+}
+
+
+// ▲▼ボタンを作る（端の項目では押せないようにする）
+function createRouteMoveButton(label, ariaLabel, fromIndex, toIndex) {
+    const button =
+        document.createElement(
+            "button"
+        );
+
+    button.type =
+        "button";
+
+    button.textContent =
+        label;
+
+    button.setAttribute(
+        "aria-label",
+        ariaLabel
+    );
+
+    button.disabled =
+        toIndex < 0 ||
+        toIndex >= selectedSpots.length;
+
+    button.onclick =
+        function () {
+            window.moveRouteSpot(
+                fromIndex,
+                toIndex
+            );
+
+            // 続けて押せるように、移動先の同じボタンにフォーカスを戻す
+            const moved =
+                document.querySelector(
+                    `#routeList .routeItem[data-index="${toIndex}"] .route-move button:nth-child(${label === "▲" ? 1 : 2})`
+                );
+
+            if (moved && !moved.disabled) {
+                moved.focus();
+            }
+        };
+
+    return button;
+}
+
+
+// =========================================================
+// ルートの順番を入れ替える
+// =========================================================
+window.moveRouteSpot =
+    function (fromIndex, toIndex) {
+        if (
+            fromIndex === toIndex ||
+            toIndex < 0 ||
+            toIndex >= selectedSpots.length
+        ) {
+            return;
+        }
+
+        const moved =
+            selectedSpots.splice(
+                fromIndex,
+                1
+            )[0];
+
+        selectedSpots.splice(
+            toIndex,
+            0,
+            moved
+        );
+
+        updateRouteList();
+    };
+
+
+// ドラッグ中の項目を、指（マウス）の位置に合わせて一覧の中で動かす
+function startRouteDrag(event) {
+    const item =
+        event.currentTarget.closest(
+            ".routeItem"
+        );
+
+    const routeList =
+        document.getElementById(
+            "routeList"
+        );
+
+    const fromIndex =
+        Number(
+            item.dataset.index
+        );
+
+    event.preventDefault();
+
+    item.classList.add(
+        "dragging"
+    );
+
+    function onMove(moveEvent) {
+        const siblings =
+            Array.from(
+                routeList.querySelectorAll(
+                    ".routeItem:not(.dragging)"
+                )
+            );
+
+        // 指より下にある最初の項目の手前へ入れる
+        const next =
+            siblings.find(
+                function (sibling) {
+                    const rect =
+                        sibling.getBoundingClientRect();
+
+                    return (
+                        moveEvent.clientY <
+                        rect.top + rect.height / 2
+                    );
+                }
+            );
+
+        routeList.insertBefore(
+            item,
+            next || null
+        );
+
+        // 一覧の端に来たら自動でスクロールする
+        const listRect =
+            routeList.getBoundingClientRect();
+
+        if (moveEvent.clientY < listRect.top + 24) {
+            routeList.scrollTop -= 8;
+        } else if (moveEvent.clientY > listRect.bottom - 24) {
+            routeList.scrollTop += 8;
+        }
+    }
+
+    function onEnd() {
+        document.removeEventListener(
+            "pointermove",
+            onMove
+        );
+
+        document.removeEventListener(
+            "pointerup",
+            onEnd
+        );
+
+        document.removeEventListener(
+            "pointercancel",
+            onEnd
+        );
+
+        const toIndex =
+            Array.from(
+                routeList.querySelectorAll(
+                    ".routeItem"
+                )
+            ).indexOf(
+                item
+            );
+
+        item.classList.remove(
+            "dragging"
+        );
+
+        if (toIndex === fromIndex) {
+            updateRouteList();
+        } else {
+            window.moveRouteSpot(
+                fromIndex,
+                toIndex
+            );
+        }
+    }
+
+    document.addEventListener(
+        "pointermove",
+        onMove
+    );
+
+    document.addEventListener(
+        "pointerup",
+        onEnd
+    );
+
+    document.addEventListener(
+        "pointercancel",
+        onEnd
     );
 }
 
