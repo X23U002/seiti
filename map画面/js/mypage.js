@@ -29,6 +29,10 @@ function logout() {
     } catch (e) {
         // 保存できない環境では何もしない
     }
+    sessionStorage.removeItem("userId");
+    sessionStorage.removeItem("userName");
+    sessionStorage.removeItem("mailAddress");
+    sessionStorage.removeItem("iconImageUrl");
     window.location.href = "login.html";
 }
 

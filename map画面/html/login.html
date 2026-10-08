@@ -39,7 +39,9 @@
                 <p class="login-lead">ユーザーIDとパスワードを入力してください。</p>
 
                 <!-- formにしてEnterキーでもログインできるようにする -->
-                <form class="login-form" onsubmit="login(); return false;" novalidate>
+                <form class="login-form" id="login-form" novalidate>
+                    <p class="form-alert" id="login-error" role="alert" hidden></p>
+
                     <div class="form-group">
                         <label for="userid">ユーザーID</label>
                         <input type="text" id="userid" placeholder="(例) u1" autocomplete="username" autocapitalize="off">
@@ -77,6 +79,6 @@
     </div>
 
     <script src="../js/common.js"></script>
-    <script src="../js/login.js"></script>
+    <script type="module" src="../js/login.js"></script>
 </body>
 </html>

@@ -1,46 +1,108 @@
+// ==========================================
+// 登録確認画面
+// ==========================================
+import {
+    doc,
+    runTransaction
+} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+
+import { db } from "./firebase-db.js";
+
 // 新規登録入力画面に戻る
-function goToRegister() {
+window.goToRegister = function () {
     window.location.href = "newaccount.html";
+};
+
+// マップ画面へ
+window.goToMap = function () {
+    window.location.href = "map.html";
+};
+
+// 新規登録画面で入力した内容
+function readNewAccount() {
+    return JSON.parse(sessionStorage.getItem("newAccount") || "null");
+}
+
+// 「登録する」ボタンの上にエラーメッセージを表示する（空文字で消す）
+function showConfirmError(message) {
+    const box = document.getElementById("confirm-error");
+    box.textContent = message;
+    box.hidden = !message;
 }
 
 // 登録完了処理
-function goToComplete() {
-    const saved = JSON.parse(sessionStorage.getItem("newAccount") || "null");
+window.goToComplete = async function () {
+    const saved = readNewAccount();
 
-    // ニックネームをアプリ内の表示名として保存する（パスワードは保存しない）
-    if (saved) {
-        try {
-            const profile = JSON.parse(localStorage.getItem("seitiProfile") || "null") || {};
-            localStorage.setItem("seitiProfile", JSON.stringify({
-                name: saved.nickname,
-                icon: profile.icon || "👤"
-            }));
-            localStorage.setItem("seitiAccount", JSON.stringify({
-                nickname: saved.nickname,
-                email: saved.email
-            }));
-            // マイページの「ID」にはメールアドレスを表示する
-            localStorage.setItem("seitiCurrentUserId", saved.email);
-        } catch (e) {
-            // 保存できない環境では何もしない
-        }
+    if (!saved || !saved.password) {
+        showConfirmError("登録情報がありません。「入力内容を修正する」からもう一度入力してください。");
+        return;
     }
 
-    // 入力内容はもう不要なので消しておく
-    sessionStorage.removeItem("newAccount");
-    document.getElementById("complete-modal").style.display = "flex";
-}
+    // 連打で二重に登録しないよう、終わるまでボタンを押せなくする
+    const button = document.getElementById("register-btn");
+    button.disabled = true;
+    button.textContent = "登録中…";
+    showConfirmError("");
 
-// マップ画面へ
-function goToMap() {
-    window.location.href = "map.html";
-}
+    try {
+        const countRef = doc(db, "count", "user");
+
+        // 連番の取得・ユーザー作成・連番の更新を1回の処理で行い、
+        // 同時に登録した人がいてもIDが重ならないようにする
+        const userId = await runTransaction(db, async function (transaction) {
+            const countSnap = await transaction.get(countRef);
+
+            if (!countSnap.exists()) {
+                throw new Error("カウンタ情報がありません");
+            }
+
+            const nextId = countSnap.data().next_id;
+            const newUserId = `u${nextId}`;
+            const userRef = doc(db, "user", newUserId);
+
+            // 既にあるユーザーを上書きしないようにする
+            const userSnap = await transaction.get(userRef);
+            if (userSnap.exists()) {
+                throw new Error(`${newUserId} は既に使われています`);
+            }
+
+            transaction.set(userRef, {
+                user_name: saved.nickname,
+                pass: saved.password,
+                mail_address: saved.email,
+                icon_image_url: "no_image"
+            });
+
+            transaction.update(countRef, {
+                next_id: nextId + 1
+            });
+
+            return newUserId;
+        });
+
+        // 登録したらそのままログインした状態にする
+        saveLoginState(userId, saved.nickname, saved.email, "no_image");
+
+        // 登録用データ（パスワードを含む）は不要なので削除
+        sessionStorage.removeItem("newAccount");
+
+        // 完了ポップアップ表示（ログインに使うユーザーIDを知らせる）
+        document.getElementById("created-user-id").textContent = userId;
+        document.getElementById("complete-modal").style.display = "flex";
+    } catch (error) {
+        console.error(error);
+        showConfirmError("登録に失敗しました。通信状況を確認して、もう一度お試しください。");
+        button.disabled = false;
+        button.textContent = "登録する";
+    }
+};
 
 // 新規登録画面で入力した内容を表示する
 (function showInput() {
-    const saved = JSON.parse(sessionStorage.getItem("newAccount") || "null");
+    const saved = readNewAccount();
     if (!saved) return;
     document.getElementById("confirm-nickname").textContent = saved.nickname || "-";
     document.getElementById("confirm-email").textContent = saved.email;
-    document.getElementById("confirm-password").textContent = "•".repeat(saved.passwordLength) + "（非表示）";
+    document.getElementById("confirm-password").textContent = "•".repeat((saved.password || "").length) + "（非表示）";
 })();
