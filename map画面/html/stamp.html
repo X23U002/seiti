@@ -67,7 +67,10 @@
 
             <div class="stamp-big-circle" id="modal-circle" aria-hidden="true">⛩️</div>
             <h2 id="modal-title" class="spot-title">〇〇神社</h2>
-            <div id="modal-date" class="visit-date">訪問日：2026年05月15日</div>
+            <div class="visit-badges">
+                <span id="modal-date" class="visit-date">訪問日：2026年05月15日</span>
+                <span id="modal-count" class="visit-count" hidden>獲得 1回</span>
+            </div>
 
             <dl class="info-group">
                 <dt class="info-label">作品名</dt>
@@ -82,7 +85,7 @@
     </div>
 
     <script src="../js/common.js"></script>
-    <script src="../js/stamp.js?v=3"></script>
+    <script src="../js/stamp.js?v=4"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
         import { loadMyStamps } from "../js/stamp-db.js?v=3";

@@ -426,6 +426,33 @@
     color: var(--color-text-sub);
 }
 
+/* 訪問日と獲得回数を横に並べる（狭い時は折り返す） */
+.visit-badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 20px;
+}
+
+.visit-badges .visit-date {
+    margin: 0;
+}
+
+.visit-count {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.visit-count[hidden] {
+    display: none;
+}
+
 .info-group {
     margin: 0;
     padding-top: 16px;

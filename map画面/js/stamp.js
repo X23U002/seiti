@@ -56,7 +56,8 @@ function buildStamps() {
                 title: spot.title,
                 info: (stamp && stamp.scene) || spot.info,
                 earned: Boolean(stamp),
-                date: stamp ? stamp.date : ""
+                date: stamp ? stamp.date : "",
+                count: stamp ? stamp.count || 1 : 0
             };
         })
         // 聖地の一覧がまだ無い時は、獲得したスタンプだけを並べる
@@ -68,7 +69,8 @@ function buildStamps() {
                 title: stamp.anime,
                 info: stamp.scene,
                 earned: true,
-                date: stamp.date
+                date: stamp.date,
+                count: stamp.count || 1
             };
         });
 
@@ -353,8 +355,15 @@ function openStampModal(stamp) {
     document.getElementById("modal-title").textContent = stamp.name || "";
 
     const date = document.getElementById("modal-date");
-    date.textContent = stamp.earned ? "訪問日：" + (stamp.date || "-") : "まだ獲得していません";
+    date.textContent = !stamp.earned
+        ? "まだ獲得していません"
+        : (stamp.count > 1 ? "初めての訪問：" : "訪問日：") + (stamp.date || "-");
     date.classList.toggle("is-locked", !stamp.earned);
+
+    // 獲得した回数（stamp コレクションの、このスポットの記録の数）
+    const count = document.getElementById("modal-count");
+    count.hidden = !stamp.earned;
+    count.textContent = "獲得 " + stamp.count + "回";
 
     document.getElementById("modal-anime").textContent = stamp.title || "-";
     document.getElementById("modal-scene").textContent = stamp.info || "-";
