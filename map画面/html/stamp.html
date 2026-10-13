@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>スタンプ帳 - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css">
+    <link rel="stylesheet" href="../css/stamp-rank.css">
     <link rel="stylesheet" href="../css/stamp.css">
 </head>
 <body>
@@ -69,8 +70,9 @@
             <h2 id="modal-title" class="spot-title">〇〇神社</h2>
             <div class="visit-badges">
                 <span id="modal-date" class="visit-date">訪問日：2026年05月15日</span>
-                <span id="modal-count" class="visit-count" hidden>獲得 1回</span>
+                <span id="modal-count" class="rank-pill" hidden>ブロンズ・獲得 1回</span>
             </div>
+            <p id="modal-next" class="rank-next" hidden></p>
 
             <dl class="info-group">
                 <dt class="info-label">作品名</dt>
@@ -85,7 +87,8 @@
     </div>
 
     <script src="../js/common.js"></script>
-    <script src="../js/stamp.js?v=5"></script>
+    <script src="../js/stamp-rank.js"></script>
+    <script src="../js/stamp.js?v=6"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
         import { loadStampBook } from "../js/stamp-db.js?v=4";

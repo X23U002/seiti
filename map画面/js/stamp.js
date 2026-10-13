@@ -320,7 +320,10 @@ function createStampItem(stamp) {
     const item = document.createElement("button");
     item.type = "button";
     item.className = "stamp-item" + (stamp.earned ? "" : " is-locked");
-    item.setAttribute("aria-label", stamp.name + (stamp.earned ? "（獲得済み）" : "（未獲得）"));
+    const rank = stamp.earned ? getStampRank(stamp.count) : null;
+    item.setAttribute("aria-label", stamp.name + (stamp.earned
+        ? "（獲得済み・" + rank.name + "・" + stamp.count + "回）"
+        : "（未獲得）"));
 
     const circle = document.createElement("div");
     circle.className = "stamp-circle";
@@ -328,7 +331,8 @@ function createStampItem(stamp) {
 
     if (stamp.earned) {
         circle.textContent = "⛩️";
-        circle.style.background = titleColor(stamp.title);
+        // 中は作品の色、枠は取った回数のランクの色
+        applyStampRank(circle, stamp.count, titleColor(stamp.title));
     } else {
         circle.textContent = "?";
     }
@@ -350,7 +354,7 @@ function openStampModal(stamp) {
     const circle = document.getElementById("modal-circle");
     circle.textContent = stamp.earned ? "⛩️" : "?";
     circle.classList.toggle("is-locked", !stamp.earned);
-    circle.style.background = stamp.earned ? titleColor(stamp.title) : "";
+    applyStampRank(circle, stamp.earned ? stamp.count : 0, titleColor(stamp.title));
 
     document.getElementById("modal-title").textContent = stamp.name || "";
 
@@ -360,10 +364,21 @@ function openStampModal(stamp) {
         : (stamp.count > 1 ? "初めての訪問：" : "訪問日：") + (stamp.date || "-");
     date.classList.toggle("is-locked", !stamp.earned);
 
-    // 獲得した回数（stamp コレクションの、このスポットの記録の数）
+    // ランクと獲得した回数（stamp コレクションの、このスポットの記録の数）
     const count = document.getElementById("modal-count");
-    count.hidden = !stamp.earned;
-    count.textContent = "獲得 " + stamp.count + "回";
+    const next = document.getElementById("modal-next");
+    const rank = stamp.earned ? getStampRank(stamp.count) : null;
+    count.hidden = !rank;
+    next.hidden = !rank;
+    if (rank) {
+        count.className = "rank-pill rank-" + rank.key;
+        count.textContent = rank.name + "・獲得 " + stamp.count + "回";
+
+        const nextRank = getNextStampRank(stamp.count);
+        next.textContent = nextRank
+            ? "あと " + nextRank.remaining + "回で" + nextRank.rank.name
+            : "最高ランクです！";
+    }
 
     document.getElementById("modal-anime").textContent = stamp.title || "-";
     document.getElementById("modal-scene").textContent = stamp.info || "-";

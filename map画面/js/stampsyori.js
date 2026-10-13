@@ -1231,6 +1231,20 @@ function showStampCelebration(
             ? "15秒後に再取得できます"
             : "24時間後に再取得できます";
 
+    // 取った回数のランク（ちょうど上がった時はお知らせする）
+    const rank =
+        typeof window.getStampRank ===
+            "function"
+            ? window.getStampRank(count)
+            : null;
+
+    const rankUpText =
+        rank &&
+        count > 1 &&
+        rank.min === count
+            ? `✨ ${rank.name}にランクアップ！`
+            : "";
+
     const overlay =
         document.createElement(
             "div"
@@ -1258,10 +1272,11 @@ function showStampCelebration(
     overlay.innerHTML = `
         ${confetti}
         <div class="stamp-celebration-card">
-            <div class="stamp-celebration-stamp" style="background:${escapeStampHTML(color)};" aria-hidden="true">⛩️</div>
+            <div class="stamp-celebration-stamp" aria-hidden="true">⛩️</div>
             <p class="stamp-celebration-title" id="stamp-celebration-title">${completedTitle ? "🎉 作品コンプリート！" : "スタンプ獲得！"}</p>
+            ${rankUpText ? `<p class="stamp-celebration-rankup rank-pill rank-${rank.key}">${rankUpText}</p>` : ""}
             <p class="stamp-celebration-spot">${escapeStampHTML(spot.spot_name || "スポット")}</p>
-            <p class="stamp-celebration-meta">${escapeStampHTML(title)}・${count}回目</p>
+            <p class="stamp-celebration-meta">${escapeStampHTML(title)}・${count}回目${rank ? "・" + rank.name : ""}</p>
             ${completedTitle
                 ? `<p class="stamp-celebration-complete">「${escapeStampHTML(completedTitle)}」の聖地を<br>すべて回りました！</p>`
                 : ""}
@@ -1306,6 +1321,26 @@ function showStampCelebration(
             }
         }
     );
+
+    // 中は作品の色、枠は取った回数のランクの色
+    const stampElement =
+        overlay.querySelector(
+            ".stamp-celebration-stamp"
+        );
+
+    if (
+        typeof window.applyStampRank ===
+        "function"
+    ) {
+        window.applyStampRank(
+            stampElement,
+            count,
+            color
+        );
+    } else {
+        stampElement.style.background =
+            color;
+    }
 
     document.addEventListener("keydown", onKeydown);
     document.body.appendChild(overlay);
