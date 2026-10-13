@@ -56,7 +56,6 @@ window.spots = spots;
 
 let currentSpots = [];
 let titleMap = {};
-let marker = null;
 let hoverPopup = null;
 
 // =========================================================
@@ -1289,84 +1288,8 @@ map.on(
 // =========================================================
 // 5. UIイベントとその他の操作
 // =========================================================
-let pressTimer;
-
-const canvas =
-    map.getCanvas();
-
-
-// スマホ長押し
-canvas.addEventListener(
-    "touchstart",
-    function (event) {
-        pressTimer =
-            setTimeout(
-                function () {
-                    const touch =
-                        event.touches[0];
-
-                    const rect =
-                        canvas
-                            .getBoundingClientRect();
-
-                    const lngLat =
-                        map.unproject([
-                            touch.clientX -
-                                rect.left,
-
-                            touch.clientY -
-                                rect.top
-                        ]);
-
-                    if (marker) {
-                        marker.remove();
-                    }
-
-                    marker =
-                        new mapboxgl.Marker({
-                            draggable: true
-                        })
-                            .setLngLat(
-                                lngLat
-                            )
-                            .addTo(map);
-                },
-                600
-            );
-    }
-);
-
-
-canvas.addEventListener(
-    "touchend",
-    function () {
-        clearTimeout(
-            pressTimer
-        );
-    }
-);
-
-
-canvas.addEventListener(
-    "touchmove",
-    function () {
-        clearTimeout(
-            pressTimer
-        );
-    }
-);
-
-
-map.on(
-    "contextmenu",
-    function () {
-        if (marker) {
-            marker.remove();
-            marker = null;
-        }
-    }
-);
-
+// ※ 以前あった「長押しでピンを立てる」処理は、立てたピンをどこでも使っておらず
+//   スマホで地図を長押しすると謎のピンが出るだけだったので削除した
 
 // =========================================================
 // サイドメニュー
