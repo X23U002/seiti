@@ -59,52 +59,164 @@
     margin-bottom: 16px;
 }
 
-.title-chips {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    margin: 0 -20px 10px;
-    padding: 2px 20px 6px;
-    scrollbar-width: none;
-}
-
-.title-chips::-webkit-scrollbar {
-    display: none;
-}
-
-.title-chip {
-    flex-shrink: 0;
+/* 作品の絞り込みボタン */
+.title-picker-btn {
     display: flex;
     align-items: center;
-    gap: 6px;
-    height: 36px;
+    gap: 8px;
+    width: 100%;
+    min-height: 48px;
+    margin-bottom: 10px;
     padding: 0 14px;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-radius: 18px;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
     font-family: inherit;
-    font-size: 13px;
-    font-weight: bold;
+    font-size: 14px;
     color: var(--color-text);
-    white-space: nowrap;
+    text-align: left;
     cursor: pointer;
 }
 
-.title-chip:hover {
-    background: #f6f8f9;
-}
-
-/* 選んでいる作品は紺色 */
-.title-chip[aria-selected="true"] {
-    background: var(--color-primary);
+.title-picker-btn:hover {
     border-color: var(--color-primary);
-    color: #fff;
 }
 
-.chip-count {
+.picker-caption {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--color-primary-light);
+    color: var(--color-primary);
     font-size: 11px;
-    font-weight: normal;
-    opacity: .75;
+    font-weight: bold;
+}
+
+.picker-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: bold;
+}
+
+.picker-count {
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--color-text-sub);
+}
+
+.picker-caret {
+    flex-shrink: 0;
+    color: var(--color-primary);
+}
+
+/* 作品の一覧（ポップアップ） */
+.title-picker {
+    display: flex;
+    flex-direction: column;
+    max-width: 420px;
+}
+
+.title-search {
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 11px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 16px;            /* 16px未満だとiOSでズームされる */
+}
+
+.title-search:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+}
+
+.title-options {
+    flex: 1;
+    min-height: 0;
+    max-height: 55vh;
+    margin: 0 -8px;
+    padding: 0 8px;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.title-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px;
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    color: var(--color-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.title-option:hover {
+    background: #f4f7f9;
+}
+
+/* 選んでいる作品 */
+.title-option[aria-pressed="true"] {
+    background: var(--color-primary-light);
+}
+
+.title-option[aria-pressed="true"] .option-name::after {
+    content: " ✓";
+    color: var(--color-primary);
+}
+
+.option-body {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.option-name {
+    font-size: 14px;
+    font-weight: bold;
+    overflow-wrap: anywhere;
+}
+
+.option-count {
+    font-size: 12px;
+    color: var(--color-text-sub);
+    white-space: nowrap;
+}
+
+.option-bar {
+    grid-column: 1 / -1;
+    height: 4px;
+    border-radius: 2px;
+    background: #eef1f3;
+    overflow: hidden;
+}
+
+.option-bar span {
+    display: block;
+    height: 100%;
+    background: var(--color-primary);
+}
+
+.color-dot.is-all {
+    background: conic-gradient(#e53935, #f9a825, #43a047, #1e88e5, #5e35b1, #e53935);
+}
+
+.option-empty {
+    padding: 20px 8px;
+    font-size: 13px;
+    color: var(--color-text-sub);
+    text-align: center;
 }
 
 .color-dot {

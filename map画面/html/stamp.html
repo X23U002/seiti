@@ -28,9 +28,15 @@
             </div>
         </section>
 
-        <!-- 作品の切り替え（札）と「獲得済みだけ表示」 -->
+        <!-- 作品の絞り込み（押すと作品の一覧が開く）と「獲得済みだけ表示」 -->
         <div class="toolbar">
-            <div class="title-chips" id="title-chips" role="tablist" aria-label="作品の切り替え"></div>
+            <button type="button" class="title-picker-btn" id="title-picker-btn" onclick="openTitlePicker()" aria-haspopup="dialog">
+                <span class="picker-caption">作品</span>
+                <span class="color-dot" id="picker-dot" hidden></span>
+                <span class="picker-label" id="picker-label">すべての作品</span>
+                <span class="picker-count" id="picker-count"></span>
+                <span class="picker-caret" aria-hidden="true">▾</span>
+            </button>
             <label class="only-earned">
                 <input type="checkbox" id="only-earned">
                 <span class="switch" aria-hidden="true"></span>
@@ -43,6 +49,16 @@
         <div id="stamp-sections"></div>
 
     </main>
+
+    <!-- =============== 作品の絞り込み =============== -->
+    <div id="title-modal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="title-modal-title">
+        <div class="modal-content title-picker">
+            <button type="button" class="modal-close-btn" onclick="closeTitlePicker()" aria-label="閉じる" data-modal-close>✕</button>
+            <h2 class="modal-title" id="title-modal-title">作品で絞り込む</h2>
+            <input type="search" class="title-search" id="title-search" placeholder="作品名で探す" autocomplete="off" aria-label="作品名で探す">
+            <ul class="title-options" id="title-options" aria-label="作品の一覧"></ul>
+        </div>
+    </div>
 
     <!-- =============== スタンプ詳細のポップアップ =============== -->
     <div id="stamp-modal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modal-title">
@@ -66,7 +82,7 @@
     </div>
 
     <script src="../js/common.js"></script>
-    <script src="../js/stamp.js?v=2"></script>
+    <script src="../js/stamp.js?v=3"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
         import { loadMyStamps } from "../js/stamp-db.js?v=3";
