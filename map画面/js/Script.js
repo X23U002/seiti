@@ -15,6 +15,15 @@ import {
     getDocs
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
+// 作品名と作品ごとの色（スタンプ帳・マイページと共通）
+import {
+    getTitleColor,
+    getTitleName
+} from "./title-colors.js";
+
+// stampsyori.js（スタンプ獲得の演出）からも同じ色を使う
+window.getTitleColor = getTitleColor;
+
 const firebaseConfig = {
     apiKey: "AIzaSyCga1yFbLWdLXmMrNwScXuOGUWnz283eYs",
     authDomain: "sisukai-121cf.firebaseapp.com",
@@ -55,41 +64,6 @@ let hoverPopup = null;
 // データの読み込み順で色が変わらないよう、作品ごとに色を固定する。
 // ここに無い作品は、作品名から決まる色（毎回同じ色）になる
 // =========================================================
-const TITLE_COLORS = {
-    "ガールズバンドクライ": "#E53935",
-    "響け！ユーフォニアム": "#1E88E5",
-    "やはり俺の青春ラブコメはまちがっている。": "#5E35B1",
-    "超かぐや姫！": "#EC407A",
-    "青春ブタ野郎はバニーガール先輩の夢を見ない": "#00ACC1",
-    "ゆるキャン△": "#43A047",
-    "冴えない彼女の育てかた": "#F9A825",
-    "リコリス・リコイル": "#6D4C41",
-    "【推しの子】": "#FF7043",
-    "鬼滅の刃": "#00897B",
-    "その他": "#78909C"
-};
-
-// 上に無い作品に使う色
-const EXTRA_COLORS = [
-    "#8E24AA",
-    "#3949AB",
-    "#C0CA33",
-    "#D81B60",
-    "#546E7A",
-    "#7CB342"
-];
-
-function getTitleColor(title) {
-    if (TITLE_COLORS[title]) {
-        return TITLE_COLORS[title];
-    }
-    let sum = 0;
-    for (const character of String(title)) {
-        sum += character.codePointAt(0);
-    }
-    return EXTRA_COLORS[sum % EXTRA_COLORS.length];
-}
-
 const titleColorMap = {};
 
 const map = new mapboxgl.Map({
@@ -269,9 +243,6 @@ function escapeHTML(value) {
 // =========================================================
 // 作品名が無いスポットは「その他」として扱う
 // （色分け・絞り込みのリストと同じ名前にそろえる）
-function getTitleName(data) {
-    return data.title_name || "その他";
-}
 
 
 async function loadData() {
@@ -915,9 +886,9 @@ function drawMarkers(list) {
 
             if (
                 typeof window
-                    .isSpotStamped ===
+                    .hasCollectedStamp ===
                     "function" &&
-                window.isSpotStamped(
+                window.hasCollectedStamp(
                     data.id
                 )
             ) {

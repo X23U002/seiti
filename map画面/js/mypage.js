@@ -39,7 +39,7 @@ function logout() {
 // ==========================================
 // 巡礼の記録（獲得スタンプ・作品ごとの達成度・最近のスタンプ）
 // スタンプはDB（user/{ユーザーID}/stamps）から mypage.html で読み込んで渡す。
-// 作品ごとの聖地の件数は地図画面が記録した seitiSpotSummary を使う
+// 作品ごとの聖地の件数もDB（spot）から読む。読み込みが終わるまでは前回の一覧（seitiSpotSummary）を使う
 // ==========================================
 function readJson(key, fallback) {
     try {
@@ -81,11 +81,16 @@ function setupProgressToggle(titleCount) {
     update();
 }
 
+// 作品名の無いスポット（「その他」など）は作品として数えない
+function isWorkTitle(title) {
+    return Boolean(title) && title !== "その他" && title !== "作品名不明";
+}
+
 // state：loading（読み込み中）/ ready / guest（未ログイン）/ error（読み込み失敗）
-function renderRecord(stamps, state) {
+function renderRecord(stamps, state, spotSummary) {
     if (!Array.isArray(stamps)) stamps = [];
 
-    const summary = readJson("seitiSpotSummary", null);
+    const summary = spotSummary || readJson("seitiSpotSummary", null);
 
     // 同じスポットのスタンプは1つと数える
     const uniqueStamps = [];
@@ -102,7 +107,7 @@ function renderRecord(stamps, state) {
     const animeNames = new Set(
         uniqueStamps
             .map(function (s) { return s.anime; })
-            .filter(function (anime) { return anime && anime !== "作品名不明"; })
+            .filter(function (anime) { return isWorkTitle(anime); })
     );
     document.getElementById("stamp-count").textContent = uniqueStamps.length;
     document.getElementById("anime-count").textContent = animeNames.size;
@@ -118,7 +123,7 @@ function renderRecord(stamps, state) {
             Object.keys(summary.titles).filter(function (title) {
                 const total = summary.titles[title].count;
                 const got = uniqueStamps.filter(function (s) { return s.anime === title; }).length;
-                return title !== "作品名不明" && total > 0 && got >= total;
+                return isWorkTitle(title) && total > 0 && got >= total;
             }).length;
     }
 
@@ -288,6 +293,7 @@ function openEditModal() {
     const currentIcon = document.getElementById("current-icon").innerText;
     document.getElementById("edit-name-input").value = currentName;
     setFieldError("edit-name-input", false);
+    document.getElementById("profile-error").hidden = true;
 
     document.querySelectorAll(".icon-option").forEach(function (opt) {
         if (opt.textContent.trim() === currentIcon) {
@@ -319,8 +325,22 @@ function selectIcon(element, icon) {
 }
 
 // プロフィールを保存する処理
-function saveProfile() {
+// ニックネームを画面と端末に反映する（DBから読んだ時・保存した時に使う）
+function applyNickname(name) {
+    document.getElementById("current-name").textContent = name;
+    const profile = loadProfile() || {};
+    saveProfileToStorage(name, profile.icon || document.getElementById("current-icon").textContent);
+    try {
+        sessionStorage.setItem("userName", name);
+    } catch (e) {
+        // 保存できない環境では何もしない
+    }
+}
+
+async function saveProfile() {
     const newName = document.getElementById("edit-name-input").value.trim();
+    const errorBox = document.getElementById("profile-error");
+    errorBox.hidden = true;
 
     // 名前が空っぽの場合はエラー
     if (newName === "") {
@@ -329,9 +349,28 @@ function saveProfile() {
         return;
     }
 
+    // ログイン中ならニックネームをDBにも保存する（別の端末でも同じ名前になる）
+    // ※ アイコンはDBに項目が無いので、この端末だけに保存する
+    if (typeof window.saveNicknameToDb === "function") {
+        const button = document.getElementById("save-profile-btn");
+        button.disabled = true;
+        button.textContent = "保存中…";
+        try {
+            await window.saveNicknameToDb(newName);
+        } catch (error) {
+            console.error("ニックネームの保存に失敗しました:", error);
+            errorBox.textContent = "保存できませんでした。通信状況を確認して、もう一度お試しください。";
+            errorBox.hidden = false;
+            return;
+        } finally {
+            button.disabled = false;
+            button.textContent = "保存する";
+        }
+    }
+
     // 画面上の名前とアイコンを、新しいものに書き換える
-    document.getElementById("current-name").innerText = newName;
     document.getElementById("current-icon").innerText = tempSelectedIcon;
     saveProfileToStorage(newName, tempSelectedIcon);
+    applyNickname(newName);
     closeEditModal();
 }

@@ -133,7 +133,8 @@
             </div>
 
             <!-- 保存ボタン -->
-            <button type="button" class="btn btn-primary" onclick="saveProfile()">保存する</button>
+            <p class="form-alert" id="profile-error" role="alert" hidden></p>
+            <button type="button" class="btn btn-primary" id="save-profile-btn" onclick="saveProfile()">保存する</button>
         </div>
     </div>
 
@@ -149,17 +150,33 @@
     </div>
 
     <script src="../js/common.js"></script>
-    <script src="../js/mypage.js?v=2"></script>
+    <script src="../js/mypage.js?v=3"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
-        import { loadMyStamps } from "../js/stamp-db.js?v=3";
+        import { loadStampBook } from "../js/stamp-db.js?v=4";
 
-        loadMyStamps().then(function (stamps) {
-            renderRecord(stamps || [], stamps === null ? "guest" : "ready");
+        loadStampBook().then(function (book) {
+            renderRecord(book.stamps || [], book.stamps === null ? "guest" : "ready", book.summary);
         }, function (error) {
             console.error("スタンプの読み込みに失敗しました:", error);
             renderRecord([], "error");
         });
+
+        // ニックネームはDBの内容を正とする（別の端末で変えた時も反映される）
+        import { loadUserName, saveUserName } from "../js/profile-db.js";
+        import { getLoginUserId } from "../js/stamp-db.js?v=4";
+
+        const userId = getLoginUserId();
+        if (userId) {
+            window.saveNicknameToDb = function (name) {
+                return saveUserName(userId, name);
+            };
+            loadUserName(userId).then(function (name) {
+                if (name) applyNickname(name);
+            }, function (error) {
+                console.error("ニックネームの読み込みに失敗しました:", error);
+            });
+        }
     </script>
 </body>
 </html>

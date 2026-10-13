@@ -1,7 +1,7 @@
 // ==========================================
 // スタンプ帳
 // ・獲得したスタンプはDB（user/{ユーザーID}/stamps）から stamp.html で読み込んで渡す
-// ・聖地の一覧は seitiSpotSummary（地図を開いた時に保存される）
+// ・聖地の一覧もDB（spot）から読む。読み込みが終わるまでは前回の一覧（seitiSpotSummary）で表示する
 //   一覧があれば、まだ集めていない聖地もグレーで並べる
 // ==========================================
 
@@ -27,8 +27,8 @@ let loadState = "loading";
 // スポットID → 獲得したスタンプ
 let collectedById = {};
 
-const summary = readJson("seitiSpotSummary", null);
-const hasSpotList = Boolean(summary && Array.isArray(summary.spots));
+let summary = readJson("seitiSpotSummary", null);
+let hasSpotList = Boolean(summary && Array.isArray(summary.spots));
 
 // 作品の色（地図のピンと同じ色。分からない時は紺）
 function titleColor(title) {
@@ -383,7 +383,11 @@ function closeStampModal() {
 document.getElementById("only-earned").addEventListener("change", renderSections);
 
 // DBから読み込んだスタンプで表示し直す（stamp.html から呼ぶ）
-function showStamps(stamps, state) {
+function showStamps(stamps, state, spotSummary) {
+    if (spotSummary) {
+        summary = spotSummary;
+        hasSpotList = Array.isArray(summary.spots) && summary.spots.length > 0;
+    }
     collected = Array.isArray(stamps) ? stamps : [];
     loadState = state;
     buildStamps();

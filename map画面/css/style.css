@@ -2179,3 +2179,145 @@ body {
     background: #cbd5e1;
     transform: none;
 }
+
+
+/* =========================================================
+   スタンプ獲得の演出
+========================================================= */
+.stamp-celebration {
+    position: fixed;
+    inset: 0;
+    z-index: 10001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, .45);
+    overflow: hidden;
+    animation: stamp-fade-in .2s ease;
+}
+
+.stamp-celebration-card {
+    position: relative;
+    width: min(320px, 100%);
+    padding: 28px 22px 22px;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .25);
+    text-align: center;
+    animation: stamp-card-in .25s ease;
+}
+
+/* 上から「ポン」と押されるスタンプ */
+.stamp-celebration-stamp {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 104px;
+    height: 104px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    border: 5px solid #fff;
+    box-shadow: 0 0 0 4px #f59e0b, 0 8px 18px rgba(0, 0, 0, .2);
+    font-size: 52px;
+    transform: rotate(-8deg);
+    animation: stamp-press .55s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+
+.stamp-celebration-title {
+    margin: 0 0 6px;
+    font-size: 20px;
+    font-weight: bold;
+    color: #0b3c5d;
+}
+
+.stamp-celebration-spot {
+    margin: 0 0 4px;
+    font-size: 16px;
+    font-weight: bold;
+    color: #2c3e50;
+    overflow-wrap: anywhere;
+}
+
+.stamp-celebration-meta,
+.stamp-celebration-next {
+    margin: 0 0 4px;
+    font-size: 12px;
+    color: #6b7b8c;
+}
+
+.stamp-celebration-complete {
+    margin: 12px 0 6px;
+    padding: 10px;
+    border-radius: 10px;
+    background: #fff4d6;
+    color: #b9770e;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.stamp-celebration-close {
+    width: 100%;
+    min-height: 46px;
+    margin-top: 14px;
+    border: none;
+    border-radius: 10px;
+    background: #0b3c5d;
+    color: #fff;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.stamp-celebration-close:hover {
+    background: #14537f;
+}
+
+/* コンプリートの時は金色の縁取り */
+.stamp-celebration.is-complete .stamp-celebration-card {
+    box-shadow: 0 0 0 4px #fdd835, 0 12px 32px rgba(0, 0, 0, .25);
+}
+
+/* 紙吹雪 */
+.stamp-celebration .confetti {
+    position: absolute;
+    top: -16px;
+    width: 9px;
+    height: 14px;
+    border-radius: 2px;
+    animation: confetti-fall 2.4s ease-in infinite;
+}
+
+@keyframes stamp-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes stamp-card-in {
+    from { opacity: 0; transform: translateY(12px) scale(.96); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes stamp-press {
+    0% { opacity: 0; transform: scale(2.4) rotate(-25deg); }
+    60% { opacity: 1; transform: scale(.9) rotate(-6deg); }
+    100% { opacity: 1; transform: scale(1) rotate(-8deg); }
+}
+
+@keyframes confetti-fall {
+    from { transform: translateY(0) rotate(0deg); opacity: 1; }
+    to { transform: translateY(105vh) rotate(540deg); opacity: .7; }
+}
+
+/* 動きを減らす設定のユーザーには、アニメーションを出さない */
+@media (prefers-reduced-motion: reduce) {
+    .stamp-celebration,
+    .stamp-celebration-card,
+    .stamp-celebration-stamp {
+        animation: none;
+    }
+
+    .stamp-celebration .confetti {
+        display: none;
+    }
+}

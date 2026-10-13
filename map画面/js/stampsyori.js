@@ -64,6 +64,9 @@ const collectingSpotIds = new Set();
 // スポットID → 最後にスタンプを取った時刻（DBから読み込む）
 const stampHistory = {};
 
+// スポットID → 取った回数（DBの stamp の件数）
+const stampCounts = {};
+
 window.stampHistory =
     stampHistory;
 
@@ -213,6 +216,19 @@ function isSpotStamped(
         getStampRemainingMs(
             spotId
         ) > 0
+    );
+}
+
+
+// ==========================================
+// 一度でもスタンプを取ったスポットか（地図のピンの ✓ に使う）
+// ==========================================
+function hasCollectedStamp(
+    spotId
+) {
+    return (
+        String(spotId) in
+        stampHistory
     );
 }
 
@@ -891,6 +907,8 @@ async function migrateLocalStampsToFirestore() {
                 stampHistory[spotId] =
                     Number(localHistory[spotId]) ||
                     Date.now();
+
+                stampCounts[spotId] = 1;
             }
         );
 
@@ -962,10 +980,16 @@ async function initializeStampStorage() {
                         ? data.time_stamp.toMillis()
                         : 0;
 
+                if (!spotId) {
+                    return;
+                }
+
+                stampCounts[spotId] =
+                    (stampCounts[spotId] || 0) + 1;
+
                 if (
-                    spotId &&
                     stampedAt >
-                        Number(stampHistory[spotId] || 0)
+                    Number(stampHistory[spotId] || 0)
                 ) {
                     stampHistory[spotId] =
                         stampedAt;
@@ -1090,6 +1114,9 @@ async function collectStamp(spotId) {
             selectedSpot.id
         );
 
+    const isFirstTime =
+        !hasCollectedStamp(key);
+
     collectingSpotIds.add(key);
     refreshStampUI();
 
@@ -1108,17 +1135,15 @@ async function collectStamp(spotId) {
         stampHistory[key] =
             Date.now();
 
-        const nextText =
-            STAMP_DEBUG_MODE
-                ? "15秒後に再取得できます"
-                : "24時間後に再取得できます";
+        stampCounts[key] =
+            (stampCounts[key] || 0) + 1;
 
-        notifyStamp(
-            `🎉 ${
-                selectedSpot
-                    .spot_name ||
-                "スポット"
-            }のスタンプを取得しました！ ${nextText}`
+        showStampCelebration(
+            selectedSpot,
+            stampCounts[key],
+            isFirstTime
+                ? getCompletedTitle(selectedSpot)
+                : null
         );
     } catch (error) {
         console.error(
@@ -1137,6 +1162,162 @@ async function collectStamp(spotId) {
     } finally {
         collectingSpotIds.delete(key);
         refreshStampUI();
+    }
+}
+
+
+// ==========================================
+// このスタンプでその作品の聖地を全部回ったら、作品名を返す
+// ==========================================
+function getCompletedTitle(
+    spot
+) {
+    const title =
+        spot.title_name;
+
+    if (!title) {
+        return null;
+    }
+
+    const titleSpots =
+        getStampSpots().filter(
+            function (item) {
+                return item.title_name === title;
+            }
+        );
+
+    return titleSpots.length > 0 &&
+        titleSpots.every(
+            function (item) {
+                return hasCollectedStamp(item.id);
+            }
+        )
+        ? title
+        : null;
+}
+
+
+// ==========================================
+// スタンプ獲得の演出（スタンプを押すアニメーション）
+// 作品をコンプリートした時はお祝いも出す
+// ==========================================
+function showStampCelebration(
+    spot,
+    count,
+    completedTitle
+) {
+    document
+        .querySelectorAll(
+            ".stamp-celebration"
+        )
+        .forEach(
+            function (old) {
+                old.remove();
+            }
+        );
+
+    const title =
+        spot.title_name ||
+        "その他";
+
+    const color =
+        typeof window.getTitleColor ===
+            "function"
+            ? window.getTitleColor(title)
+            : "#f59e0b";
+
+    const nextText =
+        STAMP_DEBUG_MODE
+            ? "15秒後に再取得できます"
+            : "24時間後に再取得できます";
+
+    const overlay =
+        document.createElement(
+            "div"
+        );
+
+    overlay.className =
+        "stamp-celebration" +
+        (completedTitle ? " is-complete" : "");
+
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-labelledby", "stamp-celebration-title");
+
+    // お祝いの紙吹雪（コンプリートの時だけ）
+    const confetti =
+        completedTitle
+            ? Array.from(
+                { length: 18 },
+                function (_, index) {
+                    return `<span class="confetti" style="left:${(index * 37) % 100}%;animation-delay:${(index % 6) * 0.12}s;background:${["#f59e0b", "#e53935", "#1e88e5", "#43a047", "#ec407a", "#fdd835"][index % 6]};"></span>`;
+                }
+            ).join("")
+            : "";
+
+    overlay.innerHTML = `
+        ${confetti}
+        <div class="stamp-celebration-card">
+            <div class="stamp-celebration-stamp" style="background:${escapeStampHTML(color)};" aria-hidden="true">⛩️</div>
+            <p class="stamp-celebration-title" id="stamp-celebration-title">${completedTitle ? "🎉 作品コンプリート！" : "スタンプ獲得！"}</p>
+            <p class="stamp-celebration-spot">${escapeStampHTML(spot.spot_name || "スポット")}</p>
+            <p class="stamp-celebration-meta">${escapeStampHTML(title)}・${count}回目</p>
+            ${completedTitle
+                ? `<p class="stamp-celebration-complete">「${escapeStampHTML(completedTitle)}」の聖地を<br>すべて回りました！</p>`
+                : ""}
+            <p class="stamp-celebration-next">${nextText}</p>
+            <button type="button" class="stamp-celebration-close">OK</button>
+        </div>
+    `;
+
+    const previousFocus =
+        document.activeElement;
+
+    let closeTimer = null;
+
+    function close() {
+        clearTimeout(closeTimer);
+        document.removeEventListener("keydown", onKeydown);
+        overlay.remove();
+
+        if (
+            previousFocus &&
+            document.contains(previousFocus)
+        ) {
+            previousFocus.focus();
+        }
+    }
+
+    function onKeydown(event) {
+        if (event.key === "Escape") {
+            close();
+        }
+    }
+
+    overlay.addEventListener(
+        "click",
+        function (event) {
+            // カード以外（背景）かOKボタンを押したら閉じる
+            if (
+                event.target === overlay ||
+                event.target.closest(".stamp-celebration-close")
+            ) {
+                close();
+            }
+        }
+    );
+
+    document.addEventListener("keydown", onKeydown);
+    document.body.appendChild(overlay);
+    overlay.querySelector(".stamp-celebration-close").focus();
+
+    // 普段は少しで自動的に閉じる（コンプリートの時はOKを押すまで残す）
+    if (!completedTitle) {
+        closeTimer =
+            setTimeout(
+                close,
+                4000
+            );
     }
 }
 
@@ -1334,7 +1515,7 @@ function refreshStampUI() {
                     .toggle(
                         "stamp-completed-marker",
 
-                        isSpotStamped(
+                        hasCollectedStamp(
                             markerElement
                                 .dataset
                                 .spotId
@@ -1539,6 +1720,9 @@ window.getStampPopupHTML =
 
 window.isSpotStamped =
     isSpotStamped;
+
+window.hasCollectedStamp =
+    hasCollectedStamp;
 
 window.refreshStampUI =
     refreshStampUI;
