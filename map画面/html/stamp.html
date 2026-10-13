@@ -69,7 +69,7 @@
     <script src="../js/stamp.js?v=2"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
-        import { loadMyStamps } from "../js/stamp-db.js";
+        import { loadMyStamps } from "../js/stamp-db.js?v=3";
 
         loadMyStamps().then(function (stamps) {
             showStamps(stamps || [], stamps === null ? "guest" : "ready");
