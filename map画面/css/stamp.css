@@ -426,13 +426,29 @@
     color: var(--color-text-sub);
 }
 
-/* 訪問日と獲得回数を横に並べる（狭い時は折り返す） */
+/* 訪問日とランク・獲得回数を横に並べる（狭い時は折り返す） */
 .visit-badges {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     gap: 6px;
-    margin-bottom: 20px;
+    margin-bottom: 8px;
+}
+
+.visit-badges .rank-pill[hidden] {
+    display: none;
+}
+
+/* 次のランクまでの回数 */
+.rank-next {
+    margin: 0 0 20px;
+    font-size: 12px;
+    color: var(--color-text-sub);
+}
+
+.rank-next[hidden] {
+    display: block;
+    visibility: hidden;
 }
 
 .visit-badges .visit-date {

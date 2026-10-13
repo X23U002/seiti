@@ -220,9 +220,14 @@ function renderRecord(stamps, state, spotSummary) {
             badge.className = "recent-badge";
             badge.setAttribute("aria-hidden", "true");
             badge.textContent = "⛩️";
-            if (summary && summary.titles && summary.titles[stamp.anime]) {
-                badge.style.background = summary.titles[stamp.anime].color;
-            }
+            // 中は作品の色、枠は取った回数のランクの色
+            applyStampRank(
+                badge,
+                stamp.count || 1,
+                summary && summary.titles && summary.titles[stamp.anime]
+                    ? summary.titles[stamp.anime].color
+                    : ""
+            );
 
             const body = document.createElement("div");
             body.className = "recent-body";
@@ -231,7 +236,8 @@ function renderRecord(stamps, state, spotSummary) {
             name.textContent = stamp.name || "無題のスポット";
 
             const meta = document.createElement("span");
-            meta.textContent = (stamp.anime || "") + (stamp.date ? "・" + stamp.date : "");
+            const rank = getStampRank(stamp.count || 1);
+            meta.textContent = (stamp.anime || "") + (stamp.date ? "・" + stamp.date : "") + "・" + rank.name;
 
             body.append(name, meta);
             li.append(badge, body);

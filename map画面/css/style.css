@@ -2224,6 +2224,16 @@ body {
     animation: stamp-press .55s cubic-bezier(.2, 1.4, .4, 1) both;
 }
 
+/* ランクの枠は少し太く */
+.stamp-celebration-stamp.rank-ring {
+    border-width: 7px !important;
+}
+
+.stamp-celebration-rankup {
+    margin: 0 0 8px;
+    font-size: 14px;
+}
+
 .stamp-celebration-title {
     margin: 0 0 6px;
     font-size: 20px;
