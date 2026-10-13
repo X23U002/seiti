@@ -2166,3 +2166,16 @@ body {
 .routeItem.dragging .route-handle {
     cursor: grabbing;
 }
+
+
+.popup-buttons button:disabled {
+    background: #cbd5e1;
+    color: #64748b;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+.popup-buttons button:disabled:hover {
+    background: #cbd5e1;
+    transform: none;
+}

@@ -769,6 +769,12 @@ function drawMarkers(list) {
             // =============================================
             // ポップアップ
             // =============================================
+            const isInRoute =
+                selectedSpots.some(
+                    function (item) {
+                        return item.id === data.id;
+                    }
+                );
             const popupHTML = `
                 <div class="popup-card">
 
@@ -814,6 +820,7 @@ function drawMarkers(list) {
 
                         <button
                             type="button"
+                            id="route-btn-${data.id}"
                             onclick="addSpotToRouteById('${data.id}')"
                         >
                             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -1874,8 +1881,7 @@ window.addSpotToRouteById =
         }
 
         selectedSpots.push({
-            id:
-                spot.id,
+            id: spot.id,
 
             name:
                 spot.spot_name ||
@@ -1889,6 +1895,8 @@ window.addSpotToRouteById =
                 longitude
         });
 
+        console.log("追加後", selectedSpots);
+
         document
             .getElementById(
                 "routePanel"
@@ -1899,9 +1907,25 @@ window.addSpotToRouteById =
 
         updateRouteList();
 
+        const routeButton =
+            document.getElementById(
+                `route-btn-${spot.id}`
+            );
+
+        if (routeButton) {
+            routeButton.disabled = true;
+
+            routeButton.innerHTML =
+                `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M20 6L9 17L4 12"/>
+                </svg>
+                追加済み`;
+        }
+
         window.showToast(
             `「${selectedSpots[selectedSpots.length - 1].name}」をルートに追加しました`
         );
+
     };
 
 
@@ -1926,6 +1950,21 @@ window.removeSpotFromRoute =
                 1
             );
 
+            const routeButton =
+                document.getElementById(
+                    `route-btn-${spotId}`
+                );
+
+            if (routeButton) {
+                routeButton.disabled = false;
+
+                routeButton.innerHTML =
+                    `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    ルートに追加`;
+            }
+
             updateRouteList();
 
             if (
@@ -1949,6 +1988,20 @@ window.removeSpotFromRoute =
 // =========================================================
 window.clearSelectedSpots =
     function () {
+        document
+        .querySelectorAll(
+            '.popup-buttons button[id^="route-btn-"]'
+        )
+        .forEach(function(button) {
+            button.disabled = false;
+
+            button.innerHTML =
+                `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14"/>
+                </svg>
+                ルートに追加`;
+        });
+        
         selectedSpots.length = 0;
 
         updateRouteList();
