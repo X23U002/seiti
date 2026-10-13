@@ -1,7 +1,7 @@
 // ==========================================
 // stampsyori.js
 // 位置情報スタンプ取得
-// 保存先：Firestore の user/{ログイン中のユーザーID}/stamps/{スポットID}
+// 保存先：Firestore の stamp コレクション（スタンプを取るたびに1件追加）
 // ==========================================
 
 const STAMP_FIREBASE_CONFIG = {
@@ -14,9 +14,12 @@ const STAMP_FIREBASE_CONFIG = {
     measurementId: "G-GKWJ6BE9M2"
 };
 
-// スタンプの保存先（user/{ユーザーID}/stamps/{スポットID}）
+// スタンプの保存先
+// stamp/{自動ID}：{ user_id: user/{ID}への参照, spot_id: spot/{ID}への参照, time_stamp: 取得日時 }
+// ※ Firestoreのルールで「作成」だけが許可されている（更新・削除はできない）
+const STAMP_COLLECTION_NAME = "stamp";
 const USER_COLLECTION_NAME = "user";
-const STAMP_SUBCOLLECTION_NAME = "stamps";
+const SPOT_COLLECTION_NAME = "spot";
 
 // stamp_radiusがない場合の取得半径
 const DEFAULT_STAMP_RADIUS_METERS = 50;
@@ -47,7 +50,7 @@ const COLLECTED_STAMPS_STORAGE_KEY =
 
 let currentStampPosition = null;
 let stampDb = null;
-let stampCollection = null;
+let stampUserRef = null;
 let stampLoadPromise = null;
 let geolocateListenersAttached = false;
 
@@ -772,43 +775,37 @@ function prepareStampFirebase() {
 
 
 // ==========================================
-// 1件分のスタンプをDBへ書く
+// 1件分のスタンプ（stampコレクションのルールに合わせる）
+// stampedAt を省くとサーバーの時刻になる
 // ==========================================
 function createStampDocument(
-    spot,
-    stampedAt,
-    isFirstTime
+    spotId,
+    stampedAt
 ) {
-    const data = {
+    return {
+        user_id:
+            stampUserRef,
         spot_id:
-            String(spot.id),
-        spot_name:
-            spot.spot_name ||
-            spot.title_name ||
-            "無題のスポット",
-        title_name:
-            spot.title_name ||
-            "作品名不明",
-        spot_info:
-            spot.scene ||
-            spot.spot_info ||
-            "",
-        last_stamped_at:
-            stampedAt,
-        stamp_count:
-            window.firebase
-                .firestore
-                .FieldValue
-                .increment(1)
+            stampDb
+                .collection(
+                    SPOT_COLLECTION_NAME
+                )
+                .doc(
+                    String(spotId)
+                ),
+        time_stamp:
+            stampedAt
+                ? window.firebase
+                    .firestore
+                    .Timestamp
+                    .fromMillis(
+                        stampedAt
+                    )
+                : window.firebase
+                    .firestore
+                    .FieldValue
+                    .serverTimestamp()
     };
-
-    // 初めて取った日は上書きしない
-    if (isFirstTime) {
-        data.first_stamped_at =
-            stampedAt;
-    }
-
-    return data;
 }
 
 
@@ -868,43 +865,34 @@ async function migrateLocalStampsToFirestore() {
 
         spotIds.forEach(
             function (spotId) {
-                const local =
-                    localStamps[spotId];
-
-                const spot =
-                    getStampSpots().find(
-                        function (item) {
-                            return String(item.id) === spotId;
-                        }
-                    ) || {
-                        id: spotId,
-                        spot_name: local.name,
-                        title_name: local.anime,
-                        spot_info: local.scene
-                    };
-
                 const stampedAt =
                     Number(localHistory[spotId]) ||
                     Date.now();
 
                 batch.set(
-                    stampCollection.doc(spotId),
+                    stampDb
+                        .collection(
+                            STAMP_COLLECTION_NAME
+                        )
+                        .doc(),
                     createStampDocument(
-                        spot,
-                        stampedAt,
-                        true
-                    ),
-                    {
-                        merge: true
-                    }
+                        spotId,
+                        stampedAt
+                    )
                 );
-
-                stampHistory[spotId] =
-                    stampedAt;
             }
         );
 
         await batch.commit();
+
+        // 保存できてから地図に反映する
+        spotIds.forEach(
+            function (spotId) {
+                stampHistory[spotId] =
+                    Number(localHistory[spotId]) ||
+                    Date.now();
+            }
+        );
 
         console.log(
             `スタンプ：端末の${spotIds.length}件をDBへ移しました`
@@ -937,31 +925,51 @@ async function initializeStampStorage() {
     try {
         prepareStampFirebase();
 
-        stampCollection =
+        stampUserRef =
             stampDb
                 .collection(
                     USER_COLLECTION_NAME
                 )
                 .doc(
                     userId
-                )
-                .collection(
-                    STAMP_SUBCOLLECTION_NAME
                 );
 
+        // このユーザーのスタンプを全部読み、スポットごとに一番新しい取得時刻を使う
         const snapshot =
-            await stampCollection
+            await stampDb
+                .collection(
+                    STAMP_COLLECTION_NAME
+                )
+                .where(
+                    "user_id",
+                    "==",
+                    stampUserRef
+                )
                 .get();
 
         snapshot.forEach(
             function (stampDoc) {
-                stampHistory[
-                    stampDoc.id
-                ] =
-                    Number(
-                        stampDoc.data()
-                            .last_stamped_at
-                    ) || 0;
+                const data =
+                    stampDoc.data();
+
+                const spotId =
+                    data.spot_id &&
+                    data.spot_id.id;
+
+                const stampedAt =
+                    data.time_stamp &&
+                    typeof data.time_stamp.toMillis === "function"
+                        ? data.time_stamp.toMillis()
+                        : 0;
+
+                if (
+                    spotId &&
+                    stampedAt >
+                        Number(stampHistory[spotId] || 0)
+                ) {
+                    stampHistory[spotId] =
+                        stampedAt;
+                }
             }
         );
 
@@ -1082,32 +1090,23 @@ async function collectStamp(spotId) {
             selectedSpot.id
         );
 
-    const stampedAt =
-        Date.now();
-
-    const isFirstTime =
-        !(key in stampHistory);
-
     collectingSpotIds.add(key);
     refreshStampUI();
 
     try {
         // DBに保存できた時だけ「取得した」ことにする
-        await stampCollection
-            .doc(key)
-            .set(
+        await stampDb
+            .collection(
+                STAMP_COLLECTION_NAME
+            )
+            .add(
                 createStampDocument(
-                    selectedSpot,
-                    stampedAt,
-                    isFirstTime
-                ),
-                {
-                    merge: true
-                }
+                    key
+                )
             );
 
         stampHistory[key] =
-            stampedAt;
+            Date.now();
 
         const nextText =
             STAMP_DEBUG_MODE
@@ -1128,7 +1127,11 @@ async function collectStamp(spotId) {
         );
 
         notifyStamp(
-            "スタンプを保存できませんでした。通信状況を確認して、もう一度お試しください",
+            error &&
+            error.code ===
+                "permission-denied"
+                ? "スタンプを保存する権限がありません（Firestoreのルールを確認してください）"
+                : "スタンプを保存できませんでした。通信状況を確認して、もう一度お試しください",
             "error"
         );
     } finally {
@@ -1343,10 +1346,11 @@ function refreshStampUI() {
 
 
 // ==========================================
-// 指定スポットを即リセット
+// 指定スポットを即リセット（テスト用）
 // resetStampCooldown("スポットID")
+// DBは「作成」しかできないので、開いている地図の中だけ待ち時間を無くす
 // ==========================================
-async function resetStampCooldown(
+function resetStampCooldown(
     spotId
 ) {
     const key =
@@ -1356,45 +1360,24 @@ async function resetStampCooldown(
         return;
     }
 
-    // 獲得記録は残し、待ち時間だけ無くす
     stampHistory[key] = 0;
     refreshStampUI();
 
-    try {
-        await stampCollection
-            .doc(key)
-            .set(
-                {
-                    last_stamped_at: 0
-                },
-                {
-                    merge: true
-                }
-            );
-    } catch (error) {
-        console.warn(
-            "リセットのDB保存に失敗しました:",
-            error
-        );
-    }
-
     console.log(
-        `${spotId}を再取得可能にしました`
+        `${spotId}を再取得可能にしました（地図を開き直すと元に戻ります）`
     );
 }
 
 
 // ==========================================
-// 全スポットを即リセット
+// 全スポットを即リセット（テスト用）
 // resetAllStampCooldowns()
 // ==========================================
-async function resetAllStampCooldowns() {
-    await Promise.all(
-        Object.keys(
-            stampHistory
-        ).map(
-            resetStampCooldown
-        )
+function resetAllStampCooldowns() {
+    Object.keys(
+        stampHistory
+    ).forEach(
+        resetStampCooldown
     );
 
     console.log(
