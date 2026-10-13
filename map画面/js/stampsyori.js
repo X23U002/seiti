@@ -1,7 +1,7 @@
 // ==========================================
 // stampsyori.js
 // 位置情報スタンプ取得
-// localStorage + Firestore
+// 保存先：Firestore の user/{ログイン中のユーザーID}/stamps/{スポットID}
 // ==========================================
 
 const STAMP_FIREBASE_CONFIG = {
@@ -14,7 +14,9 @@ const STAMP_FIREBASE_CONFIG = {
     measurementId: "G-GKWJ6BE9M2"
 };
 
-const STAMP_COLLECTION_NAME = "stampUsers";
+// スタンプの保存先（user/{ユーザーID}/stamps/{スポットID}）
+const USER_COLLECTION_NAME = "user";
+const STAMP_SUBCOLLECTION_NAME = "stamps";
 
 // stamp_radiusがない場合の取得半径
 const DEFAULT_STAMP_RADIUS_METERS = 50;
@@ -32,20 +34,32 @@ const DEBUG_STAMP_COOLDOWN_MS =
 const NORMAL_STAMP_COOLDOWN_MS =
     24 * 60 * 60 * 1000;
 
+// 以前は端末（localStorage）に保存していた。
+// ログイン後に一度だけDBへ移して、端末からは消す
 const STAMP_HISTORY_STORAGE_KEY =
     "osikatumap-stamp-history-v2";
 
 const LEGACY_STAMP_STORAGE_KEY =
     "osikatumap-stamped-spot-ids-v1";
 
+const COLLECTED_STAMPS_STORAGE_KEY =
+    "collectedStamps";
+
 let currentStampPosition = null;
 let stampDb = null;
-let stampUserDocument = null;
-let stampAuthPromise = null;
+let stampCollection = null;
+let stampLoadPromise = null;
 let geolocateListenersAttached = false;
 
-const stampHistory =
-    loadLocalStampHistory();
+// DBの読み込み状態
+// loading：読み込み中 / ready：読み込み済み / guest：未ログイン / error：読み込み失敗
+let stampStorageState = "loading";
+
+// 通信中のスポット（連打で二重に保存しないため）
+const collectingSpotIds = new Set();
+
+// スポットID → 最後にスタンプを取った時刻（DBから読み込む）
+const stampHistory = {};
 
 window.stampHistory =
     stampHistory;
@@ -85,9 +99,9 @@ function getStampCooldownMs() {
 
 
 // ==========================================
-// localStorageから履歴を取得
+// 以前に端末へ保存した取得時刻を読む（DBへの移行用）
 // ==========================================
-function loadLocalStampHistory() {
+function loadLegacyLocalStampHistory() {
     try {
         const saved =
             localStorage.getItem(
@@ -151,27 +165,6 @@ function loadLocalStampHistory() {
         );
 
         return {};
-    }
-}
-
-
-// ==========================================
-// localStorageへ保存
-// ==========================================
-function saveLocalStampHistory() {
-    try {
-        localStorage.setItem(
-            STAMP_HISTORY_STORAGE_KEY,
-
-            JSON.stringify(
-                stampHistory
-            )
-        );
-    } catch (error) {
-        console.error(
-            "スタンプ履歴の端末保存に失敗しました:",
-            error
-        );
     }
 }
 
@@ -450,6 +443,55 @@ function formatStampDistance(
 function getStampState(
     spot
 ) {
+    // ログインしていない
+    if (
+        stampStorageState ===
+        "guest"
+    ) {
+        return {
+            disabled: false,
+            label:
+                "🔑 ログインしてスタンプを集める",
+            message:
+                "スタンプはアカウントに保存されます"
+        };
+    }
+
+    // DBの読み込みが終わっていない・失敗した
+    if (
+        stampStorageState !==
+        "ready"
+    ) {
+        return {
+            disabled: true,
+            label:
+                stampStorageState ===
+                "loading"
+                    ? "スタンプ情報を読み込み中…"
+                    : "スタンプ情報を読み込めません",
+            message:
+                stampStorageState ===
+                "loading"
+                    ? "少しお待ちください"
+                    : "通信状況を確認して、地図を開き直してください"
+        };
+    }
+
+    // 保存中
+    if (
+        collectingSpotIds.has(
+            String(spot.id)
+        )
+    ) {
+        return {
+            disabled: true,
+            label:
+                "保存中…",
+            message:
+                "スタンプを保存しています"
+        };
+    }
+
     const remainingMs =
         getStampRemainingMs(
             spot.id
@@ -680,33 +722,22 @@ function getStampPopupHTML(
 
 
 // ==========================================
-// Firestore保存用データ
+// ログイン中のユーザーID（未ログインなら null）
 // ==========================================
-function createFirestoreStampHistory() {
-    return Object
-        .entries(
-            stampHistory
-        )
-        .map(
-            function (
-                [
-                    spotId,
-                    stampedAt
-                ]
-            ) {
-                return {
-                    spotId:
-                        String(
-                            spotId
-                        ),
-
-                    stampedAt:
-                        Number(
-                            stampedAt
-                        )
-                };
-            }
+function getStampLoginUserId() {
+    try {
+        return (
+            sessionStorage.getItem(
+                "userId"
+            ) ||
+            localStorage.getItem(
+                "seitiCurrentUserId"
+            ) ||
+            null
         );
+    } catch (error) {
+        return null;
+    }
 }
 
 
@@ -741,48 +772,163 @@ function prepareStampFirebase() {
 
 
 // ==========================================
-// Firestore書き込み
+// 1件分のスタンプをDBへ書く
 // ==========================================
-async function writeStampHistoryToFirestore() {
-    if (
-        !stampUserDocument
-    ) {
-        throw new Error(
-            "Firestoreの保存先がありません"
-        );
+function createStampDocument(
+    spot,
+    stampedAt,
+    isFirstTime
+) {
+    const data = {
+        spot_id:
+            String(spot.id),
+        spot_name:
+            spot.spot_name ||
+            spot.title_name ||
+            "無題のスポット",
+        title_name:
+            spot.title_name ||
+            "作品名不明",
+        spot_info:
+            spot.scene ||
+            spot.spot_info ||
+            "",
+        last_stamped_at:
+            stampedAt,
+        stamp_count:
+            window.firebase
+                .firestore
+                .FieldValue
+                .increment(1)
+    };
+
+    // 初めて取った日は上書きしない
+    if (isFirstTime) {
+        data.first_stamped_at =
+            stampedAt;
     }
 
-    await stampUserDocument.set(
-        {
-            stampHistory:
-                createFirestoreStampHistory(),
-
-            updatedAt:
-                window.firebase
-                    .firestore
-                    .FieldValue
-                    .serverTimestamp()
-        },
-
-        {
-            merge: true
-        }
-    );
+    return data;
 }
 
 
 // ==========================================
-// Firebase匿名ログイン・履歴同期
+// 以前に端末へ保存したスタンプをDBへ移す（1回だけ）
 // ==========================================
-async function initializeStampStorage() {
-    if (
-        isOfflineStampMode()
-    ) {
-        console.log(
-            "スタンプ：オフラインテストモード"
+async function migrateLocalStampsToFirestore() {
+    let collected = [];
+
+    try {
+        collected =
+            JSON.parse(
+                localStorage.getItem(
+                    COLLECTED_STAMPS_STORAGE_KEY
+                )
+            ) || [];
+    } catch (error) {
+        collected = [];
+    }
+
+    const localHistory =
+        loadLegacyLocalStampHistory();
+
+    // スポットID → 端末に残っていた情報
+    const localStamps = {};
+
+    collected.forEach(
+        function (stamp) {
+            if (stamp && stamp.id !== undefined) {
+                localStamps[String(stamp.id)] = stamp;
+            }
+        }
+    );
+
+    Object.keys(
+        localHistory
+    ).forEach(
+        function (spotId) {
+            localStamps[spotId] =
+                localStamps[spotId] || { id: spotId };
+        }
+    );
+
+    const spotIds =
+        Object.keys(
+            localStamps
+        ).filter(
+            function (spotId) {
+                // DBに既にあるスポットはそのまま
+                return !(spotId in stampHistory);
+            }
         );
 
-        saveLocalStampHistory();
+    if (spotIds.length > 0) {
+        const batch =
+            stampDb.batch();
+
+        spotIds.forEach(
+            function (spotId) {
+                const local =
+                    localStamps[spotId];
+
+                const spot =
+                    getStampSpots().find(
+                        function (item) {
+                            return String(item.id) === spotId;
+                        }
+                    ) || {
+                        id: spotId,
+                        spot_name: local.name,
+                        title_name: local.anime,
+                        spot_info: local.scene
+                    };
+
+                const stampedAt =
+                    Number(localHistory[spotId]) ||
+                    Date.now();
+
+                batch.set(
+                    stampCollection.doc(spotId),
+                    createStampDocument(
+                        spot,
+                        stampedAt,
+                        true
+                    ),
+                    {
+                        merge: true
+                    }
+                );
+
+                stampHistory[spotId] =
+                    stampedAt;
+            }
+        );
+
+        await batch.commit();
+
+        console.log(
+            `スタンプ：端末の${spotIds.length}件をDBへ移しました`
+        );
+    }
+
+    // 移し終わったので端末からは消す
+    localStorage.removeItem(STAMP_HISTORY_STORAGE_KEY);
+    localStorage.removeItem(LEGACY_STAMP_STORAGE_KEY);
+    localStorage.removeItem(COLLECTED_STAMPS_STORAGE_KEY);
+}
+
+
+// ==========================================
+// DBからスタンプを読み込む
+// ==========================================
+async function initializeStampStorage() {
+    const userId =
+        getStampLoginUserId();
+
+    if (!userId) {
+        stampStorageState =
+            "guest";
+
         refreshStampUI();
 
         return false;
@@ -791,161 +937,49 @@ async function initializeStampStorage() {
     try {
         prepareStampFirebase();
 
-        const auth =
-            window.firebase
-                .auth();
-
-        await auth.setPersistence(
-            window.firebase
-                .auth
-                .Auth
-                .Persistence
-                .LOCAL
-        );
-
-        let user =
-            await new Promise(
-                function (
-                    resolve,
-                    reject
-                ) {
-                    const unsubscribe =
-                        auth
-                            .onAuthStateChanged(
-                                function (
-                                    currentUser
-                                ) {
-                                    unsubscribe();
-
-                                    resolve(
-                                        currentUser
-                                    );
-                                },
-
-                                reject
-                            );
-                }
-            );
-
-        if (!user) {
-            const result =
-                await auth
-                    .signInAnonymously();
-
-            user =
-                result.user;
-        }
-
-        stampUserDocument =
+        stampCollection =
             stampDb
                 .collection(
-                    STAMP_COLLECTION_NAME
+                    USER_COLLECTION_NAME
                 )
                 .doc(
-                    user.uid
+                    userId
+                )
+                .collection(
+                    STAMP_SUBCOLLECTION_NAME
                 );
 
-        // 起動時にFirestoreを1回読む
         const snapshot =
-            await stampUserDocument
+            await stampCollection
                 .get();
 
-        const data =
-            snapshot.exists
-                ? snapshot.data()
-                : {};
-
-        const serverHistory =
-            Array.isArray(
-                data.stampHistory
-            )
-                ? data.stampHistory
-                : [];
-
-        let needsSync = false;
-
-        // Firestoreの履歴を端末へ統合
-        serverHistory.forEach(
-            function (item) {
-                const spotId =
-                    String(
-                        item?.spotId ??
-                        ""
-                    );
-
-                const stampedAt =
+        snapshot.forEach(
+            function (stampDoc) {
+                stampHistory[
+                    stampDoc.id
+                ] =
                     Number(
-                        item?.stampedAt
-                    );
-
-                if (
-                    spotId &&
-                    Number.isFinite(
-                        stampedAt
-                    ) &&
-                    stampedAt >
-                        Number(
-                            stampHistory[
-                                spotId
-                            ] ||
-                            0
-                        )
-                ) {
-                    stampHistory[
-                        spotId
-                    ] = stampedAt;
-                }
+                        stampDoc.data()
+                            .last_stamped_at
+                    ) || 0;
             }
         );
 
-        // 端末側が新しいか確認
-        Object.entries(
-            stampHistory
-        ).forEach(
-            function (
-                [
-                    spotId,
-                    stampedAt
-                ]
-            ) {
-                const serverItem =
-                    serverHistory.find(
-                        function (item) {
-                            return (
-                                String(
-                                    item?.spotId
-                                ) ===
-                                String(
-                                    spotId
-                                )
-                            );
-                        }
-                    );
+        stampStorageState =
+            "ready";
 
-                if (
-                    !serverItem ||
-                    Number(
-                        stampedAt
-                    ) >
-                    Number(
-                        serverItem
-                            .stampedAt ||
-                        0
-                    )
-                ) {
-                    needsSync = true;
-                }
-            }
-        );
-
-        saveLocalStampHistory();
-
-        if (needsSync) {
-            await writeStampHistoryToFirestore();
+        try {
+            await migrateLocalStampsToFirestore();
+        } catch (error) {
+            // 移行に失敗しても端末のデータは残っているので、次回また試す
+            console.warn(
+                "端末のスタンプをDBへ移せませんでした:",
+                error
+            );
         }
 
         console.log(
-            "スタンプ：Firestore同期完了"
+            "スタンプ：DBから読み込み完了"
         );
 
         refreshStampUI();
@@ -953,40 +987,17 @@ async function initializeStampStorage() {
         return true;
     } catch (error) {
         console.error(
-            "スタンプのFirestore同期に失敗しました:",
+            "スタンプの読み込みに失敗しました:",
             error
         );
+
+        stampStorageState =
+            "error";
 
         refreshStampUI();
 
         return false;
     }
-}
-
-
-// ==========================================
-// Firestore保存
-// ==========================================
-async function saveStampHistoryToFirestore() {
-    if (
-        isOfflineStampMode()
-    ) {
-        return;
-    }
-
-    if (stampAuthPromise) {
-        await stampAuthPromise;
-    }
-
-    if (
-        !stampUserDocument
-    ) {
-        throw new Error(
-            "Firestoreの保存先を準備できませんでした"
-        );
-    }
-
-    await writeStampHistoryToFirestore();
 }
 
 
@@ -1015,6 +1026,17 @@ function notifyStamp(
 // スタンプ取得
 // ==========================================
 async function collectStamp(spotId) {
+    // 未ログインならログイン画面へ
+    if (
+        stampStorageState ===
+        "guest"
+    ) {
+        window.location.href =
+            "login.html";
+
+        return;
+    }
+
     const selectedSpot =
         getStampSpots()
             .find(
@@ -1055,41 +1077,42 @@ async function collectStamp(spotId) {
         return;
     }
 
-    // 通信より先に端末へ保存
-    stampHistory[
+    const key =
         String(
             selectedSpot.id
-        )
-    ] = Date.now();
+        );
 
-    saveLocalStampHistory();
+    const stampedAt =
+        Date.now();
+
+    const isFirstTime =
+        !(key in stampHistory);
+
+    collectingSpotIds.add(key);
     refreshStampUI();
-// 獲得スタンプ画面(stamp.html)用に詳細データを保存
-        const savedStamps = JSON.parse(localStorage.getItem("collectedStamps")) || [];
-        
-        // まだ同じスポットが保存されていなければ追加する
-        if (!savedStamps.some(s => s.id === selectedSpot.id)) {
-            // 今日の日付を作成 (例: 2026年05月15日)
-            const now = new Date();
-            const dateString = `${now.getFullYear()}年${String(now.getMonth() + 1).padStart(2, '0')}月${String(now.getDate()).padStart(2, '0')}日`;
-            
-            savedStamps.push({
-                id: selectedSpot.id,
-                name: selectedSpot.spot_name || selectedSpot.title_name || "無題のスポット",
-                date: dateString,
-                anime: selectedSpot.title_name || "作品名不明",
-                scene: selectedSpot.scene || selectedSpot.spot_info || "情報がありません",
-                address: selectedSpot.address || "住所未登録" // 住所データがあれば表示
-            });
-            localStorage.setItem("collectedStamps", JSON.stringify(savedStamps));
-        }
-    const nextText =
-        STAMP_DEBUG_MODE
-            ? "15秒後に再取得できます"
-            : "24時間後に再取得できます";
 
     try {
-        await saveStampHistoryToFirestore();
+        // DBに保存できた時だけ「取得した」ことにする
+        await stampCollection
+            .doc(key)
+            .set(
+                createStampDocument(
+                    selectedSpot,
+                    stampedAt,
+                    isFirstTime
+                ),
+                {
+                    merge: true
+                }
+            );
+
+        stampHistory[key] =
+            stampedAt;
+
+        const nextText =
+            STAMP_DEBUG_MODE
+                ? "15秒後に再取得できます"
+                : "24時間後に再取得できます";
 
         notifyStamp(
             `🎉 ${
@@ -1100,18 +1123,17 @@ async function collectStamp(spotId) {
         );
     } catch (error) {
         console.error(
-            "Firestoreへのスタンプ保存に失敗しました:",
+            "スタンプの保存に失敗しました:",
             error
         );
 
         notifyStamp(
-            `${
-                selectedSpot
-                    .spot_name ||
-                "スポット"
-            }のスタンプを端末に保存しました（サーバーへの保存は失敗しました）`,
+            "スタンプを保存できませんでした。通信状況を確認して、もう一度お試しください",
             "error"
         );
+    } finally {
+        collectingSpotIds.delete(key);
+        refreshStampUI();
     }
 }
 
@@ -1327,18 +1349,31 @@ function refreshStampUI() {
 async function resetStampCooldown(
     spotId
 ) {
-    delete stampHistory[
-        String(spotId)
-    ];
+    const key =
+        String(spotId);
 
-    saveLocalStampHistory();
+    if (!(key in stampHistory)) {
+        return;
+    }
+
+    // 獲得記録は残し、待ち時間だけ無くす
+    stampHistory[key] = 0;
     refreshStampUI();
 
     try {
-        await saveStampHistoryToFirestore();
+        await stampCollection
+            .doc(key)
+            .set(
+                {
+                    last_stamped_at: 0
+                },
+                {
+                    merge: true
+                }
+            );
     } catch (error) {
         console.warn(
-            "リセットのFirestore同期に失敗しました:",
+            "リセットのDB保存に失敗しました:",
             error
         );
     }
@@ -1354,27 +1389,13 @@ async function resetStampCooldown(
 // resetAllStampCooldowns()
 // ==========================================
 async function resetAllStampCooldowns() {
-    Object.keys(
-        stampHistory
-    ).forEach(
-        function (spotId) {
-            delete stampHistory[
-                spotId
-            ];
-        }
+    await Promise.all(
+        Object.keys(
+            stampHistory
+        ).map(
+            resetStampCooldown
+        )
     );
-
-    saveLocalStampHistory();
-    refreshStampUI();
-
-    try {
-        await saveStampHistoryToFirestore();
-    } catch (error) {
-        console.warn(
-            "全リセットのFirestore同期に失敗しました:",
-            error
-        );
-    }
 
     console.log(
         "全スタンプを再取得可能にしました"
@@ -1513,7 +1534,7 @@ document.addEventListener(
 
         refreshStampUI();
 
-        stampAuthPromise =
+        stampLoadPromise =
             initializeStampStorage();
 
         setInterval(
