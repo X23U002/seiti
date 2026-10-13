@@ -1,6 +1,6 @@
 // ==========================================
 // スタンプ帳
-// ・獲得したスタンプは collectedStamps（地図でスタンプを取った時に保存される）
+// ・獲得したスタンプはDB（user/{ユーザーID}/stamps）から stamp.html で読み込んで渡す
 // ・聖地の一覧は seitiSpotSummary（地図を開いた時に保存される）
 //   一覧があれば、まだ集めていない聖地もグレーで並べる
 // ==========================================
@@ -20,16 +20,12 @@ function readJson(key, fallback) {
 }
 
 // ---------- データの準備 ----------
-let collected = readJson("collectedStamps", []);
-if (!Array.isArray(collected)) collected = [];
+// 獲得したスタンプと読み込み状態（loading / ready / guest / error）
+let collected = [];
+let loadState = "loading";
 
 // スポットID → 獲得したスタンプ
-const collectedById = {};
-collected.forEach(function (stamp) {
-    if (!collectedById[String(stamp.id)]) {
-        collectedById[String(stamp.id)] = stamp;
-    }
-});
+let collectedById = {};
 
 const summary = readJson("seitiSpotSummary", null);
 const hasSpotList = Boolean(summary && Array.isArray(summary.spots));
@@ -40,36 +36,48 @@ function titleColor(title) {
 }
 
 // 表示するスタンプの一覧 { id, name, title, info, earned, date }
-const allStamps = hasSpotList
-    ? summary.spots.map(function (spot) {
-        const stamp = collectedById[String(spot.id)];
-        return {
-            id: spot.id,
-            name: spot.name,
-            title: spot.title,
-            info: (stamp && stamp.scene) || spot.info,
-            earned: Boolean(stamp),
-            date: stamp ? stamp.date : ""
-        };
-    })
-    // 聖地の一覧がまだ無い時は、獲得したスタンプだけを並べる
-    : Object.keys(collectedById).map(function (id) {
-        const stamp = collectedById[id];
-        return {
-            id: stamp.id,
-            name: stamp.name,
-            title: stamp.anime,
-            info: stamp.scene,
-            earned: true,
-            date: stamp.date
-        };
+let allStamps = [];
+let titles = [];
+
+function buildStamps() {
+    collectedById = {};
+    collected.forEach(function (stamp) {
+        if (!collectedById[String(stamp.id)]) {
+            collectedById[String(stamp.id)] = stamp;
+        }
     });
 
-// 作品の並び（獲得が多い作品を先に）
-const titles = [...new Set(allStamps.map(function (s) { return s.title; }))]
-    .sort(function (a, b) {
-        return earnedCount(b) - earnedCount(a) || countOf(b) - countOf(a);
-    });
+    allStamps = hasSpotList
+        ? summary.spots.map(function (spot) {
+            const stamp = collectedById[String(spot.id)];
+            return {
+                id: spot.id,
+                name: spot.name,
+                title: spot.title,
+                info: (stamp && stamp.scene) || spot.info,
+                earned: Boolean(stamp),
+                date: stamp ? stamp.date : ""
+            };
+        })
+        // 聖地の一覧がまだ無い時は、獲得したスタンプだけを並べる
+        : Object.keys(collectedById).map(function (id) {
+            const stamp = collectedById[id];
+            return {
+                id: stamp.id,
+                name: stamp.name,
+                title: stamp.anime,
+                info: stamp.scene,
+                earned: true,
+                date: stamp.date
+            };
+        });
+
+    // 作品の並び（獲得が多い作品を先に）
+    titles = [...new Set(allStamps.map(function (s) { return s.title; }))]
+        .sort(function (a, b) {
+            return earnedCount(b) - earnedCount(a) || countOf(b) - countOf(a);
+        });
+}
 
 function countOf(title) {
     return allStamps.filter(function (s) { return s.title === title; }).length;
@@ -193,11 +201,25 @@ function renderSections() {
         area.appendChild(section);
     });
 
-    if (shownCount === 0) {
+    // 読み込み中・未ログインなどの時は上のお知らせだけにする
+    if (shownCount === 0 && loadState === "ready") {
         area.innerHTML = collected.length === 0
             ? '<div class="card empty-state"><div class="empty-state-icon">⛩️</div><p>まだスタンプがありません</p><small>地図で聖地を訪れて、スタンプを集めよう</small><a href="map.html" class="btn btn-primary">地図を開く</a></div>'
             : '<div class="card empty-state"><div class="empty-state-icon">🔍</div><p>表示できるスタンプがありません</p></div>';
     }
+}
+
+// 未ログイン・読み込み中・読み込み失敗の時は、一覧の上にお知らせを出す
+function renderNotice() {
+    const notice = document.getElementById("stamp-notice");
+    const html = {
+        loading: '<div class="card empty-state"><div class="empty-state-icon">⏳</div><p>スタンプを読み込み中…</p></div>',
+        guest: '<div class="card empty-state"><div class="empty-state-icon">🔑</div><p>ログインするとスタンプを集められます</p><small>スタンプはアカウントに保存されます</small><a href="login.html" class="btn btn-primary">ログインする</a></div>',
+        error: '<div class="card empty-state"><div class="empty-state-icon">⚠️</div><p>スタンプを読み込めませんでした</p><small>通信状況を確認して、開き直してください</small></div>'
+    }[loadState];
+
+    notice.innerHTML = html || "";
+    notice.hidden = !html;
 }
 
 function createStampItem(stamp) {
@@ -259,6 +281,16 @@ function closeStampModal() {
 // ---------- 画面を開いた時 ----------
 document.getElementById("only-earned").addEventListener("change", renderSections);
 
-renderOverall();
-renderChips();
-renderSections();
+// DBから読み込んだスタンプで表示し直す（stamp.html から呼ぶ）
+function showStamps(stamps, state) {
+    collected = Array.isArray(stamps) ? stamps : [];
+    loadState = state;
+    buildStamps();
+    renderNotice();
+    renderOverall();
+    renderChips();
+    renderSections();
+}
+
+// DBから読み込むまでは「読み込み中」と表示しておく
+showStamps([], "loading");

@@ -38,7 +38,7 @@ function logout() {
 
 // ==========================================
 // 巡礼の記録（獲得スタンプ・作品ごとの達成度・最近のスタンプ）
-// スタンプは stamp.html と同じ collectedStamps、
+// スタンプはDB（user/{ユーザーID}/stamps）から mypage.html で読み込んで渡す。
 // 作品ごとの聖地の件数は地図画面が記録した seitiSpotSummary を使う
 // ==========================================
 function readJson(key, fallback) {
@@ -81,8 +81,8 @@ function setupProgressToggle(titleCount) {
     update();
 }
 
-(function renderRecord() {
-    let stamps = readJson("collectedStamps", []);
+// state：loading（読み込み中）/ ready / guest（未ログイン）/ error（読み込み失敗）
+function renderRecord(stamps, state) {
     if (!Array.isArray(stamps)) stamps = [];
 
     const summary = readJson("seitiSpotSummary", null);
@@ -196,8 +196,16 @@ function setupProgressToggle(titleCount) {
     recentList.innerHTML = "";
 
     if (uniqueStamps.length === 0) {
-        recentList.innerHTML =
-            '<li class="list-empty">まだスタンプがありません。地図で聖地を訪れてスタンプを集めよう。</li>';
+        const emptyText = {
+            loading: "スタンプを読み込み中…",
+            guest: "ログインすると、スタンプを集めて記録できます。",
+            error: "スタンプを読み込めませんでした。通信状況を確認して、開き直してください。"
+        }[state] || "まだスタンプがありません。地図で聖地を訪れてスタンプを集めよう。";
+        recentList.innerHTML = "";
+        const li = document.createElement("li");
+        li.className = "list-empty";
+        li.textContent = emptyText;
+        recentList.appendChild(li);
     } else {
         uniqueStamps.slice(-3).reverse().forEach(function (stamp) {
             const li = document.createElement("li");
@@ -225,7 +233,10 @@ function setupProgressToggle(titleCount) {
             recentList.appendChild(li);
         });
     }
-})();
+}
+
+// DBから読み込むまでは「読み込み中」と表示しておく
+renderRecord([], "loading");
 
 // ログイン中のユーザーIDを表示
 (function showUserId() {

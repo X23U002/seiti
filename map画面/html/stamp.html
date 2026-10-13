@@ -39,6 +39,7 @@
         </div>
 
         <!-- スタンプ（作品ごと） -->
+        <div id="stamp-notice" hidden></div>
         <div id="stamp-sections"></div>
 
     </main>
@@ -65,6 +66,17 @@
     </div>
 
     <script src="../js/common.js"></script>
-    <script src="../js/stamp.js"></script>
+    <script src="../js/stamp.js?v=2"></script>
+    <!-- 獲得したスタンプをDBから読み込んで表示する -->
+    <script type="module">
+        import { loadMyStamps } from "../js/stamp-db.js";
+
+        loadMyStamps().then(function (stamps) {
+            showStamps(stamps || [], stamps === null ? "guest" : "ready");
+        }, function (error) {
+            console.error("スタンプの読み込みに失敗しました:", error);
+            showStamps([], "error");
+        });
+    </script>
 </body>
 </html>
