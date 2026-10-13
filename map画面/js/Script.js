@@ -430,6 +430,53 @@ function openSpotFromUrl() {
 
 
 // =========================================================
+// ポップアップの「ルートに追加」ボタン
+// ルートに入っている間は「追加済み」にして押せなくする
+// =========================================================
+const ROUTE_ADD_ICON =
+    '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+
+const ROUTE_ADDED_ICON =
+    '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17L4 12"/></svg>';
+
+function getRouteButtonHTML(isInRoute) {
+    return isInRoute
+        ? ROUTE_ADDED_ICON + "追加済み"
+        : ROUTE_ADD_ICON + "ルートに追加";
+}
+
+function setRouteButtonState(button, isInRoute) {
+    button.disabled = isInRoute;
+    button.innerHTML = getRouteButtonHTML(isInRoute);
+}
+
+// 画面にある「ルートに追加」ボタンを、今のルートに合わせる
+function syncRouteButtons(root) {
+    (root || document)
+        .querySelectorAll(
+            '[id^="route-btn-"]'
+        )
+        .forEach(
+            function (button) {
+                const spotId =
+                    button.id.slice(
+                        "route-btn-".length
+                    );
+
+                setRouteButtonState(
+                    button,
+                    selectedSpots.some(
+                        function (item) {
+                            return String(item.id) === spotId;
+                        }
+                    )
+                );
+            }
+        );
+}
+
+
+// =========================================================
 // スポット詳細のポップアップ
 // スマホでは画面下からせり上がるパネルとして表示する（見た目は style.css）。
 // パネルにピンが隠れないよう、開いた時にピンを画面の上寄りへ動かす
@@ -445,6 +492,11 @@ function createSpotPopup(html, longitude, latitude) {
     popup.on(
         "open",
         function () {
+            // 閉じている間にルートが変わっていることがあるので合わせ直す
+            syncRouteButtons(
+                popup.getElement()
+            );
+
             if (
                 window.matchMedia(
                     "(max-width: 600px)"
@@ -769,6 +821,7 @@ function drawMarkers(list) {
             // =============================================
             // ポップアップ
             // =============================================
+            // ルートに追加済みなら、描き直した後も「追加済み」のままにする
             const isInRoute =
                 selectedSpots.some(
                     function (item) {
@@ -822,9 +875,9 @@ function drawMarkers(list) {
                             type="button"
                             id="route-btn-${data.id}"
                             onclick="addSpotToRouteById('${data.id}')"
+                            ${isInRoute ? "disabled" : ""}
                         >
-                            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                            ルートに追加
+                            ${getRouteButtonHTML(isInRoute)}
                         </button>
 
                     </div>
@@ -1895,8 +1948,6 @@ window.addSpotToRouteById =
                 longitude
         });
 
-        console.log("追加後", selectedSpots);
-
         document
             .getElementById(
                 "routePanel"
@@ -1907,20 +1958,7 @@ window.addSpotToRouteById =
 
         updateRouteList();
 
-        const routeButton =
-            document.getElementById(
-                `route-btn-${spot.id}`
-            );
-
-        if (routeButton) {
-            routeButton.disabled = true;
-
-            routeButton.innerHTML =
-                `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M20 6L9 17L4 12"/>
-                </svg>
-                追加済み`;
-        }
+        syncRouteButtons();
 
         window.showToast(
             `「${selectedSpots[selectedSpots.length - 1].name}」をルートに追加しました`
@@ -1950,22 +1988,8 @@ window.removeSpotFromRoute =
                 1
             );
 
-            const routeButton =
-                document.getElementById(
-                    `route-btn-${spotId}`
-                );
-
-            if (routeButton) {
-                routeButton.disabled = false;
-
-                routeButton.innerHTML =
-                    `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M12 5v14M5 12h14"/>
-                    </svg>
-                    ルートに追加`;
-            }
-
             updateRouteList();
+            syncRouteButtons();
 
             if (
                 selectedSpots.length ===
@@ -1988,23 +2012,10 @@ window.removeSpotFromRoute =
 // =========================================================
 window.clearSelectedSpots =
     function () {
-        document
-        .querySelectorAll(
-            '.popup-buttons button[id^="route-btn-"]'
-        )
-        .forEach(function(button) {
-            button.disabled = false;
-
-            button.innerHTML =
-                `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 5v14M5 12h14"/>
-                </svg>
-                ルートに追加`;
-        });
-        
         selectedSpots.length = 0;
 
         updateRouteList();
+        syncRouteButtons();
 
         document
             .getElementById(
