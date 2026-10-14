@@ -1,5 +1,5 @@
 // ========================================
-// 聖地登録（申請を spot_request に送る。運営が確認してから地図に追加する）
+// 聖地登録（申請を request_spot に送る。運営が確認してから地図に追加する）
 // ========================================
 import { getLoginUserId, getWaitSeconds, sendSpotRequest } from "./request-db.js";
 
@@ -28,7 +28,7 @@ async function completeRegister() {
         return;
     }
 
-    const wait = getWaitSeconds("spot_request");
+    const wait = getWaitSeconds("request_spot");
     if (wait > 0) {
         showRegisterError("続けて申請することはできません。" + wait + "秒ほど待ってからもう一度お試しください。");
         return;

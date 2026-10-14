@@ -1,15 +1,14 @@
 // ==========================================
-// 聖地登録の申請・お問い合わせをDBに送る
-// どちらも status: "pending"（審査待ち）で作成するだけ。
-// 内容の確認・地図への追加は運営が Firebase コンソールで行う
-//   spot_request/{自動ID}：聖地登録の申請
-//   contact/{自動ID}     ：お問い合わせ
+// 聖地登録の申請・お問い合わせをDBに送る（どちらもログインが必要）
+// 作成するだけで、内容の確認・地図への追加は運営が Firebase コンソールで行う
+//   request_spot/{自動ID}：聖地登録の申請（request_state: "申請中" で作成）
+//   contact/{自動ID}     ：お問い合わせ（contact_state: "未対応" で作成）
+// 項目名はチームで決めたルール（Firestore のルール）に合わせている
 // ==========================================
 import {
     addDoc,
     collection,
-    doc,
-    serverTimestamp
+    doc
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 import { db } from "./firebase-db.js";
@@ -38,35 +37,39 @@ function rememberSent(kind) {
     }
 }
 
-// 聖地登録の申請（ログインが必要）
-export async function sendSpotRequest(fields) {
-    const userId = await getLoginUserId();
-    if (!userId) {
-        throw Object.assign(new Error("ログインしていません"), { code: "not-logged-in" });
-    }
-
-    await addDoc(collection(db, "spot_request"), {
-        user_id: doc(db, "user", userId),
-        title_name: fields.titleName,
-        spot_name: fields.spotName,
-        address: fields.address,
-        spot_info: fields.spotInfo,
-        status: "pending",
-        created_at: serverTimestamp()
-    });
-    rememberSent("spot_request");
+function notLoggedIn() {
+    return Object.assign(new Error("ログインしていません"), { code: "not-logged-in" });
 }
 
-// お問い合わせ（ログインしていなくても送れる）
+// 聖地登録の申請
+// request_title：スポット名、request_info：作品名・住所・説明をまとめた文
+export async function sendSpotRequest(fields) {
+    const userId = await getLoginUserId();
+    if (!userId) throw notLoggedIn();
+
+    await addDoc(collection(db, "request_spot"), {
+        user_id: doc(db, "user", userId),
+        request_title: fields.spotName,
+        image_url: "",
+        request_info:
+            "作品名：" + fields.titleName + "\n" +
+            "住所：" + fields.address + "\n" +
+            "説明：" + fields.spotInfo,
+        request_state: "申請中"
+    });
+    rememberSent("request_spot");
+}
+
+// お問い合わせ
 export async function sendContact(fields) {
     const userId = await getLoginUserId();
+    if (!userId) throw notLoggedIn();
 
     await addDoc(collection(db, "contact"), {
-        user_id: userId ? doc(db, "user", userId) : null,
-        message: fields.message,
-        reply_to: fields.replyTo,
-        status: "pending",
-        created_at: serverTimestamp()
+        user_id: doc(db, "user", userId),
+        contact_info: fields.message,
+        image_url: "",
+        contact_state: "未対応"
     });
     rememberSent("contact");
 }

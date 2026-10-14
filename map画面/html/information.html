@@ -22,7 +22,15 @@
         ===================================== -->
         <div id="formPage">
             <div class="instruction">
-                <p>不具合・ご意見・ご要望などをご入力ください。</p>
+                <p>不具合・ご意見・ご要望などをご入力ください。返信が必要な場合は、登録したメールアドレスにお送りします。</p>
+            </div>
+
+            <!-- 未ログインの時 -->
+            <div class="card empty-state" id="contact-login" hidden>
+                <div class="empty-state-icon">🔑</div>
+                <p>お問い合わせにはログインが必要です</p>
+                <small>返信は登録したメールアドレスにお送りします</small>
+                <a href="login.html" class="btn btn-primary">ログインする</a>
             </div>
 
             <form class="card" id="contact-form" novalidate>
@@ -32,13 +40,6 @@
                     <label for="contactText">お問い合わせ内容<span class="required">必須</span></label>
                     <textarea id="contactText" placeholder="お問い合わせ内容を入力してください" maxlength="2000"></textarea>
                     <p class="error-text">お問い合わせ内容を入力してください（2000文字以内）。</p>
-                </div>
-
-                <div class="form-group">
-                    <label for="replyTo">返信先メールアドレス<span class="optional">任意</span></label>
-                    <input type="email" id="replyTo" placeholder="(例) seiti150@seiti.ac.jp" autocomplete="email" maxlength="254">
-                    <p class="form-hint">返信が必要な場合は入力してください。</p>
-                    <p class="error-text">メールアドレスの形式が正しくありません。</p>
                 </div>
 
                 <button type="submit" class="btn btn-primary" id="contact-btn">送信する</button>
@@ -62,6 +63,6 @@
     </main>
 
     <script src="../js/common.js"></script>
-    <script type="module" src="../js/information.js?v=3"></script>
+    <script type="module" src="../js/information.js?v=4"></script>
 </body>
 </html>

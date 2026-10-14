@@ -1,7 +1,7 @@
 // ========================================
-// お問い合わせ（contact に送る。運営が確認して、必要なら返信する）
+// お問い合わせ（contact に送る。運営が確認して、必要なら登録したメールアドレスへ返信する）
 // ========================================
-import { getWaitSeconds, sendContact } from "./request-db.js";
+import { getLoginUserId, getWaitSeconds, sendContact } from "./request-db.js";
 
 const MESSAGE_LIMIT = 2000;
 
@@ -13,17 +13,14 @@ function showContactError(message) {
 
 async function submitContact() {
     const message = document.getElementById("contactText").value.trim();
-    const replyTo = document.getElementById("replyTo").value.trim();
 
-    // 内容が空・長すぎる時、返信先の形がおかしい時は送信しない
+    // 内容が空・長すぎる時は送信しない
     const messageError = message === "" || message.length > MESSAGE_LIMIT;
-    const replyError = replyTo !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyTo);
     setFieldError("contactText", messageError);
-    setFieldError("replyTo", replyError);
     showContactError("");
 
-    if (messageError || replyError) {
-        document.getElementById(messageError ? "contactText" : "replyTo").focus();
+    if (messageError) {
+        document.getElementById("contactText").focus();
         return;
     }
 
@@ -38,7 +35,7 @@ async function submitContact() {
     button.textContent = "送信中…";
 
     try {
-        await sendContact({ message: message, replyTo: replyTo });
+        await sendContact({ message: message });
     } catch (error) {
         console.error("お問い合わせの送信に失敗しました:", error);
         showContactError("送信できませんでした。通信状況を確認して、もう一度お試しください。");
@@ -57,14 +54,10 @@ document.getElementById("contact-form").addEventListener("submit", function (eve
     submitContact();
 });
 
-// ログイン中なら、登録したメールアドレスを返信先に入れておく
-(function fillReplyTo() {
-    try {
-        const account = JSON.parse(localStorage.getItem("seitiAccount") || "null");
-        if (account && account.email) {
-            document.getElementById("replyTo").value = account.email;
-        }
-    } catch (e) {
-        // 読めない時は空のまま
+// お問い合わせはログインした人だけ（返信先は登録したメールアドレス）
+getLoginUserId().then(function (userId) {
+    if (!userId) {
+        document.getElementById("contact-form").hidden = true;
+        document.getElementById("contact-login").hidden = false;
     }
-})();
+});
