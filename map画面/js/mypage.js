@@ -22,17 +22,15 @@ function closeLogoutModal() {
     document.getElementById("logout-modal").style.display = "none";
 }
 
-// ログアウト処理
-function logout() {
-    try {
-        localStorage.removeItem("seitiCurrentUserId");
-    } catch (e) {
-        // 保存できない環境では何もしない
+// ログアウト処理（Firebase からのログアウトは mypage.html で用意した firebaseSignOut で行う）
+async function logout() {
+    if (typeof window.firebaseSignOut === "function") {
+        try {
+            await window.firebaseSignOut();
+        } catch (error) {
+            console.error("ログアウトに失敗しました:", error);
+        }
     }
-    sessionStorage.removeItem("userId");
-    sessionStorage.removeItem("userName");
-    sessionStorage.removeItem("mailAddress");
-    sessionStorage.removeItem("iconImageUrl");
     window.location.href = "login.html";
 }
 
@@ -249,17 +247,11 @@ function renderRecord(stamps, state, spotSummary) {
 // DBから読み込むまでは「読み込み中」と表示しておく
 renderRecord([], "loading");
 
-// ログイン中のユーザーIDを表示
-(function showUserId() {
-    let userId = null;
-    try {
-        userId = localStorage.getItem("seitiCurrentUserId");
-    } catch (e) {
-        userId = null;
-    }
+// ログイン中のメールアドレスを表示（ログイン状態が分かったら mypage.html から呼ぶ）
+function showAccount(email) {
     document.getElementById("current-user-id").textContent =
-        "ID: " + (userId || "ゲスト");
-})();
+        email ? email : "ゲスト（ログインしていません）";
+}
 
 // ==========================================
 // プロフィール（名前・アイコン）を端末に保存して、次に開いた時も表示する

@@ -25,43 +25,47 @@
                 <p>聖地スポットの追加に必要な情報を入力してください。運営で確認後にマップへ追加されます。</p>
             </div>
 
-            <form class="card" onsubmit="completeRegister(); return false;" novalidate>
+            <!-- 未ログインの時 -->
+            <div class="card empty-state" id="register-login" hidden>
+                <div class="empty-state-icon">🔑</div>
+                <p>聖地の登録申請にはログインが必要です</p>
+                <a href="login.html" class="btn btn-primary">ログインする</a>
+            </div>
+
+            <form class="card" id="register-form" novalidate>
+                <p class="form-alert" id="register-error" role="alert" hidden></p>
+
                 <!-- 作品名 -->
                 <div class="form-group">
                     <label for="animeName">作品名<span class="required">必須</span></label>
-                    <input type="text" id="animeName" placeholder="(例) 君の名は。" aria-describedby="animeName-hint">
+                    <input type="text" id="animeName" placeholder="(例) 君の名は。" aria-describedby="animeName-hint" maxlength="100">
                     <p class="form-hint" id="animeName-hint">略称ではなく正式名称で入力してください。</p>
-                    <p class="error-text">作品名を入力してください。</p>
+                    <p class="error-text">作品名を入力してください（100文字以内）。</p>
+                </div>
+
+                <!-- スポット名 -->
+                <div class="form-group">
+                    <label for="spotName">スポット名<span class="required">必須</span></label>
+                    <input type="text" id="spotName" placeholder="(例) 須賀神社の階段" maxlength="100">
+                    <p class="error-text">スポット名を入力してください（100文字以内）。</p>
                 </div>
 
                 <!-- 住所 -->
                 <div class="form-group">
                     <label for="address">住所<span class="required">必須</span></label>
-                    <input type="text" id="address" placeholder="(例) 東京都新宿区須賀町5" autocomplete="street-address">
-                    <p class="error-text">住所を入力してください。</p>
-                </div>
-
-                <!-- 画像 -->
-                <div class="form-group">
-                    <span class="form-label">画像<span class="optional">任意</span></span>
-                    <label class="file-input">
-                        <span class="file-input-icon" aria-hidden="true">🖼</span>
-                        <span class="file-input-text">タップして画像を選択</span>
-                        <input type="file" id="image" accept="image/*" data-preview="image-preview">
-                    </label>
-                    <img id="image-preview" class="file-preview" alt="選択した画像のプレビュー">
-                    <p class="form-hint">スクリーンショットなどでもOKです。</p>
+                    <input type="text" id="address" placeholder="(例) 東京都新宿区須賀町5" autocomplete="street-address" maxlength="200">
+                    <p class="error-text">住所を入力してください（200文字以内）。</p>
                 </div>
 
                 <!-- スポット説明 -->
                 <div class="form-group">
                     <label for="spotText">スポットの説明<span class="required">必須</span></label>
-                    <textarea id="spotText" placeholder="(例) 2期3話、主人公たちが待ち合わせをした階段" aria-describedby="spotText-hint"></textarea>
+                    <textarea id="spotText" placeholder="(例) 2期3話、主人公たちが待ち合わせをした階段" aria-describedby="spotText-hint" maxlength="1000"></textarea>
                     <p class="form-hint" id="spotText-hint">何期・何話・どのシーンかを書いていただけると助かります。</p>
-                    <p class="error-text">スポットの説明を入力してください。</p>
+                    <p class="error-text">スポットの説明を入力してください（1000文字以内）。</p>
                 </div>
 
-                <button type="submit" class="btn btn-primary">聖地登録を申請する</button>
+                <button type="submit" class="btn btn-primary" id="register-btn">聖地登録を申請する</button>
             </form>
         </div>
 
@@ -73,8 +77,8 @@
             <h2 class="complete-title">登録申請が完了しました</h2>
             <p class="complete-text">
                 ご協力いただき、ありがとうございました。<br>
-                運営で確認が完了しましたら、スポットを登録いたします。<br>
-                登録完了後、マイページにてお知らせします。
+                運営で内容を確認し、問題がなければマップに追加いたします。<br>
+                追加までしばらくお待ちください。
             </p>
             <a href="map.html" class="btn btn-primary">マップに戻る</a>
         </div>
@@ -82,6 +86,6 @@
     </main>
 
     <script src="../js/common.js"></script>
-    <script src="../js/register.js"></script>
+    <script type="module" src="../js/register.js?v=3"></script>
 </body>
 </html>

@@ -12,18 +12,13 @@ import {
     where
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-import { db } from "./firebase-db.js";
+import { db, getCurrentUser } from "./firebase-db.js";
 import { getTitleColor, getTitleName } from "./title-colors.js";
 
-// ログイン中のユーザーID（未ログインなら null）
-export function getLoginUserId() {
-    try {
-        return sessionStorage.getItem("userId") ||
-            localStorage.getItem("seitiCurrentUserId") ||
-            null;
-    } catch (e) {
-        return null;
-    }
+// ログイン中のユーザーのID（Firebase Authentication の uid。未ログインなら null）
+export async function getLoginUserId() {
+    const user = await getCurrentUser();
+    return user ? user.uid : null;
 }
 
 // 2026年10月13日 の形にする
@@ -76,7 +71,7 @@ function buildSpotSummary(spotSnapshot) {
 //   { id, name, anime, scene, date, stampedAt, count }
 // summary：聖地の一覧（地図を開いていなくても分かる）
 export async function loadStampBook() {
-    const userId = getLoginUserId();
+    const userId = await getLoginUserId();
 
     // 聖地の一覧と、このユーザーのスタンプを同時に読む
     const [spotSnapshot, stampSnapshot] = await Promise.all([
