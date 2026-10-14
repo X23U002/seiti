@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>管理ページ - 聖地巡礼NAVI</title>
+    <link rel="stylesheet" href="../css/common.css">
+    <link rel="stylesheet" href="../css/admin.css">
+
+    <!-- 位置の確認・調整に使う地図 -->
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js"></script>
+</head>
+<body>
+
+    <!-- アプリ共通ヘッダー -->
+    <header class="app-header">
+        <a href="mypage.html" class="back-btn" aria-label="マイページに戻る">＜ 戻る</a>
+        <h1>管理ページ</h1>
+    </header>
+
+    <main class="content admin-content">
+
+        <!-- 読み込み中・ログインしていない・管理者ではない時のお知らせ -->
+        <div class="card empty-state" id="admin-notice">
+            <div class="empty-state-icon">⏳</div>
+            <p>読み込み中…</p>
+        </div>
+
+        <div id="admin-main" hidden>
+            <!-- タブ -->
+            <div class="admin-tabs" role="tablist" aria-label="管理する内容">
+                <button type="button" class="admin-tab" role="tab" id="tab-requests" aria-selected="true" aria-controls="panel-requests">
+                    聖地の申請 <span class="tab-count" id="count-requests">0</span>
+                </button>
+                <button type="button" class="admin-tab" role="tab" id="tab-contacts" aria-selected="false" aria-controls="panel-contacts">
+                    お問い合わせ <span class="tab-count" id="count-contacts">0</span>
+                </button>
+            </div>
+
+            <label class="admin-filter">
+                <input type="checkbox" id="show-done">
+                対応済み・却下したものも表示する
+            </label>
+
+            <!-- 聖地の申請 -->
+            <section id="panel-requests" role="tabpanel" aria-labelledby="tab-requests">
+                <ul class="admin-list" id="request-list"></ul>
+            </section>
+
+            <!-- お問い合わせ -->
+            <section id="panel-contacts" role="tabpanel" aria-labelledby="tab-contacts" hidden>
+                <ul class="admin-list" id="contact-list"></ul>
+            </section>
+        </div>
+    </main>
+
+    <!-- =============== 申請を確認して地図に追加するポップアップ =============== -->
+    <div id="approve-modal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="approve-title">
+        <div class="modal-content approve-box">
+            <button type="button" class="modal-close-btn" onclick="closeApprove()" aria-label="閉じる" data-modal-close>✕</button>
+            <h2 class="modal-title" id="approve-title">聖地として地図に追加</h2>
+
+            <form id="approve-form" novalidate>
+                <p class="form-alert" id="approve-error" role="alert" hidden></p>
+
+                <div class="form-group">
+                    <label for="ap-spot-name">スポット名<span class="required">必須</span></label>
+                    <input type="text" id="ap-spot-name" maxlength="100">
+                    <p class="error-text">スポット名を入力してください。</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="ap-title-name">作品名<span class="required">必須</span></label>
+                    <input type="text" id="ap-title-name" maxlength="100" list="title-options">
+                    <datalist id="title-options"></datalist>
+                    <p class="form-hint">既にある作品は候補から選ぶと、地図の色や公式サイトがそろいます。</p>
+                    <p class="error-text">作品名を入力してください。</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="ap-spot-info">説明（ポップアップに表示）<span class="required">必須</span></label>
+                    <textarea id="ap-spot-info" maxlength="1000"></textarea>
+                    <p class="error-text">説明を入力してください。</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="ap-address">住所</label>
+                    <div class="address-row">
+                        <input type="text" id="ap-address" maxlength="200">
+                        <button type="button" class="btn btn-secondary" id="ap-geocode">位置を調べる</button>
+                    </div>
+                    <p class="form-hint" id="ap-coord-text">住所から位置を調べるか、地図をタップしてピンを置いてください。ピンはドラッグで動かせます。</p>
+                    <div class="approve-map" id="approve-map"></div>
+                    <p class="error-text">地図で位置を決めてください。</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="ap-title-url">作品の公式サイト</label>
+                    <input type="url" id="ap-title-url" placeholder="https://" maxlength="300">
+                </div>
+
+                <button type="submit" class="btn btn-success" id="ap-submit">許可して地図に追加する</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="../js/common.js"></script>
+    <script src="../js/toast.js"></script>
+    <script type="module" src="../js/admin.js"></script>
+</body>
+</html>

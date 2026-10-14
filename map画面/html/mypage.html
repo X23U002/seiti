@@ -97,6 +97,12 @@
                 <span class="menu-text">お問い合わせ</span>
                 <svg class="icon menu-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
             </button>
+            <!-- 管理者（admin コレクションに uid がある人）にだけ表示する -->
+            <button type="button" class="menu-item" id="admin-menu" onclick="location.href='admin.html'" hidden>
+                <span class="menu-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span>
+                <span class="menu-text">管理ページ（申請・お問い合わせ）</span>
+                <svg class="icon menu-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            </button>
         </nav>
 
         <!-- ログアウト -->
@@ -179,6 +185,15 @@
         const userId = user ? user.uid : null;
         showAccount(user ? user.email : null);
         if (userId) {
+            // 管理者なら管理ページへの入口を出す（読めなければ管理者ではない）
+            import("https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js").then(async function (fs) {
+                const { db } = await import("../js/firebase-db.js");
+                const snap = await fs.getDoc(fs.doc(db, "admin", userId));
+                document.getElementById("admin-menu").hidden = !snap.exists();
+            }).catch(function () {
+                // 管理者ではない
+            });
+
             window.saveNicknameToDb = function (name) {
                 return saveUserName(userId, name);
             };
