@@ -472,3 +472,8 @@ button.stat:hover {
 .stat:nth-child(3) .stat-value strong {
     color: var(--color-success);
 }
+
+/* 管理者にだけ出す項目（hidden の時は隠す） */
+.menu-item[hidden] {
+    display: none;
+}
