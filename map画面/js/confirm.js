@@ -2,12 +2,16 @@
 // 登録確認画面
 // ==========================================
 import {
+    createUserWithEmailAndPassword
+} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
+
+import {
     doc,
-    runTransaction
+    setDoc
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-import { db } from "./firebase-db.js";
-import { saveLoginState } from "./login-state.js";
+import { auth, db } from "./firebase-db.js";
+import { authErrorMessage, saveLoginState } from "./login-state.js";
 
 // 新規登録入力画面に戻る
 window.goToRegister = function () {
@@ -46,49 +50,30 @@ window.goToComplete = async function () {
     button.textContent = "登録中…";
     showConfirmError("");
 
-    let userId;
+    let uid;
 
     try {
-        const countRef = doc(db, "count", "user");
-
-        // 連番の取得・ユーザー作成・連番の更新を1回の処理で行い、
-        // 同時に登録した人がいてもIDが重ならないようにする
-        userId = await runTransaction(db, async function (transaction) {
-            const countSnap = await transaction.get(countRef);
-
-            if (!countSnap.exists()) {
-                throw new Error("カウンタ情報がありません");
-            }
-
-            const nextId = countSnap.data().next_id;
-            const newUserId = `u${nextId}`;
-            const userRef = doc(db, "user", newUserId);
-
-            // 既にあるユーザーを上書きしないようにする
-            const userSnap = await transaction.get(userRef);
-            if (userSnap.exists()) {
-                throw new Error(`${newUserId} は既に使われています`);
-            }
-
-            transaction.set(userRef, {
-                user_name: saved.nickname,
-                pass: saved.password,
-                mail_address: saved.email,
-                icon_image_url: "no_image"
-            });
-
-            transaction.update(countRef, {
-                next_id: nextId + 1
-            });
-
-            return newUserId;
-        });
+        // アカウントを作る（パスワードは Firebase が管理し、DBには保存しない）
+        const credential = await createUserWithEmailAndPassword(auth, saved.email, saved.password);
+        uid = credential.user.uid;
     } catch (error) {
         console.error("登録エラー:", error);
-        showConfirmError("登録に失敗しました。通信状況を確認して、もう一度お試しください。");
+        showConfirmError(authErrorMessage(error));
         button.disabled = false;
         button.textContent = "登録する";
         return;
+    }
+
+    // ニックネームなどを user/{uid} に保存する
+    // （失敗してもアカウントはできているので、ログイン時に仮の名前で続けられる）
+    try {
+        await setDoc(doc(db, "user", uid), {
+            user_name: saved.nickname,
+            mail_address: saved.email,
+            icon_image_url: "no_image"
+        });
+    } catch (error) {
+        console.error("ユーザー情報の保存に失敗:", error);
     }
 
     // ここから先は登録済み。失敗しても「登録に失敗」とは表示しない
@@ -97,14 +82,14 @@ window.goToComplete = async function () {
 
     // 登録したらそのままログインした状態にする
     try {
-        saveLoginState(userId, saved.nickname, saved.email, "no_image");
+        saveLoginState(uid, saved.nickname, saved.email);
     } catch (error) {
         console.error("ログイン状態の保存に失敗:", error);
     }
 
-    // 完了ポップアップ表示（ログインに使うユーザーIDを知らせる）
+    // 完了ポップアップ表示（ログインに使うメールアドレスを知らせる）
     button.textContent = "登録しました";
-    document.getElementById("created-user-id").textContent = userId;
+    document.getElementById("created-user-id").textContent = saved.email;
     document.getElementById("complete-modal").style.display = "flex";
 };
 

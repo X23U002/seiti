@@ -741,22 +741,27 @@ function getStampPopupHTML(
 
 
 // ==========================================
-// ログイン中のユーザーID（未ログインなら null）
+// ログイン中のユーザーID（Firebase Authentication の uid。未ログインなら null）
+// 前回のログイン状態の読み込みが終わるまで待ってから返す
 // ==========================================
 function getStampLoginUserId() {
-    try {
-        return (
-            sessionStorage.getItem(
-                "userId"
-            ) ||
-            localStorage.getItem(
-                "seitiCurrentUserId"
-            ) ||
-            null
-        );
-    } catch (error) {
-        return null;
-    }
+    return new Promise(
+        function (resolve) {
+            const unsubscribe =
+                window.firebase
+                    .auth()
+                    .onAuthStateChanged(
+                        function (user) {
+                            unsubscribe();
+                            resolve(
+                                user
+                                    ? user.uid
+                                    : null
+                            );
+                        }
+                    );
+        }
+    );
 }
 
 
@@ -928,8 +933,26 @@ async function migrateLocalStampsToFirestore() {
 // DBからスタンプを読み込む
 // ==========================================
 async function initializeStampStorage() {
-    const userId =
-        getStampLoginUserId();
+    let userId;
+
+    try {
+        prepareStampFirebase();
+
+        userId =
+            await getStampLoginUserId();
+    } catch (error) {
+        console.error(
+            "ログイン状態を確認できませんでした:",
+            error
+        );
+
+        stampStorageState =
+            "error";
+
+        refreshStampUI();
+
+        return false;
+    }
 
     if (!userId) {
         stampStorageState =
@@ -941,7 +964,6 @@ async function initializeStampStorage() {
     }
 
     try {
-        prepareStampFirebase();
 
         stampUserRef =
             stampDb

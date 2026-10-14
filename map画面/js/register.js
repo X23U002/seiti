@@ -66,7 +66,9 @@ document.getElementById("register-form").addEventListener("submit", function (ev
 });
 
 // 申請はログインした人だけ（いたずらの申請を減らすため）
-if (!getLoginUserId()) {
-    document.getElementById("register-form").hidden = true;
-    document.getElementById("register-login").hidden = false;
-}
+getLoginUserId().then(function (userId) {
+    if (!userId) {
+        document.getElementById("register-form").hidden = true;
+        document.getElementById("register-login").hidden = false;
+    }
+});

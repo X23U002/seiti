@@ -152,10 +152,10 @@
 
     <script src="../js/common.js"></script>
     <script src="../js/stamp-rank.js"></script>
-    <script src="../js/mypage.js?v=4"></script>
+    <script src="../js/mypage.js?v=5"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
-        import { loadStampBook } from "../js/stamp-db.js?v=4";
+        import { loadStampBook } from "../js/stamp-db.js?v=5";
 
         loadStampBook().then(function (book) {
             renderRecord(book.stamps || [], book.stamps === null ? "guest" : "ready", book.summary);
@@ -166,9 +166,18 @@
 
         // ニックネームはDBの内容を正とする（別の端末で変えた時も反映される）
         import { loadUserName, saveUserName } from "../js/profile-db.js";
-        import { getLoginUserId } from "../js/stamp-db.js?v=4";
+        import { auth, getCurrentUser } from "../js/firebase-db.js";
+        import { clearLoginState } from "../js/login-state.js";
+        import { signOut } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
 
-        const userId = getLoginUserId();
+        window.firebaseSignOut = async function () {
+            await signOut(auth);
+            clearLoginState();
+        };
+
+        const user = await getCurrentUser();
+        const userId = user ? user.uid : null;
+        showAccount(user ? user.email : null);
         if (userId) {
             window.saveNicknameToDb = function (name) {
                 return saveUserName(userId, name);

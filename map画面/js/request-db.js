@@ -13,7 +13,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 import { db } from "./firebase-db.js";
-import { getLoginUserId } from "./stamp-db.js?v=4";
+import { getLoginUserId } from "./stamp-db.js?v=5";
 
 export { getLoginUserId };
 
@@ -40,7 +40,7 @@ function rememberSent(kind) {
 
 // 聖地登録の申請（ログインが必要）
 export async function sendSpotRequest(fields) {
-    const userId = getLoginUserId();
+    const userId = await getLoginUserId();
     if (!userId) {
         throw Object.assign(new Error("ログインしていません"), { code: "not-logged-in" });
     }
@@ -59,7 +59,7 @@ export async function sendSpotRequest(fields) {
 
 // お問い合わせ（ログインしていなくても送れる）
 export async function sendContact(fields) {
-    const userId = getLoginUserId();
+    const userId = await getLoginUserId();
 
     await addDoc(collection(db, "contact"), {
         user_id: userId ? doc(db, "user", userId) : null,
