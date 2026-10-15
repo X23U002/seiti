@@ -2256,6 +2256,42 @@ body {
     }
 }
 
+/* ---------- 広い画面：スポット詳細は左側のパネルにする ----------
+   ピンの下に小さく出すと画面からはみ出して読みにくいため。
+   幅は Script.js の SPOT_PANEL_SPACE と合わせる */
+@media (min-width: 601px) {
+    .mapboxgl-popup:has(.popup-card) {
+        position: fixed !important;
+        top: 132px !important;
+        left: 16px !important;
+        right: auto !important;
+        bottom: auto !important;
+        width: 360px !important;
+        max-width: calc(100vw - 32px) !important;
+        transform: none !important;
+        z-index: 3;
+        animation: panel-in .2s ease;
+    }
+
+    .mapboxgl-popup:has(.popup-card) .mapboxgl-popup-tip {
+        display: none;
+    }
+
+    .mapboxgl-popup:has(.popup-card) .mapboxgl-popup-content {
+        max-height: calc(100vh - 148px);
+        max-height: calc(100dvh - 148px);
+    }
+
+    .mapboxgl-popup:has(.popup-card) .popup-image img {
+        height: 160px;
+    }
+}
+
+@keyframes panel-in {
+    from { translate: -24px 0; opacity: 0; }
+    to { translate: 0 0; opacity: 1; }
+}
+
 /* Mapbox が位置指定に transform を使うため、動きは translate で付ける */
 @keyframes sheet-up {
     from { translate: 0 40px; opacity: 0; }

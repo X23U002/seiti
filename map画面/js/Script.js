@@ -838,19 +838,36 @@ function stopOrbit() {
     }
 }
 
-// スマホでは詳細が画面下半分を覆うので、地図の中心を上寄りにする
+// 詳細に隠れないよう、ピンを見えている部分の真ん中に置く
+// スマホ：詳細が画面下半分を覆うので上寄り／広い画面：詳細が左に出るので右寄り
+const SPOT_PANEL_SPACE = 360 + 16 * 2; // 左の詳細パネルの幅＋余白（style.css と合わせる）
+
 function getSpotPadding() {
     const isMobile =
         window.matchMedia(
             "(max-width: 600px)"
         ).matches;
 
-    return {
+    const container = map.getContainer();
+
+    const padding = {
         top: 0,
         right: 0,
-        bottom: isMobile ? Math.round(window.innerHeight * 0.5) : 0,
-        left: 0
+        bottom: isMobile ? Math.round(container.clientHeight * 0.5) : 0,
+        left: isMobile ? 0 : Math.min(SPOT_PANEL_SPACE, Math.round(container.clientWidth * 0.5))
     };
+
+    // 地図の中心が 327.5px のような半端な位置だと、回転中にピンが
+    // 1px ずつ左右に行ったり来たりして震えて見える（Mapbox がピンの位置を整数に丸めるため）。
+    // 中心がちょうど整数の位置になるよう 1px だけ調整する
+    if ((container.clientWidth - padding.left - padding.right) % 2 === 1) {
+        padding.right += 1;
+    }
+    if ((container.clientHeight - padding.top - padding.bottom) % 2 === 1) {
+        padding.bottom += 1;
+    }
+
+    return padding;
 }
 
 function focusSpotCamera(longitude, latitude) {
@@ -1277,14 +1294,11 @@ function drawMarkers(list) {
                 data.spot_name ||
                 "無題のスポット";
 
-            const imagePath =
-                data.image_url ===
-                    "not_image" ||
-                !data.image_url
-
-                    ? "17dcbe459a812a827a0092ed44d9808f_t.jpeg"
-
-                    : data.image_url;
+            // 画像が無いスポットは image_url が "no_image"（古いデータは "not_image"）
+            const hasImage =
+                Boolean(data.image_url) &&
+                data.image_url !== "no_image" &&
+                data.image_url !== "not_image";
 
             const titleColor =
                 titleColorMap[
@@ -1395,13 +1409,15 @@ function drawMarkers(list) {
                         </p>
                     </div>
 
-                    <div class="popup-image">
-                        <img
-                            src="${escapeHTML(imagePath)}"
-                            alt="スポット画像"
-                            onerror="this.parentNode.classList.add('no-image')"
-                        >
-                    </div>
+                    ${hasImage
+                        ? `<div class="popup-image">
+                            <img
+                                src="${escapeHTML(data.image_url)}"
+                                alt="スポット画像"
+                                onerror="this.parentNode.classList.add('no-image')"
+                            >
+                        </div>`
+                        : '<div class="popup-image no-image"></div>'}
 
                     <!-- スタンプ取得ボタン -->
                     ${stampHTML}
