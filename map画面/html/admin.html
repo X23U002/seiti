@@ -106,8 +106,46 @@
         </div>
     </div>
 
+    <!-- =============== お問い合わせに返信するポップアップ =============== -->
+    <div id="reply-modal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="reply-heading">
+        <div class="modal-content approve-box">
+            <button type="button" class="modal-close-btn" onclick="closeReply()" aria-label="閉じる" data-modal-close>✕</button>
+            <h2 class="modal-title" id="reply-heading">お問い合わせに返信</h2>
+
+            <form id="reply-form" novalidate>
+                <p class="form-alert" id="reply-error" role="alert" hidden></p>
+
+                <dl class="item-detail">
+                    <dt>宛先</dt>
+                    <dd id="reply-to">-</dd>
+                    <dt>内容</dt>
+                    <dd id="reply-original">-</dd>
+                </dl>
+
+                <div class="form-group">
+                    <label for="reply-title">件名</label>
+                    <input type="text" id="reply-title" maxlength="100">
+                </div>
+
+                <div class="form-group">
+                    <label for="reply-body">返信<span class="required">必須</span></label>
+                    <textarea id="reply-body" maxlength="3000"></textarea>
+                    <p class="form-hint">相手のメールボックス（マイページの「お知らせ」）に届きます。送るとお問い合わせは「対応済み」になります。</p>
+                    <p class="error-text">返信を入力してください。</p>
+                </div>
+
+                <label class="admin-filter">
+                    <input type="checkbox" id="reply-mail">
+                    メールでも送る（メールアプリが開くので、送信を押してください）
+                </label>
+
+                <button type="submit" class="btn btn-primary" id="reply-submit">返信する</button>
+            </form>
+        </div>
+    </div>
+
     <script src="../js/common.js"></script>
     <script src="../js/toast.js"></script>
-    <script type="module" src="../js/admin.js?v=2"></script>
+    <script type="module" src="../js/admin.js?v=3"></script>
 </body>
 </html>

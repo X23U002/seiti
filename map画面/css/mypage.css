@@ -477,3 +477,19 @@ button.stat:hover {
 .menu-item[hidden] {
     display: none;
 }
+
+/* お知らせの未読の数 */
+.menu-badge {
+    min-width: 22px;
+    padding: 2px 7px;
+    border-radius: 11px;
+    background: var(--color-accent);
+    color: #fff;
+    font-size: 12px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.menu-badge[hidden] {
+    display: none;
+}
