@@ -17,62 +17,44 @@
 
     <main class="content">
 
-        <!-- 現在のルート案内（タイムライン） -->
-        <section>
-            <h2 class="section-title"><span aria-hidden="true">📍</span> 現在のルート</h2>
-            <ol class="timeline-container card">
+        
+           <!-- 現在のルート案内（タイムライン） -->
+<section>
+    <h2 class="section-title">
+        <span aria-hidden="true">📍</span>
+        現在のルート
+    </h2>
 
-                <li class="timeline-node current">
-                    <div class="timeline-title">現在地</div>
-                    <div class="timeline-time">出発点</div>
-                </li>
+    <!-- 選択した履歴のルートを表示する -->
+    <ol
+        class="timeline-container card"
+        id="currentRouteTimeline"
+    >
+    </ol>
 
-                <li class="timeline-node">
-                    <div class="timeline-title">〇〇神社</div>
-                    <div class="timeline-time"><span class="badge">徒歩 8分</span> 14:30 着予定</div>
-                </li>
+    <button
+        type="button"
+        class="btn btn-success"
+        onclick="startRoute()"
+    >
+        ▶ 案内開始
+    </button>
+</section>
 
-                <li class="timeline-node">
-                    <div class="timeline-title">〇〇駅</div>
-                    <div class="timeline-time"><span class="badge">徒歩 15分</span> 14:45 着予定</div>
-                </li>
+           
 
-                <li class="timeline-node goal">
-                    <div class="timeline-title">〇〇広場</div>
-                    <div class="timeline-time"><span class="badge badge-goal">目的地</span> 15:00 着予定</div>
-                </li>
+       
+           <!-- 過去の履歴リスト -->
+<section class="history-section">
+    <h2 class="section-title">
+        <span aria-hidden="true">🕒</span>
+        過去の巡礼履歴
+    </h2>
 
-            </ol>
-
-            <button type="button" class="btn btn-success" onclick="startRoute()">▶ 案内開始</button>
-        </section>
-
-        <!-- 過去の履歴リスト -->
-        <section class="history-section">
-            <h2 class="section-title"><span aria-hidden="true">🕒</span> 過去の巡礼履歴</h2>
-            <ul class="history-list">
-
-                <li class="history-item">
-                    <div class="history-route">〇〇神社 <span class="arrow" aria-label="から">→</span> 〇〇公園</div>
-                    <div class="history-date">2026年05月15日(金) 14:30</div>
-                </li>
-
-                <li class="history-item">
-                    <div class="history-route">〇〇公園 <span class="arrow" aria-label="から">→</span> 〇〇広場</div>
-                    <div class="history-date">2026年05月15日(金) 16:00</div>
-                </li>
-
-                <li class="history-item">
-                    <div class="history-route">〇〇ベンチ <span class="arrow" aria-label="から">→</span> 〇〇山</div>
-                    <div class="history-date">2026年05月02日(土) 11:15</div>
-                </li>
-
-                <li class="history-item">
-                    <div class="history-route">〇〇学校 <span class="arrow" aria-label="から">→</span> 〇〇駅</div>
-                    <div class="history-date">2026年04月20日(月) 15:45</div>
-                </li>
-
-            </ul>
+    <!-- JavaScriptで履歴を表示する -->
+    <ul class="history-list" id="historyList">
+    </ul>
+</section>
         </section>
 
     </main>

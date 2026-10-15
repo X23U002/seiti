@@ -119,3 +119,22 @@
 }
 
 .history-date { font-size: 12px; color: var(--color-text-sub); }
+
+
+/* 履歴をクリックできることを示す */
+.history-item {
+    cursor: pointer;
+}
+
+/* 選択中の履歴を分かりやすくする */
+.history-item.selected {
+    outline: 2px solid #4b88e8;
+    outline-offset: -2px;
+    border-radius: 8px;
+}
+
+/* キーボード操作時のフォーカス表示 */
+.history-item:focus-visible {
+    outline: 2px solid #4b88e8;
+    outline-offset: 2px;
+}
