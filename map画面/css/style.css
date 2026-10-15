@@ -2292,6 +2292,21 @@ body {
     to { translate: 0 0; opacity: 1; }
 }
 
+/* ---------- 霧で半透明にしない ----------
+   Mapbox は霧の濃さに合わせてピンと詳細の透明度を直接書きかえる。
+   画面に固定した詳細パネルと、詳細を開いているピンは常に不透明にする。
+   2D表示では霧は要らないので、すべてのピンを不透明にする */
+.mapboxgl-popup:has(.popup-card),
+.mapboxgl-marker.is-selected,
+#map:not(.is-3d) .mapboxgl-marker {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+.mapboxgl-popup:has(.popup-card) .mapboxgl-popup-content {
+    pointer-events: auto !important;
+}
+
 /* Mapbox が位置指定に transform を使うため、動きは translate で付ける */
 @keyframes sheet-up {
     from { translate: 0 40px; opacity: 0; }
