@@ -48,7 +48,9 @@ function buildSpotSummary(spotSnapshot) {
             id: spotDoc.id,
             name: data.spot_name || "無題のスポット",
             title: title,
-            info: data.spot_info || ""
+            info: data.spot_info || "",
+            season: data.season || 0,
+            episode: data.episode || 0
         });
     });
 
@@ -118,6 +120,8 @@ export async function loadStampBook() {
                 name: spot.spot_name || "無題のスポット",
                 anime: getTitleName(spot),
                 scene: spot.spot_info || "",
+                season: spot.season || 0,
+                episode: spot.episode || 0,
                 date: formatDate(bySpot[spotId].first),
                 stampedAt: bySpot[spotId].first,
                 count: bySpot[spotId].count

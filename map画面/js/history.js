@@ -5,7 +5,7 @@
 // ==========================================
 import { loadStampBook } from "./stamp-db.js";
 import { deleteSavedRoute, loadFavorites, loadSavedRoutes, setFavorite } from "./saved-db.js";
-import { getEpisodeLabel } from "./episode.js";
+import { getSpotEpisodeLabel } from "./episode.js?v=2";
 import { getTitleColor } from "./title-colors.js";
 
 // スポットID → { id, name, title, info }
@@ -56,7 +56,7 @@ function createBadges(spot) {
     title.style.background = getTitleColor(spot.title);
     row.appendChild(title);
 
-    const episode = getEpisodeLabel(spot.info);
+    const episode = getSpotEpisodeLabel({ season: spot.season, episode: spot.episode, spot_info: spot.info });
     if (episode) row.appendChild(el("span", "ep-chip", episode));
     return row;
 }
@@ -197,7 +197,7 @@ function renderHistory(stamps) {
         .slice(0, HISTORY_MAX)
         .forEach(function (stamp) {
             const li = el("li", "card saved-item");
-            li.appendChild(createBadges({ title: stamp.anime, info: stamp.scene }));
+            li.appendChild(createBadges({ title: stamp.anime, info: stamp.scene, season: stamp.season, episode: stamp.episode }));
             li.appendChild(el("h2", "saved-name", stamp.name));
             li.appendChild(el("p", "saved-meta",
                 stamp.date + " 初獲得" + (stamp.count > 1 ? "・" + stamp.count + "回" : "")));

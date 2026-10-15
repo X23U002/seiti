@@ -3,6 +3,7 @@
 // ・聖地の申請（request_spot）を確認して、spot に追加する／却下する
 // ・お問い合わせ（contact）の対応状況を変える・返信する
 // ・申請者・お問い合わせした人のメールボックス（message）にお知らせを届ける
+// ・登録済みの聖地の「何期の何話か」（spot の season・episode）を入力する
 // 誰が管理者かは Firestore のルールでも確かめている（画面を開けても、管理者でなければ読み書きできない）
 // ==========================================
 import {
@@ -18,6 +19,7 @@ import {
 
 import { db, getCurrentUser } from "./firebase-db.js";
 import { getTitleColor } from "./title-colors.js";
+import { parseEpisode } from "./episode.js?v=2";
 
 // 地図画面と同じキー
 mapboxgl.accessToken =
@@ -30,6 +32,7 @@ const OPEN_CONTACT_STATES = ["未対応", "対応"];
 let requests = [];          // { id, data, user }
 let contacts = [];          // { id, data, user }
 let titleUrls = {};         // 作品名 → 公式サイト（既にある聖地から）
+let spots = [];             // { id, data }（期・話の入力に使う）
 let approving = null;       // 確認中の申請
 let approveMap = null;
 let approveMarker = null;
@@ -94,8 +97,10 @@ async function loadAll() {
     contactSnap.forEach(function (d) { contacts.push({ id: d.id, data: d.data() }); });
 
     titleUrls = {};
+    spots = [];
     spotSnap.forEach(function (d) {
         const spot = d.data();
+        spots.push({ id: d.id, data: spot });
         if (spot.title_name && spot.title_url && !titleUrls[spot.title_name]) {
             titleUrls[spot.title_name] = spot.title_url;
         }
@@ -504,6 +509,12 @@ function openApprove(item) {
     document.getElementById("ap-spot-info").value = parsed.info;
     document.getElementById("ap-address").value = parsed.address;
     document.getElementById("ap-title-url").value = titleUrls[parsed.title] || "";
+
+    // 何期の何話か：説明文から読み取れたら入れておく
+    const episode = parseEpisode(parsed.info);
+    document.getElementById("ap-season").value = episode.season || "";
+    document.getElementById("ap-episode").value = episode.episode || "";
+
     document.getElementById("approve-error").hidden = true;
     ["ap-spot-name", "ap-title-name", "ap-spot-info", "ap-address"].forEach(function (id) {
         setFieldError(id, false);
@@ -558,6 +569,8 @@ document.getElementById("approve-form").addEventListener("submit", async functio
     const titleName = document.getElementById("ap-title-name").value.trim();
     const spotInfo = document.getElementById("ap-spot-info").value.trim();
     const titleUrl = document.getElementById("ap-title-url").value.trim();
+    const season = readEpisodeNumber(document.getElementById("ap-season"), 99);
+    const episode = readEpisodeNumber(document.getElementById("ap-episode"), 999);
 
     setFieldError("ap-spot-name", spotName === "");
     setFieldError("ap-title-name", titleName === "");
@@ -586,7 +599,9 @@ document.getElementById("approve-form").addEventListener("submit", async functio
             image_url: "no_image",
             spot_info: spotInfo,
             title_url: titleUrl,
-            geo_hash: encodeGeohash(lngLat.lat, lngLat.lng, 8)
+            geo_hash: encodeGeohash(lngLat.lat, lngLat.lng, 8),
+            season: season,
+            episode: episode
         });
         batch.update(doc(db, "request_spot", approving.id), { request_state: "完了" });
         addMessage(batch, approving.data.user_id, "聖地の登録申請が承認されました",
@@ -595,6 +610,8 @@ document.getElementById("approve-form").addEventListener("submit", async functio
         await batch.commit();
 
         approving.data.request_state = "完了";
+        spots.push({ id: spotRef.id, data: { spot_name: spotName, title_name: titleName, spot_info: spotInfo, season: season, episode: episode } });
+        renderEpisodes();
         if (titleUrl && !titleUrls[titleName]) titleUrls[titleName] = titleUrl;
         notify("「" + spotName + "」を地図に追加しました");
         window.closeApprove();
@@ -612,16 +629,188 @@ document.getElementById("approve-form").addEventListener("submit", async functio
     }
 });
 
+// ---------- 何期の何話か ----------
+// 入力欄の数字（空欄・0・数字でないものは 0 =「指定なし」）
+function readEpisodeNumber(input, max) {
+    const value = Math.floor(Number(input.value));
+    return Number.isFinite(value) && value > 0 ? Math.min(value, max) : 0;
+}
+
+// 作品の選択肢
+function renderEpisodeTitles() {
+    const select = document.getElementById("episode-title");
+    const current = select.value;
+    const counts = {};
+    spots.forEach(function (spot) {
+        const title = spot.data.title_name || "その他";
+        counts[title] = (counts[title] || 0) + 1;
+    });
+
+    select.innerHTML = "";
+    Object.keys(counts).sort().forEach(function (title) {
+        const option = document.createElement("option");
+        option.value = title;
+        option.textContent = title + "（" + counts[title] + "）";
+        select.appendChild(option);
+    });
+    if (counts[current]) select.value = current;
+}
+
+// 保存ボタンに、保存していない変更の数を出す
+function updateEpisodeSaveButton() {
+    const changed = document.querySelectorAll("#episode-list .episode-item.is-changed").length;
+    const button = document.getElementById("episode-save");
+    button.disabled = changed === 0;
+    button.textContent = changed === 0 ? "変更はありません" : "保存する（" + changed + "件）";
+}
+
+function renderEpisodes() {
+    renderEpisodeTitles();
+
+    const title = document.getElementById("episode-title").value;
+    shownEpisodeTitle = title;
+    const ul = document.getElementById("episode-list");
+    ul.innerHTML = "";
+
+    const list = spots.filter(function (spot) { return (spot.data.title_name || "その他") === title; });
+    if (list.length === 0) {
+        ul.appendChild(emptyItem("聖地がありません"));
+        updateEpisodeSaveButton();
+        return;
+    }
+
+    list.forEach(function (spot) {
+        // まだ入力していない聖地は、説明文から読み取った値を推測として入れる
+        const saved = "season" in spot.data || "episode" in spot.data;
+        const guess = parseEpisode(spot.data.spot_info);
+        const season = saved ? (spot.data.season || 0) : guess.season;
+        const episode = saved ? (spot.data.episode || 0) : guess.episode;
+
+        const li = document.createElement("li");
+        li.className = "card episode-item";
+        li.dataset.spotId = spot.id;
+
+        const head = document.createElement("div");
+        head.className = "episode-head";
+        const name = document.createElement("h2");
+        name.textContent = spot.data.spot_name || "（スポット名なし）";
+        head.appendChild(name);
+        if (!saved && (season || episode)) {
+            const mark = document.createElement("span");
+            mark.className = "guess-mark";
+            mark.textContent = "推測";
+            head.appendChild(mark);
+        }
+
+        const info = document.createElement("p");
+        info.className = "episode-info";
+        info.textContent = spot.data.spot_info || "";
+
+        const inputs = document.createElement("div");
+        inputs.className = "episode-inputs";
+        [["season", "期", 99, season], ["episode", "話", 999, episode]].forEach(function (field) {
+            const label = document.createElement("label");
+            const input = document.createElement("input");
+            input.type = "number";
+            input.min = "0";
+            input.max = String(field[2]);
+            input.inputMode = "numeric";
+            input.dataset.field = field[0];
+            input.setAttribute("aria-label", (spot.data.spot_name || "") + "の" + field[1]);
+            input.value = field[3] || "";
+            input.addEventListener("input", function () {
+                li.dataset.edited = "1";
+                markChanged(li, spot);
+            });
+            label.append(input, " " + field[1]);
+            inputs.appendChild(label);
+        });
+
+        li.append(head, info, inputs);
+        ul.appendChild(li);
+        markChanged(li, spot);
+    });
+
+    updateEpisodeSaveButton();
+}
+
+// 保存してある値と違う（または、まだ保存していない推測がある）なら「変更あり」
+function readEpisodeInputs(li) {
+    return {
+        season: readEpisodeNumber(li.querySelector('[data-field="season"]'), 99),
+        episode: readEpisodeNumber(li.querySelector('[data-field="episode"]'), 999)
+    };
+}
+
+function markChanged(li, spot) {
+    const value = readEpisodeInputs(li);
+    const saved = "season" in spot.data || "episode" in spot.data;
+    const changed = saved
+        ? value.season !== (spot.data.season || 0) || value.episode !== (spot.data.episode || 0)
+        : value.season !== 0 || value.episode !== 0;
+    li.classList.toggle("is-changed", changed);
+    updateEpisodeSaveButton();
+}
+
+// 入力した内容を保存せずに作品を切りかえようとしたら確かめる
+let shownEpisodeTitle = "";
+document.getElementById("episode-title").addEventListener("change", function (event) {
+    const edited = document.querySelector('#episode-list .episode-item.is-changed[data-edited="1"]');
+    if (edited && !window.confirm("保存していない入力があります。作品を切りかえますか？")) {
+        event.target.value = shownEpisodeTitle;
+        return;
+    }
+    renderEpisodes();
+});
+
+document.getElementById("episode-save").addEventListener("click", async function () {
+    const button = this;
+    const items = Array.from(document.querySelectorAll("#episode-list .episode-item.is-changed"));
+    if (items.length === 0) return;
+
+    button.disabled = true;
+    button.textContent = "保存中…";
+
+    try {
+        const batch = writeBatch(db);
+        const updates = items.map(function (li) {
+            const value = readEpisodeInputs(li);
+            batch.update(doc(db, "spot", li.dataset.spotId), value);
+            return { id: li.dataset.spotId, value: value };
+        });
+        await batch.commit();
+
+        updates.forEach(function (update) {
+            const spot = spots.find(function (item) { return item.id === update.id; });
+            if (spot) Object.assign(spot.data, update.value);
+        });
+        notify(updates.length + "件の聖地を保存しました");
+        renderEpisodes();
+    } catch (error) {
+        console.error(error);
+        notify(
+            error && error.code === "permission-denied"
+                ? "保存する権限がありません。Firestore のルールに season・episode を追加してください"
+                : "保存できませんでした。通信状況を確認してください",
+            "error"
+        );
+        updateEpisodeSaveButton();
+    }
+});
+
 // ---------- タブ ----------
 function selectTab(name) {
-    ["requests", "contacts"].forEach(function (key) {
+    ["requests", "contacts", "episodes"].forEach(function (key) {
         const selected = key === name;
         document.getElementById("tab-" + key).setAttribute("aria-selected", String(selected));
         document.getElementById("panel-" + key).hidden = !selected;
     });
+    // 「対応済みも表示」は申請・お問い合わせの時だけ
+    document.getElementById("show-done-label").hidden = name === "episodes";
 }
 document.getElementById("tab-requests").addEventListener("click", function () { selectTab("requests"); });
 document.getElementById("tab-contacts").addEventListener("click", function () { selectTab("contacts"); });
+document.getElementById("tab-episodes").addEventListener("click", function () { selectTab("episodes"); });
 document.getElementById("show-done").addEventListener("change", render);
 
 // ---------- 開いた時 ----------
@@ -673,6 +862,7 @@ document.getElementById("show-done").addEventListener("change", render);
     document.getElementById("admin-notice").hidden = true;
     document.getElementById("admin-main").hidden = false;
     render();
+    renderEpisodes();
 })();
 
 // 色の確認用（作品名の入力欄の横に作品の色を出す）

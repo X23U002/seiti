@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex">
     <title>管理ページ - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css">
-    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/admin.css?v=2">
 
     <!-- 位置の確認・調整に使う地図 -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
@@ -37,9 +37,12 @@
                 <button type="button" class="admin-tab" role="tab" id="tab-contacts" aria-selected="false" aria-controls="panel-contacts">
                     お問い合わせ <span class="tab-count" id="count-contacts">0</span>
                 </button>
+                <button type="button" class="admin-tab" role="tab" id="tab-episodes" aria-selected="false" aria-controls="panel-episodes">
+                    期・話
+                </button>
             </div>
 
-            <label class="admin-filter">
+            <label class="admin-filter" id="show-done-label">
                 <input type="checkbox" id="show-done">
                 対応済み・却下したものも表示する
             </label>
@@ -52,6 +55,22 @@
             <!-- お問い合わせ -->
             <section id="panel-contacts" role="tabpanel" aria-labelledby="tab-contacts" hidden>
                 <ul class="admin-list" id="contact-list"></ul>
+            </section>
+
+            <!-- 登録済みの聖地の「何期の何話か」 -->
+            <section id="panel-episodes" role="tabpanel" aria-labelledby="tab-episodes" hidden>
+                <p class="episode-lead">
+                    地図の詳細に「1期 EP12」のように表示されます。まだ入力していない聖地には、説明文から読み取った値を<span class="guess-mark">推測</span>として入れています。
+                    確認して「保存」を押してください。分からない・劇場版などは空欄のままで大丈夫です（説明文から表示します）。
+                </p>
+                <label class="episode-filter">
+                    作品
+                    <select id="episode-title"></select>
+                </label>
+                <ul class="admin-list" id="episode-list"></ul>
+                <div class="episode-save">
+                    <button type="button" class="btn btn-primary" id="episode-save" disabled>変更はありません</button>
+                </div>
             </section>
         </div>
     </main>
@@ -83,6 +102,15 @@
                     <label for="ap-spot-info">説明（ポップアップに表示）<span class="required">必須</span></label>
                     <textarea id="ap-spot-info" maxlength="1000"></textarea>
                     <p class="error-text">説明を入力してください。</p>
+                </div>
+
+                <div class="form-group">
+                    <span class="form-label">何期の何話の場面か</span>
+                    <div class="episode-inputs">
+                        <label><input type="number" id="ap-season" min="0" max="99" inputmode="numeric" aria-label="期"> 期</label>
+                        <label><input type="number" id="ap-episode" min="0" max="999" inputmode="numeric" aria-label="話"> 話</label>
+                    </div>
+                    <p class="form-hint">説明文から読み取った値を入れています。分からない・劇場版などは空欄のままで大丈夫です（説明文から表示します）。</p>
                 </div>
 
                 <div class="form-group">
@@ -146,6 +174,6 @@
 
     <script src="../js/common.js"></script>
     <script src="../js/toast.js"></script>
-    <script type="module" src="../js/admin.js?v=3"></script>
+    <script type="module" src="../js/admin.js?v=4"></script>
 </body>
 </html>

@@ -24,8 +24,9 @@ import {
     getTitleName
 } from "./title-colors.js";
 
-// 説明文から「何話の場面か」を読み取る（お気に入り一覧と共通）
-import { getEpisodeLabel } from "./episode.js";
+// 何期の何話の場面か（入力された期・話、無ければ説明文から。お気に入り一覧と共通）
+// ※ ?v= を付けて、ブラウザに残った古い episode.js を使わないようにする
+import { getSpotEpisodeLabel } from "./episode.js?v=2";
 
 // お気に入り・保存したルート
 import {
@@ -517,10 +518,7 @@ function goToSpot(spotId) {
 
 function getEpisodeBadgeHTML(spot) {
     const label =
-        getEpisodeLabel(
-            spot.scene ||
-            spot.spot_info
-        );
+        getSpotEpisodeLabel(spot);
 
     return label
         ? `<span class="popup-ep">${escapeHTML(label)}</span>`
@@ -997,6 +995,22 @@ function syncRouteButtons(root) {
 // スマホでは画面下からせり上がるパネルとして表示する（見た目は style.css）。
 // パネルにピンが隠れないよう、開いた時にピンを画面の上寄りへ動かす
 // =========================================================
+// 詳細を開いているピンに印を付ける。
+// Mapbox は霧（遠くをかすませる効果）の濃さに合わせてピンと詳細を半透明にするが、
+// 画面に固定した詳細パネルや選んだピンまで薄くなって読みにくくなるため、
+// この印が付いたピンは style.css で不透明のままにする
+function setSelectedMarker(spotId, selected) {
+    document
+        .querySelectorAll(
+            `.mapboxgl-marker[data-spot-id="${CSS.escape(String(spotId))}"]`
+        )
+        .forEach(
+            function (element) {
+                element.classList.toggle("is-selected", selected);
+            }
+        );
+}
+
 function createSpotPopup(html, data, longitude, latitude) {
     const popup =
         new mapboxgl.Popup({
@@ -1022,6 +1036,8 @@ function createSpotPopup(html, data, longitude, latitude) {
                 data
             );
 
+            setSelectedMarker(data.id, true);
+
             focusSpotCamera(
                 longitude,
                 latitude
@@ -1033,6 +1049,7 @@ function createSpotPopup(html, data, longitude, latitude) {
         "close",
         function () {
             stopOrbit();
+            setSelectedMarker(data.id, false);
 
             // 開いている詳細が無くなったら、地図の中心を元に戻す
             setTimeout(
@@ -1933,6 +1950,9 @@ window.toggleView =
             button.classList.add(
                 "mode3d"
             );
+
+            // 3Dの時だけ、遠くのピンを霧でかすませる（style.css）
+            map.getContainer().classList.add("is-3d");
             button.setAttribute(
                 "aria-pressed",
                 "true"
@@ -1953,6 +1973,8 @@ window.toggleView =
             button.classList.remove(
                 "mode3d"
             );
+
+            map.getContainer().classList.remove("is-3d");
             button.setAttribute(
                 "aria-pressed",
                 "false"
