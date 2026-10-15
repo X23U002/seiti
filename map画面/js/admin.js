@@ -530,14 +530,27 @@ document.getElementById("show-done").addEventListener("change", render);
     }
 
     // 自分が管理者か（admin/{uid} があるか）
+    // 入れない時に原因が分かるよう、ルールで拒否されたのか、uid が無いのかを分けて表示する
     let isAdmin = false;
     try {
         isAdmin = (await getDoc(doc(db, "admin", user.uid))).exists();
     } catch (error) {
-        isAdmin = false;
+        console.error("admin の読み取りに失敗:", error);
+        showNotice(
+            "🚫",
+            "管理者かどうかを確認できませんでした",
+            error && error.code === "permission-denied"
+                ? "Firestore のルールに match /admin/{uid}（自分の分だけ読める）を追加してください。あなたの uid：" + user.uid
+                : "通信状況を確認して、開き直してください"
+        );
+        return;
     }
     if (!isAdmin) {
-        showNotice("🚫", "このページは管理者だけが使えます");
+        showNotice(
+            "🚫",
+            "このページは管理者だけが使えます",
+            "管理者にする場合は、Firestore の admin コレクションに、このIDのドキュメントを作ってください：" + user.uid
+        );
         return;
     }
 

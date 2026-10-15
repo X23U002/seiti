@@ -205,3 +205,11 @@
 #toast.toast-error {
     background: rgba(192, 57, 43, .95);
 }
+
+/* 入れない時の説明（uid は長いので折り返す） */
+#admin-notice small {
+    display: block;
+    margin-top: 6px;
+    overflow-wrap: anywhere;
+    user-select: all;
+}
