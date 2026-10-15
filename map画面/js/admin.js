@@ -3,7 +3,8 @@
 // ・聖地の申請（request_spot）を確認して、spot に追加する／却下する
 // ・お問い合わせ（contact）の対応状況を変える・返信する
 // ・申請者・お問い合わせした人のメールボックス（message）にお知らせを届ける
-// ・登録済みの聖地の「何期の何話か」（spot の season・episode）を入力する
+// ・聖地を新しく登録する・登録済みの聖地を編集する
+// ・登録済みの聖地の「何期の何話か」（spot の season・episode）をまとめて入力する
 // 誰が管理者かは Firestore のルールでも確かめている（画面を開けても、管理者でなければ読み書きできない）
 // ==========================================
 import {
@@ -19,7 +20,7 @@ import {
 
 import { db, getCurrentUser } from "./firebase-db.js";
 import { getTitleColor } from "./title-colors.js";
-import { parseEpisode } from "./episode.js?v=2";
+import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=2";
 
 // 地図画面と同じキー
 mapboxgl.accessToken =
@@ -500,20 +501,35 @@ async function geocodeAddress() {
     }
 }
 
-function openApprove(item) {
-    approving = item;
-    const parsed = parseRequestInfo(item.data.request_info);
+// ---------- 聖地の入力フォーム（申請の承認・新しく登録・編集で共通） ----------
+// formMode："approve"（申請を許可して追加）／"new"（管理者が新しく登録）／"edit"（登録済みを編集）
+let formMode = "approve";
+let editingSpot = null;     // 編集中の聖地 { id, data }
 
-    document.getElementById("ap-spot-name").value = item.data.request_title || "";
-    document.getElementById("ap-title-name").value = parsed.title;
-    document.getElementById("ap-spot-info").value = parsed.info;
-    document.getElementById("ap-address").value = parsed.address;
-    document.getElementById("ap-title-url").value = titleUrls[parsed.title] || "";
+const FORM_TEXT = {
+    approve: { title: "聖地として地図に追加", submit: "許可して地図に追加する", busy: "追加中…" },
+    new: { title: "新しい聖地を登録", submit: "地図に登録する", busy: "登録中…" },
+    edit: { title: "聖地を編集", submit: "変更を保存する", busy: "保存中…" }
+};
 
-    // 何期の何話か：説明文から読み取れたら入れておく
-    const episode = parseEpisode(parsed.info);
-    document.getElementById("ap-season").value = episode.season || "";
-    document.getElementById("ap-episode").value = episode.episode || "";
+function setSubmitText(busy) {
+    const text = FORM_TEXT[formMode];
+    document.getElementById("ap-submit").textContent = busy ? text.busy : text.submit;
+}
+
+// values：{ spotName, titleName, info, address, titleUrl, season, episode, coord }
+function openSpotForm(mode, values) {
+    formMode = mode;
+    document.getElementById("approve-title").textContent = FORM_TEXT[mode].title;
+    setSubmitText(false);
+
+    document.getElementById("ap-spot-name").value = values.spotName || "";
+    document.getElementById("ap-title-name").value = values.titleName || "";
+    document.getElementById("ap-spot-info").value = values.info || "";
+    document.getElementById("ap-address").value = values.address || "";
+    document.getElementById("ap-title-url").value = values.titleUrl || "";
+    document.getElementById("ap-season").value = values.season || "";
+    document.getElementById("ap-episode").value = values.episode || "";
 
     document.getElementById("approve-error").hidden = true;
     ["ap-spot-name", "ap-title-name", "ap-spot-info", "ap-address"].forEach(function (id) {
@@ -541,15 +557,61 @@ function openApprove(item) {
         "住所から位置を調べるか、地図をタップしてピンを置いてください。ピンはドラッグで動かせます。";
     setTimeout(function () { approveMap.resize(); }, 50);
 
-    // 申請に住所があれば、すぐに位置を調べておく
-    if (parsed.address) {
+    if (values.coord) {
+        // 編集：今の位置にピンを置く
+        setApprovePosition({ lng: Number(values.coord.longitude), lat: Number(values.coord.latitude) }, true);
+    } else if (values.address) {
+        // 申請に住所があれば、すぐに位置を調べておく
         geocodeAddress();
     }
+}
+
+function openApprove(item) {
+    approving = item;
+    editingSpot = null;
+    const parsed = parseRequestInfo(item.data.request_info);
+    // 何期の何話か：説明文から読み取れたら入れておく
+    const episode = parseEpisode(parsed.info);
+
+    openSpotForm("approve", {
+        spotName: item.data.request_title,
+        titleName: parsed.title,
+        info: parsed.info,
+        address: parsed.address,
+        titleUrl: titleUrls[parsed.title],
+        season: episode.season,
+        episode: episode.episode
+    });
+}
+
+function openNewSpot() {
+    approving = null;
+    editingSpot = null;
+    openSpotForm("new", {});
+}
+
+function openEditSpot(spot) {
+    approving = null;
+    editingSpot = spot;
+    const data = spot.data;
+    const saved = "season" in data || "episode" in data;
+    const guess = parseEpisode(data.spot_info);
+
+    openSpotForm("edit", {
+        spotName: data.spot_name,
+        titleName: data.title_name,
+        info: data.spot_info,
+        titleUrl: data.title_url,
+        season: saved ? data.season : guess.season,
+        episode: saved ? data.episode : guess.episode,
+        coord: data.coord
+    });
 }
 
 window.closeApprove = function () {
     document.getElementById("approve-modal").style.display = "none";
     approving = null;
+    editingSpot = null;
 };
 
 // 作品名を変えたら、既にある作品なら公式サイトを入れておく
@@ -561,9 +623,21 @@ document.getElementById("ap-title-name").addEventListener("change", function (ev
 
 document.getElementById("ap-geocode").addEventListener("click", geocodeAddress);
 
+// 作品の一覧（入力候補・公式サイト）に追加する
+function rememberTitle(titleName, titleUrl) {
+    if (titleUrl && !titleUrls[titleName]) titleUrls[titleName] = titleUrl;
+    const datalist = document.getElementById("title-options");
+    if (!Array.from(datalist.options).some(function (option) { return option.value === titleName; })) {
+        const option = document.createElement("option");
+        option.value = titleName;
+        datalist.appendChild(option);
+    }
+}
+
 document.getElementById("approve-form").addEventListener("submit", async function (event) {
     event.preventDefault();
-    if (!approving) return;
+    if (formMode === "approve" && !approving) return;
+    if (formMode === "edit" && !editingSpot) return;
 
     const spotName = document.getElementById("ap-spot-name").value.trim();
     const titleName = document.getElementById("ap-title-name").value.trim();
@@ -586,48 +660,140 @@ document.getElementById("approve-form").addEventListener("submit", async functio
     const lngLat = approveMarker.getLngLat();
     const button = document.getElementById("ap-submit");
     button.disabled = true;
-    button.textContent = "追加中…";
+    setSubmitText(true);
+
+    // 入力した内容（画像は変えない。新しい聖地は画像なし）
+    const fields = {
+        spot_name: spotName,
+        title_name: titleName,
+        coord: new GeoPoint(lngLat.lat, lngLat.lng),
+        spot_info: spotInfo,
+        title_url: titleUrl,
+        geo_hash: encodeGeohash(lngLat.lat, lngLat.lng, 8),
+        season: season,
+        episode: episode
+    };
 
     try {
-        // 聖地の追加と、申請を「完了」にするのを同時に行う（片方だけ成功することがないように）
         const batch = writeBatch(db);
-        const spotRef = doc(collection(db, "spot"));
-        batch.set(spotRef, {
-            spot_name: spotName,
-            title_name: titleName,
-            coord: new GeoPoint(lngLat.lat, lngLat.lng),
-            image_url: "no_image",
-            spot_info: spotInfo,
-            title_url: titleUrl,
-            geo_hash: encodeGeohash(lngLat.lat, lngLat.lng, 8),
-            season: season,
-            episode: episode
-        });
-        batch.update(doc(db, "request_spot", approving.id), { request_state: "完了" });
-        addMessage(batch, approving.data.user_id, "聖地の登録申請が承認されました",
-            "申請いただいた「" + spotName + "」（" + titleName + "）を地図に追加しました。\n" +
-            "さっそくスタンプを集めに行ってみてください。ご協力ありがとうございました！");
-        await batch.commit();
 
-        approving.data.request_state = "完了";
-        spots.push({ id: spotRef.id, data: { spot_name: spotName, title_name: titleName, spot_info: spotInfo, season: season, episode: episode } });
-        renderEpisodes();
-        if (titleUrl && !titleUrls[titleName]) titleUrls[titleName] = titleUrl;
-        notify("「" + spotName + "」を地図に追加しました");
+        if (formMode === "edit") {
+            batch.update(doc(db, "spot", editingSpot.id), fields);
+            await batch.commit();
+
+            Object.assign(editingSpot.data, fields);
+            notify("「" + spotName + "」を保存しました");
+        } else {
+            const spotRef = doc(collection(db, "spot"));
+            const data = Object.assign({ image_url: "no_image" }, fields);
+            batch.set(spotRef, data);
+
+            if (formMode === "approve") {
+                // 聖地の追加と、申請を「完了」にするのを同時に行う（片方だけ成功することがないように）
+                batch.update(doc(db, "request_spot", approving.id), { request_state: "完了" });
+                addMessage(batch, approving.data.user_id, "聖地の登録申請が承認されました",
+                    "申請いただいた「" + spotName + "」（" + titleName + "）を地図に追加しました。\n" +
+                    "さっそくスタンプを集めに行ってみてください。ご協力ありがとうございました！");
+            }
+            await batch.commit();
+
+            if (formMode === "approve") approving.data.request_state = "完了";
+            spots.push({ id: spotRef.id, data: data });
+            notify("「" + spotName + "」を地図に追加しました");
+        }
+
+        rememberTitle(titleName, titleUrl);
         window.closeApprove();
         render();
+        renderSpots();
+        renderEpisodes();
     } catch (error) {
         console.error(error);
         const box = document.getElementById("approve-error");
         box.textContent = error && error.code === "permission-denied"
-            ? "追加する権限がありません。Firestore のルールと admin コレクションを確認してください。"
-            : "追加できませんでした。通信状況を確認して、もう一度お試しください。";
+            ? "保存する権限がありません。Firestore のルールと admin コレクションを確認してください。"
+            : "保存できませんでした。通信状況を確認して、もう一度お試しください。";
         box.hidden = false;
     } finally {
         button.disabled = false;
-        button.textContent = "許可して地図に追加する";
+        setSubmitText(false);
     }
 });
+
+// ---------- 登録済みの聖地の一覧 ----------
+function renderSpots() {
+    const keyword = document.getElementById("spot-search").value.trim().toLowerCase();
+    const ul = document.getElementById("spot-list");
+    ul.innerHTML = "";
+
+    const list = spots
+        .filter(function (spot) {
+            if (!keyword) return true;
+            return ((spot.data.spot_name || "") + " " + (spot.data.title_name || "") + " " + (spot.data.spot_info || ""))
+                .toLowerCase()
+                .includes(keyword);
+        })
+        .sort(function (a, b) {
+            return (a.data.title_name || "").localeCompare(b.data.title_name || "", "ja") ||
+                (a.data.spot_name || "").localeCompare(b.data.spot_name || "", "ja");
+        });
+
+    document.getElementById("spot-total").textContent =
+        keyword ? list.length + "件見つかりました（全" + spots.length + "件）" : "全" + spots.length + "件";
+
+    if (list.length === 0) {
+        ul.appendChild(emptyItem(keyword ? "見つかりませんでした" : "聖地がありません"));
+        return;
+    }
+
+    list.forEach(function (spot) {
+        const li = document.createElement("li");
+        li.className = "card spot-item";
+
+        const badges = document.createElement("div");
+        badges.className = "spot-badges";
+        const title = document.createElement("span");
+        title.className = "spot-title-chip";
+        title.textContent = spot.data.title_name || "その他";
+        title.style.background = getTitleColor(spot.data.title_name || "その他");
+        badges.appendChild(title);
+        const label = getSpotEpisodeLabel(spot.data);
+        if (label) {
+            const ep = document.createElement("span");
+            ep.className = "spot-ep-chip";
+            ep.textContent = label;
+            badges.appendChild(ep);
+        }
+
+        const name = document.createElement("h2");
+        name.textContent = spot.data.spot_name || "（スポット名なし）";
+
+        const info = document.createElement("p");
+        info.className = "episode-info";
+        info.textContent = spot.data.spot_info || "";
+
+        const actions = document.createElement("div");
+        actions.className = "item-actions";
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "btn btn-primary";
+        edit.textContent = "編集";
+        edit.onclick = function () { openEditSpot(spot); };
+        const view = document.createElement("a");
+        view.className = "btn btn-secondary";
+        view.href = "map.html?spot=" + encodeURIComponent(spot.id);
+        view.target = "_blank";
+        view.rel = "noopener";
+        view.textContent = "地図で見る";
+        actions.append(edit, view);
+
+        li.append(badges, name, info, actions);
+        ul.appendChild(li);
+    });
+}
+
+document.getElementById("spot-search").addEventListener("input", renderSpots);
+document.getElementById("spot-new").addEventListener("click", openNewSpot);
 
 // ---------- 何期の何話か ----------
 // 入力欄の数字（空欄・0・数字でないものは 0 =「指定なし」）
@@ -786,6 +952,7 @@ document.getElementById("episode-save").addEventListener("click", async function
         });
         notify(updates.length + "件の聖地を保存しました");
         renderEpisodes();
+        renderSpots();
     } catch (error) {
         console.error(error);
         notify(
@@ -800,16 +967,17 @@ document.getElementById("episode-save").addEventListener("click", async function
 
 // ---------- タブ ----------
 function selectTab(name) {
-    ["requests", "contacts", "episodes"].forEach(function (key) {
+    ["requests", "contacts", "spots", "episodes"].forEach(function (key) {
         const selected = key === name;
         document.getElementById("tab-" + key).setAttribute("aria-selected", String(selected));
         document.getElementById("panel-" + key).hidden = !selected;
     });
     // 「対応済みも表示」は申請・お問い合わせの時だけ
-    document.getElementById("show-done-label").hidden = name === "episodes";
+    document.getElementById("show-done-label").hidden = name === "spots" || name === "episodes";
 }
 document.getElementById("tab-requests").addEventListener("click", function () { selectTab("requests"); });
 document.getElementById("tab-contacts").addEventListener("click", function () { selectTab("contacts"); });
+document.getElementById("tab-spots").addEventListener("click", function () { selectTab("spots"); });
 document.getElementById("tab-episodes").addEventListener("click", function () { selectTab("episodes"); });
 document.getElementById("show-done").addEventListener("change", render);
 
@@ -862,6 +1030,7 @@ document.getElementById("show-done").addEventListener("change", render);
     document.getElementById("admin-notice").hidden = true;
     document.getElementById("admin-main").hidden = false;
     render();
+    renderSpots();
     renderEpisodes();
 })();
 

@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex">
     <title>管理ページ - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css">
-    <link rel="stylesheet" href="../css/admin.css?v=2">
+    <link rel="stylesheet" href="../css/admin.css?v=3">
 
     <!-- 位置の確認・調整に使う地図 -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
@@ -32,10 +32,13 @@
             <!-- タブ -->
             <div class="admin-tabs" role="tablist" aria-label="管理する内容">
                 <button type="button" class="admin-tab" role="tab" id="tab-requests" aria-selected="true" aria-controls="panel-requests">
-                    聖地の申請 <span class="tab-count" id="count-requests">0</span>
+                    申請 <span class="tab-count" id="count-requests">0</span>
                 </button>
                 <button type="button" class="admin-tab" role="tab" id="tab-contacts" aria-selected="false" aria-controls="panel-contacts">
                     お問い合わせ <span class="tab-count" id="count-contacts">0</span>
+                </button>
+                <button type="button" class="admin-tab" role="tab" id="tab-spots" aria-selected="false" aria-controls="panel-spots">
+                    聖地
                 </button>
                 <button type="button" class="admin-tab" role="tab" id="tab-episodes" aria-selected="false" aria-controls="panel-episodes">
                     期・話
@@ -55,6 +58,17 @@
             <!-- お問い合わせ -->
             <section id="panel-contacts" role="tabpanel" aria-labelledby="tab-contacts" hidden>
                 <ul class="admin-list" id="contact-list"></ul>
+            </section>
+
+            <!-- 登録済みの聖地（新しく登録・編集） -->
+            <section id="panel-spots" role="tabpanel" aria-labelledby="tab-spots" hidden>
+                <button type="button" class="btn btn-success" id="spot-new">＋ 新しい聖地を登録</button>
+                <label class="spot-search">
+                    <span class="visually-hidden">聖地を探す</span>
+                    <input type="search" id="spot-search" placeholder="スポット名・作品名・説明で探す">
+                </label>
+                <p class="spot-total" id="spot-total"></p>
+                <ul class="admin-list" id="spot-list"></ul>
             </section>
 
             <!-- 登録済みの聖地の「何期の何話か」 -->
@@ -174,6 +188,6 @@
 
     <script src="../js/common.js"></script>
     <script src="../js/toast.js"></script>
-    <script type="module" src="../js/admin.js?v=4"></script>
+    <script type="module" src="../js/admin.js?v=5"></script>
 </body>
 </html>

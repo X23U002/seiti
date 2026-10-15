@@ -834,6 +834,35 @@ function stopOrbit() {
         cancelAnimationFrame(orbitFrame);
         orbitFrame = null;
     }
+
+    setOrbiting(false);
+}
+
+// 回転中かどうか（smoothMarker で使う）
+let isOrbiting = false;
+
+function setOrbiting(orbiting) {
+    isOrbiting = orbiting;
+}
+
+// Mapbox はピンの位置を毎回整数の画素に丸めるので、ゆっくり回すと
+// 他のピンが1pxずつカクカク動いて震えて見える。
+// 回転中だけは丸める前の位置で描いて、なめらかに動かす。
+// （Mapbox の内部の仕組みを使うので、無い版では何もしない＝今までどおり）
+function smoothMarker(marker) {
+    const updateDOM = marker._updateDOM;
+
+    if (typeof updateDOM !== "function" || typeof marker._lngLat === "undefined") {
+        return;
+    }
+
+    marker._updateDOM = function () {
+        if (isOrbiting && this._map && this._lngLat) {
+            this._pos = this._map.project(this._lngLat, this._altitude);
+        }
+
+        return updateDOM.apply(this, arguments);
+    };
 }
 
 // 詳細に隠れないよう、ピンを見えている部分の真ん中に置く
@@ -912,6 +941,7 @@ function focusSpotCamera(longitude, latitude) {
                 if (turned >= 360) {
                     map.setBearing(startBearing);
                     orbitFrame = null;
+                    setOrbiting(false);
                     return;
                 }
 
@@ -919,6 +949,7 @@ function focusSpotCamera(longitude, latitude) {
                 orbitFrame = requestAnimationFrame(step);
             }
 
+            setOrbiting(true);
             orbitFrame = requestAnimationFrame(step);
         }
     );
@@ -1480,6 +1511,9 @@ function drawMarkers(list) {
                     )
                     .addTo(map);
 
+
+            // 回転中に震えないようにする
+            smoothMarker(spotMarker);
 
             // stampsyori.jsがマーカーを判別するために必要
             spotMarker
