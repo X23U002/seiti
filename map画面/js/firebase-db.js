@@ -23,7 +23,8 @@ const firebaseConfig = {
     measurementId: "G-GKWJ6BE9M2"
 };
 
-const app = initializeApp(firebaseConfig);
+// 地図画面（Script.js）でアクセス解析を付けるのにも使う
+export const app = initializeApp(firebaseConfig);
 
 export const db = getFirestore(app);
 

@@ -2,18 +2,16 @@
 // 1. Firebase の読み込みと設定
 // =========================================================
 import {
-    initializeApp
-} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
-
-import {
     getAnalytics
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-analytics.js";
 
 import {
-    getFirestore,
     collection,
     getDocs
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+
+// Firebase の接続（ログイン・DB）は他の画面と共通
+import { app, db, getCurrentUser } from "./firebase-db.js";
 
 // 作品名と作品ごとの色（スタンプ帳・マイページと共通）
 import {
@@ -21,24 +19,20 @@ import {
     getTitleName
 } from "./title-colors.js";
 
+// 説明文から「何話の場面か」を読み取る（お気に入り一覧と共通）
+import { getEpisodeLabel } from "./episode.js";
+
+// お気に入り・保存したルート
+import {
+    loadFavorites,
+    saveRoute,
+    setFavorite
+} from "./saved-db.js";
+
 // stampsyori.js（スタンプ獲得の演出）からも同じ色を使う
 window.getTitleColor = getTitleColor;
 
-const firebaseConfig = {
-    apiKey: "AIzaSyCga1yFbLWdLXmMrNwScXuOGUWnz283eYs",
-    authDomain: "sisukai-121cf.firebaseapp.com",
-    projectId: "sisukai-121cf",
-    storageBucket: "sisukai-121cf.firebasestorage.app",
-    messagingSenderId: "83286825212",
-    appId: "1:83286825212:web:1cd57aecfb2308571a5f79",
-    measurementId: "G-GKWJ6BE9M2"
-};
-
-const app = initializeApp(firebaseConfig);
-
 getAnalytics(app);
-
-const db = getFirestore(app);
 
 
 // =========================================================
@@ -383,20 +377,549 @@ function openSpotFromUrl() {
     map.once(
         "idle",
         function () {
-            const target =
-                spotMarkers.find(
-                    function (marker) {
-                        return marker.getElement().dataset.spotId === spotId;
-                    }
-                );
-            if (target && target.getPopup() && !target.getPopup().isOpen()) {
-                target.togglePopup();
-            }
+            openSpotMarker(spotId);
         }
     );
 
     return true;
 }
+
+
+// =========================================================
+// map.html?route=ID,ID,... で開いた時は、そのルートを組み立てて全体を表示する
+// （「お気に入り・ルート・履歴」画面の保存したルートから使う）
+// =========================================================
+function openRouteFromUrl() {
+    const param =
+        new URLSearchParams(
+            location.search
+        ).get("route");
+
+    if (!param) {
+        return false;
+    }
+
+    param
+        .split(",")
+        .forEach(
+            function (spotId) {
+                window.addSpotToRouteById(
+                    spotId,
+                    { silent: true }
+                );
+            }
+        );
+
+    if (selectedSpots.length === 0) {
+        window.showToast(
+            "ルートの聖地が見つかりませんでした",
+            "error"
+        );
+        return false;
+    }
+
+    // 保存したルートを開いたばかりなので「保存済み」にしておく
+    lastSavedRouteKey = getRouteKey();
+    updateSaveRouteButton();
+
+    const bounds = new mapboxgl.LngLatBounds();
+    selectedSpots.forEach(
+        function (spot) {
+            bounds.extend([
+                spot.longitude,
+                spot.latitude
+            ]);
+        }
+    );
+
+    map.fitBounds(
+        bounds,
+        {
+            padding: 80,
+            maxZoom: 16,
+            duration: 0
+        }
+    );
+
+    window.showToast(
+        `保存したルート（${selectedSpots.length}か所）を開きました`
+    );
+
+    return true;
+}
+
+
+// =========================================================
+// 地図上にあるピンから、そのスポットの詳細を開く
+// =========================================================
+function openSpotMarker(spotId) {
+    const target =
+        spotMarkers.find(
+            function (marker) {
+                return marker.getElement().dataset.spotId === String(spotId);
+            }
+        );
+    if (target && target.getPopup() && !target.getPopup().isOpen()) {
+        target.togglePopup();
+    }
+}
+
+
+// =========================================================
+// 別の聖地へ移動して詳細を開く（詳細の「近くの聖地」から使う）
+// =========================================================
+function goToSpot(spotId) {
+    const spot =
+        spots.find(
+            function (item) {
+                return String(item.id) === String(spotId);
+            }
+        );
+
+    if (!spot || !spot.coord) {
+        return;
+    }
+
+    // 今開いている詳細を閉じてから移動する
+    spotMarkers.forEach(
+        function (marker) {
+            const popup = marker.getPopup();
+            if (popup && popup.isOpen()) {
+                popup.remove();
+            }
+        }
+    );
+
+    map.flyTo({
+        center: [
+            Number(spot.coord.longitude),
+            Number(spot.coord.latitude)
+        ],
+        zoom: Math.max(map.getZoom(), 15),
+        duration: prefersReducedMotion() ? 0 : 1200
+    });
+
+    // 移動してピンが描き直された後に開く
+    map.once(
+        "idle",
+        function () {
+            openSpotMarker(spotId);
+        }
+    );
+}
+
+
+function getEpisodeBadgeHTML(spot) {
+    const label =
+        getEpisodeLabel(
+            spot.scene ||
+            spot.spot_info
+        );
+
+    return label
+        ? `<span class="popup-ep">${escapeHTML(label)}</span>`
+        : "";
+}
+
+
+// =========================================================
+// 2地点の距離（メートル）と、その表示
+// =========================================================
+function getDistanceMeters(a, b) {
+    const toRad = Math.PI / 180;
+    const lat1 = Number(a.latitude) * toRad;
+    const lat2 = Number(b.latitude) * toRad;
+    const dLat = lat2 - lat1;
+    const dLng = (Number(b.longitude) - Number(a.longitude)) * toRad;
+    const h =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+
+    return 6371000 * 2 * Math.asin(Math.sqrt(h));
+}
+
+function formatDistance(meters) {
+    if (meters < 1000) {
+        return Math.max(10, Math.round(meters / 10) * 10) + "m";
+    }
+
+    return (meters / 1000).toFixed(meters < 10000 ? 1 : 0) + "km";
+}
+
+
+// =========================================================
+// スポット詳細の「近くの聖地」
+// 同じ作品の聖地を近い順に表示する（遠すぎるものは出さない）
+// =========================================================
+const NEARBY_MAX_COUNT = 4;
+const NEARBY_MAX_METERS = 30000;
+
+function getNearbySpots(spot) {
+    if (!spot.coord) {
+        return [];
+    }
+
+    const titleName = getTitleName(spot);
+
+    return spots
+        .filter(
+            function (item) {
+                return (
+                    item.id !== spot.id &&
+                    item.coord &&
+                    getTitleName(item) === titleName
+                );
+            }
+        )
+        .map(
+            function (item) {
+                return {
+                    spot: item,
+                    distance: getDistanceMeters(spot.coord, item.coord)
+                };
+            }
+        )
+        .filter(
+            function (item) {
+                return (
+                    Number.isFinite(item.distance) &&
+                    item.distance <= NEARBY_MAX_METERS
+                );
+            }
+        )
+        .sort(
+            function (a, b) {
+                return a.distance - b.distance;
+            }
+        )
+        .slice(0, NEARBY_MAX_COUNT);
+}
+
+function renderNearbySpots(container, spot) {
+    if (!container) {
+        return;
+    }
+
+    const nearby = getNearbySpots(spot);
+
+    container.hidden = nearby.length === 0;
+
+    if (nearby.length === 0) {
+        container.innerHTML = "";
+        return;
+    }
+
+    container.innerHTML = `
+        <strong>近くの「${escapeHTML(getTitleName(spot))}」の聖地</strong>
+        <ul class="popup-nearby-list">
+            ${nearby.map(
+                function (item) {
+                    const collected =
+                        typeof window.hasCollectedStamp === "function" &&
+                        window.hasCollectedStamp(item.spot.id);
+
+                    return `
+                        <li>
+                            <button type="button" class="popup-nearby-item" data-spot-id="${escapeHTML(String(item.spot.id))}">
+                                ${getEpisodeBadgeHTML(item.spot)}
+                                <span class="popup-nearby-name">${escapeHTML(item.spot.spot_name || "無題のスポット")}</span>
+                                ${collected ? '<span class="popup-nearby-done" title="スタンプ獲得済み" aria-label="獲得済み">✓</span>' : ""}
+                                <span class="popup-nearby-distance">${formatDistance(item.distance)}</span>
+                            </button>
+                        </li>
+                    `;
+                }
+            ).join("")}
+        </ul>
+    `;
+
+    container
+        .querySelectorAll(".popup-nearby-item")
+        .forEach(
+            function (button) {
+                button.addEventListener(
+                    "click",
+                    function () {
+                        goToSpot(button.dataset.spotId);
+                    }
+                );
+            }
+        );
+}
+
+
+// =========================================================
+// お気に入り（ハート）
+// ログインしている人だけ使える。DB（favorite）に保存する
+// =========================================================
+const HEART_ICON =
+    '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>';
+
+const SHARE_ICON =
+    '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.4M8.2 13.2l7.6 4.4"/></svg>';
+
+const favoriteIds = new Set();
+
+function syncFavoriteButtons(root) {
+    (root || document)
+        .querySelectorAll(".popup-fav")
+        .forEach(
+            function (button) {
+                button.setAttribute(
+                    "aria-pressed",
+                    String(favoriteIds.has(button.dataset.spotId))
+                );
+            }
+        );
+}
+
+// ログインしていればお気に入りを読み込む（失敗しても地図はそのまま使える）
+async function loadFavoriteIds() {
+    try {
+        const favorites = await loadFavorites();
+        (favorites || []).forEach(
+            function (item) {
+                favoriteIds.add(item.spotId);
+            }
+        );
+        syncFavoriteButtons();
+    } catch (error) {
+        console.warn("お気に入りを読み込めませんでした:", error);
+    }
+}
+
+async function toggleFavorite(button) {
+    const spotId = button.dataset.spotId;
+
+    if (!(await getCurrentUser())) {
+        window.showToast(
+            "お気に入りはログインすると使えます",
+            "error"
+        );
+        return;
+    }
+
+    const on = !favoriteIds.has(spotId);
+
+    // 先に見た目を変えて、保存できなかったら戻す
+    if (on) {
+        favoriteIds.add(spotId);
+    } else {
+        favoriteIds.delete(spotId);
+    }
+    syncFavoriteButtons();
+    button.disabled = true;
+
+    try {
+        await setFavorite(spotId, on);
+        window.showToast(
+            on
+                ? "お気に入りに追加しました"
+                : "お気に入りから外しました"
+        );
+    } catch (error) {
+        console.error("お気に入りを保存できませんでした:", error);
+
+        if (on) {
+            favoriteIds.delete(spotId);
+        } else {
+            favoriteIds.add(spotId);
+        }
+        syncFavoriteButtons();
+
+        window.showToast(
+            "お気に入りを保存できませんでした",
+            "error"
+        );
+    } finally {
+        button.disabled = false;
+    }
+}
+
+
+// =========================================================
+// 共有
+// スマホでは共有メニュー（LINE など）を開き、使えない時はリンクをコピーする。
+// リンクを開くと、地図でその聖地の詳細が開く（map.html?spot=ID）
+// =========================================================
+function getSpotShareURL(spotId) {
+    const url = new URL("map.html", location.href);
+    url.searchParams.set("spot", spotId);
+    return url.href;
+}
+
+async function shareSpot(spotId) {
+    const spot =
+        spots.find(
+            function (item) {
+                return String(item.id) === String(spotId);
+            }
+        );
+
+    if (!spot) {
+        return;
+    }
+
+    const url = getSpotShareURL(spot.id);
+    const text =
+        `「${getTitleName(spot)}」の聖地「${spot.spot_name || "無題のスポット"}」`;
+
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: spot.spot_name || "聖地巡礼NAVI",
+                text: text,
+                url: url
+            });
+            return;
+        } catch (error) {
+            // 共有メニューを閉じただけの時は何もしない
+            if (error && error.name === "AbortError") {
+                return;
+            }
+        }
+    }
+
+    try {
+        await navigator.clipboard.writeText(text + "\n" + url);
+        window.showToast("リンクをコピーしました");
+    } catch (error) {
+        window.prompt("このリンクをコピーしてください", url);
+    }
+}
+
+// 詳細の中のハート・共有ボタン（詳細は何度も作り直されるので、まとめて受け取る）
+document.addEventListener(
+    "click",
+    function (event) {
+        const favoriteButton = event.target.closest(".popup-fav");
+        if (favoriteButton) {
+            toggleFavorite(favoriteButton);
+            return;
+        }
+
+        const shareButton = event.target.closest(".popup-share");
+        if (shareButton) {
+            shareSpot(shareButton.dataset.spotId);
+        }
+    }
+);
+
+
+// =========================================================
+// ピンを押した時のカメラ
+// ピンを中心にして、地図をゆっくり1周させる（3D表示なら斜めから見下ろす）。
+// 地図を触ったり詳細を閉じたりしたら止める。
+// 「視差効果を減らす」設定の端末では回さない
+// =========================================================
+const ORBIT_DEGREES_PER_SECOND = 8;
+
+let orbitFrame = null;
+let orbitToken = 0;
+
+function prefersReducedMotion() {
+    return window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+    ).matches;
+}
+
+function stopOrbit() {
+    orbitToken++;
+
+    if (orbitFrame) {
+        cancelAnimationFrame(orbitFrame);
+        orbitFrame = null;
+    }
+}
+
+// スマホでは詳細が画面下半分を覆うので、地図の中心を上寄りにする
+function getSpotPadding() {
+    const isMobile =
+        window.matchMedia(
+            "(max-width: 600px)"
+        ).matches;
+
+    return {
+        top: 0,
+        right: 0,
+        bottom: isMobile ? Math.round(window.innerHeight * 0.5) : 0,
+        left: 0
+    };
+}
+
+function focusSpotCamera(longitude, latitude) {
+    stopOrbit();
+
+    const token = orbitToken;
+    const reduced = prefersReducedMotion();
+
+    // ズームは変えない（変えるとピンが描き直されて詳細が閉じてしまうため）
+    map.easeTo({
+        center: [
+            longitude,
+            latitude
+        ],
+        pitch: is3D ? 60 : 0,
+        padding: getSpotPadding(),
+        duration: reduced ? 0 : 900
+    });
+
+    if (reduced) {
+        return;
+    }
+
+    map.once(
+        "moveend",
+        function () {
+            if (token !== orbitToken) {
+                return;
+            }
+
+            const startBearing = map.getBearing();
+            let turned = 0;
+            let last = performance.now();
+
+            function step(now) {
+                if (token !== orbitToken) {
+                    return;
+                }
+
+                turned += (now - last) / 1000 * ORBIT_DEGREES_PER_SECOND;
+                last = now;
+
+                // 1周したら元の向きで止める
+                if (turned >= 360) {
+                    map.setBearing(startBearing);
+                    orbitFrame = null;
+                    return;
+                }
+
+                map.setBearing(startBearing + turned);
+                orbitFrame = requestAnimationFrame(step);
+            }
+
+            orbitFrame = requestAnimationFrame(step);
+        }
+    );
+}
+
+// 地図を触ったら回転を止める
+["mousedown", "touchstart", "wheel"].forEach(
+    function (type) {
+        map.on(type, stopOrbit);
+    }
+);
+
+map.on(
+    "movestart",
+    function (event) {
+        if (event.originalEvent) {
+            stopOrbit();
+        }
+    }
+);
+
+geolocate.on("trackuserlocationstart", stopOrbit);
 
 
 // =========================================================
@@ -451,7 +974,7 @@ function syncRouteButtons(root) {
 // スマホでは画面下からせり上がるパネルとして表示する（見た目は style.css）。
 // パネルにピンが隠れないよう、開いた時にピンを画面の上寄りへ動かす
 // =========================================================
-function createSpotPopup(html, longitude, latitude) {
+function createSpotPopup(html, data, longitude, latitude) {
     const popup =
         new mapboxgl.Popup({
             offset: 25
@@ -462,28 +985,44 @@ function createSpotPopup(html, longitude, latitude) {
     popup.on(
         "open",
         function () {
-            // 閉じている間にルートが変わっていることがあるので合わせ直す
+            // 閉じている間にルートやお気に入りが変わっていることがあるので合わせ直す
             syncRouteButtons(
                 popup.getElement()
             );
+            syncFavoriteButtons(
+                popup.getElement()
+            );
 
-            if (
-                window.matchMedia(
-                    "(max-width: 600px)"
-                ).matches
-            ) {
-                map.easeTo({
-                    center: [
-                        longitude,
-                        latitude
-                    ],
-                    offset: [
-                        0,
-                        -window.innerHeight * 0.25
-                    ],
-                    duration: 400
-                });
-            }
+            // 近くの聖地は開いた時に作る（スタンプの✓も最新にするため）
+            renderNearbySpots(
+                popup.getElement().querySelector(".popup-nearby"),
+                data
+            );
+
+            focusSpotCamera(
+                longitude,
+                latitude
+            );
+        }
+    );
+
+    popup.on(
+        "close",
+        function () {
+            stopOrbit();
+
+            // 開いている詳細が無くなったら、地図の中心を元に戻す
+            setTimeout(
+                function () {
+                    if (!document.querySelector(".mapboxgl-popup .popup-card")) {
+                        map.easeTo({
+                            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+                            duration: prefersReducedMotion() ? 0 : 300
+                        });
+                    }
+                },
+                0
+            );
         }
     );
 
@@ -801,11 +1340,35 @@ function drawMarkers(list) {
             const popupHTML = `
                 <div class="popup-card">
 
-                    <div
-                        class="popup-title"
-                        style="background:${titleColor};"
-                    >
-                        ${escapeHTML(titleName)}
+                    <div class="popup-meta">
+                        <div
+                            class="popup-title"
+                            style="background:${titleColor};"
+                        >
+                            ${escapeHTML(titleName)}
+                        </div>
+                        ${getEpisodeBadgeHTML(data)}
+                        <div class="popup-actions">
+                            <button
+                                type="button"
+                                class="popup-icon-btn popup-fav"
+                                data-spot-id="${escapeHTML(String(data.id))}"
+                                aria-pressed="${favoriteIds.has(String(data.id))}"
+                                aria-label="お気に入り"
+                                title="お気に入り"
+                            >
+                                ${HEART_ICON}
+                            </button>
+                            <button
+                                type="button"
+                                class="popup-icon-btn popup-share"
+                                data-spot-id="${escapeHTML(String(data.id))}"
+                                aria-label="この聖地を共有"
+                                title="共有"
+                            >
+                                ${SHARE_ICON}
+                            </button>
+                        </div>
                     </div>
 
                     <h2 class="popup-spot">
@@ -852,6 +1415,9 @@ function drawMarkers(list) {
 
                     </div>
 
+                    <!-- 近くの聖地（開いた時に作る） -->
+                    <div class="popup-section popup-nearby" hidden></div>
+
                 </div>
             `;
 
@@ -868,6 +1434,7 @@ function drawMarkers(list) {
                     .setPopup(
                         createSpotPopup(
                             popupHTML,
+                            data,
                             longitude,
                             latitude
                         )
@@ -1259,11 +1826,15 @@ map.on(
         }
 
 
-        // URLで聖地が指定されていれば、そこを表示する
+        // ログインしていればお気に入りを読み込む（待たずに進める）
+        loadFavoriteIds();
+
+        // URLで聖地やルートが指定されていれば、そこを表示する
         // （その時は現在地へカメラが動かないよう、現在地の自動取得はしない）
         let openedSpot = false;
         try {
             openedSpot =
+                openRouteFromUrl() ||
                 openSpotFromUrl();
         } catch (error) {
             console.warn(
@@ -1325,6 +1896,8 @@ window.toggleView =
             document.getElementById(
                 "toggle-view-btn"
             );
+
+        stopOrbit();
 
         if (!is3D) {
             map.touchPitch.enable();
@@ -1776,13 +2349,17 @@ window.selectedSpots =
 
 // IDを使ってルートへ追加
 window.addSpotToRouteById =
-    function (spotId) {
+    function (spotId, options) {
+        // silent：保存したルートを開く時など、1件ごとのお知らせを出さない
+        const silent =
+            Boolean(options && options.silent);
+
         const spot =
             spots.find(
                 function (item) {
                     return (
-                        item.id ===
-                        spotId
+                        String(item.id) ===
+                        String(spotId)
                     );
                 }
             );
@@ -1791,6 +2368,10 @@ window.addSpotToRouteById =
             !spot ||
             !spot.coord
         ) {
+            if (silent) {
+                return;
+            }
+
             window.showToast(
                 "スポットデータが見つかりません",
                 "error"
@@ -1819,10 +2400,12 @@ window.addSpotToRouteById =
                 }
             )
         ) {
-            window.showToast(
-                "この場所はすでにルートに追加されています",
-                "error"
-            );
+            if (!silent) {
+                window.showToast(
+                    "この場所はすでにルートに追加されています",
+                    "error"
+                );
+            }
 
             return;
         }
@@ -1854,9 +2437,11 @@ window.addSpotToRouteById =
 
         syncRouteButtons();
 
-        window.showToast(
-            `「${selectedSpots[selectedSpots.length - 1].name}」をルートに追加しました`
-        );
+        if (!silent) {
+            window.showToast(
+                `「${selectedSpots[selectedSpots.length - 1].name}」をルートに追加しました`
+            );
+        }
 
     };
 
@@ -1945,6 +2530,9 @@ function updateRouteList() {
         routeCount.textContent =
             selectedSpots.length;
     }
+
+    // ルートが変わったら「このルートを保存」を押せるようにする
+    updateSaveRouteButton();
 
     if (
         selectedSpots.length === 0
@@ -2349,6 +2937,96 @@ document
     ?.addEventListener(
         "click",
         window.clearSelectedSpots
+    );
+
+
+// =========================================================
+// ルートを保存する（DBの root）
+// 保存したルートは「お気に入り・ルート・履歴」画面から開ける
+// =========================================================
+let lastSavedRouteKey = "";
+let isSavingRoute = false;
+
+function getRouteKey() {
+    return selectedSpots
+        .map(
+            function (spot) {
+                return spot.id;
+            }
+        )
+        .join(",");
+}
+
+// 今のルートを保存済みなら「保存済み」にする
+function updateSaveRouteButton() {
+    const button =
+        document.getElementById(
+            "save-route"
+        );
+
+    if (!button) {
+        return;
+    }
+
+    const saved =
+        selectedSpots.length > 0 &&
+        getRouteKey() === lastSavedRouteKey;
+
+    button.disabled = saved || isSavingRoute;
+    button.textContent =
+        isSavingRoute
+            ? "保存中…"
+            : saved
+                ? "保存済み"
+                : "このルートを保存";
+}
+
+document
+    .getElementById(
+        "save-route"
+    )
+    ?.addEventListener(
+        "click",
+        async function () {
+            if (selectedSpots.length === 0) {
+                return;
+            }
+
+            if (!(await getCurrentUser())) {
+                window.showToast(
+                    "ルートの保存はログインすると使えます",
+                    "error"
+                );
+                return;
+            }
+
+            const key = getRouteKey();
+            isSavingRoute = true;
+            updateSaveRouteButton();
+
+            try {
+                await saveRoute(
+                    selectedSpots.map(
+                        function (spot) {
+                            return spot.id;
+                        }
+                    )
+                );
+                lastSavedRouteKey = key;
+                window.showToast(
+                    "ルートを保存しました（マイページから開けます）"
+                );
+            } catch (error) {
+                console.error("ルートを保存できませんでした:", error);
+                window.showToast(
+                    "ルートを保存できませんでした",
+                    "error"
+                );
+            } finally {
+                isSavingRoute = false;
+                updateSaveRouteButton();
+            }
+        }
     );
 // ==========================================
 // デバッグ：マウスがある場所の座標を記録
