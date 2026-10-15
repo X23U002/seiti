@@ -24,8 +24,9 @@ import {
     getTitleName
 } from "./title-colors.js";
 
-// 説明文から「何話の場面か」を読み取る（お気に入り一覧と共通）
-import { getEpisodeLabel } from "./episode.js";
+// 何期の何話の場面か（入力された期・話、無ければ説明文から。お気に入り一覧と共通）
+// ※ ?v= を付けて、ブラウザに残った古い episode.js を使わないようにする
+import { getSpotEpisodeLabel } from "./episode.js?v=2";
 
 // お気に入り・保存したルート
 import {
@@ -517,10 +518,7 @@ function goToSpot(spotId) {
 
 function getEpisodeBadgeHTML(spot) {
     const label =
-        getEpisodeLabel(
-            spot.scene ||
-            spot.spot_info
-        );
+        getSpotEpisodeLabel(spot);
 
     return label
         ? `<span class="popup-ep">${escapeHTML(label)}</span>`
