@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>お知らせ - 聖地巡礼NAVI</title>
+    <link rel="stylesheet" href="../css/common.css">
+    <link rel="stylesheet" href="../css/inbox.css">
+</head>
+<body>
+
+    <!-- アプリ共通ヘッダー -->
+    <header class="app-header">
+        <a href="mypage.html" class="back-btn" aria-label="マイページに戻る">＜ 戻る</a>
+        <h1>お知らせ</h1>
+    </header>
+
+    <main class="content">
+        <p class="inbox-lead">お問い合わせへの返信や、聖地の登録申請の結果が届きます。</p>
+
+        <!-- 読み込み中・未ログイン・空の時 -->
+        <div class="card empty-state" id="inbox-notice">
+            <div class="empty-state-icon">⏳</div>
+            <p>読み込み中…</p>
+        </div>
+
+        <ul class="inbox-list" id="inbox-list" hidden></ul>
+    </main>
+
+    <script src="../js/common.js"></script>
+    <script type="module" src="../js/inbox.js"></script>
+</body>
+</html>

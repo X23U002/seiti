@@ -1,7 +1,8 @@
 // ==========================================
 // 管理ページ（admin コレクションに uid がある人だけ使える）
 // ・聖地の申請（request_spot）を確認して、spot に追加する／却下する
-// ・お問い合わせ（contact）の対応状況を変える
+// ・お問い合わせ（contact）の対応状況を変える・返信する
+// ・申請者・お問い合わせした人のメールボックス（message）にお知らせを届ける
 // 誰が管理者かは Firestore のルールでも確かめている（画面を開けても、管理者でなければ読み書きできない）
 // ==========================================
 import {
@@ -10,6 +11,7 @@ import {
     getDoc,
     getDocs,
     GeoPoint,
+    serverTimestamp,
     updateDoc,
     writeBatch
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
@@ -255,13 +257,18 @@ function renderContacts(list) {
         li.append(head, body);
 
         if (item.user && item.user.mail_address) {
-            const mail = document.createElement("a");
+            const mail = document.createElement("p");
             mail.className = "contact-mail";
-            mail.href = "mailto:" + encodeURIComponent(item.user.mail_address) +
-                "?subject=" + encodeURIComponent("【聖地巡礼NAVI】お問い合わせへの回答");
-            mail.textContent = "✉ " + item.user.mail_address + " に返信する";
+            mail.textContent = "✉ " + item.user.mail_address;
             li.appendChild(mail);
         }
+
+        const reply = document.createElement("button");
+        reply.type = "button";
+        reply.className = "btn btn-primary reply-btn";
+        reply.textContent = "返信する（メールボックス・メール）";
+        reply.onclick = function () { openReply(item); };
+        li.appendChild(reply);
 
         const actions = document.createElement("div");
         actions.className = "item-actions";
@@ -280,6 +287,19 @@ function renderContacts(list) {
     });
 }
 
+// ---------- メールボックス（message）にお知らせを入れる ----------
+// batch に追加するだけなので、他の書き込みと同時に保存される
+function addMessage(batch, userRef, title, body) {
+    if (!userRef || !userRef.id) return;
+    batch.set(doc(collection(db, "message")), {
+        user_id: doc(db, "user", userRef.id),
+        title: title,
+        body: body,
+        created_at: serverTimestamp(),
+        is_read: false
+    });
+}
+
 // ---------- お問い合わせの状態を変える ----------
 async function setContactState(item, state, button) {
     button.disabled = true;
@@ -295,12 +315,97 @@ async function setContactState(item, state, button) {
     }
 }
 
+// ---------- お問い合わせに返信する ----------
+let replying = null;
+
+function openReply(item) {
+    replying = item;
+    const email = item.user && item.user.mail_address;
+    document.getElementById("reply-to").textContent =
+        (item.user ? (item.user.user_name || "名前なし") : "（ユーザー情報なし）") + (email ? "（" + email + "）" : "");
+    document.getElementById("reply-original").textContent = item.data.contact_info || "";
+    document.getElementById("reply-title").value = "お問い合わせへの回答";
+    document.getElementById("reply-body").value = "";
+    document.getElementById("reply-mail").checked = Boolean(email);
+    document.getElementById("reply-mail").disabled = !email;
+    document.getElementById("reply-error").hidden = true;
+    setFieldError("reply-body", false);
+    document.getElementById("reply-modal").style.display = "flex";
+    document.getElementById("reply-body").focus();
+}
+
+window.closeReply = function () {
+    document.getElementById("reply-modal").style.display = "none";
+    replying = null;
+};
+
+document.getElementById("reply-form").addEventListener("submit", async function (event) {
+    event.preventDefault();
+    if (!replying) return;
+
+    const title = document.getElementById("reply-title").value.trim() || "お問い合わせへの回答";
+    const body = document.getElementById("reply-body").value.trim();
+    setFieldError("reply-body", body === "");
+    if (body === "") {
+        document.getElementById("reply-body").focus();
+        return;
+    }
+
+    const button = document.getElementById("reply-submit");
+    button.disabled = true;
+    button.textContent = "送信中…";
+
+    // 返信の本文に、お問い合わせの内容を引用して付ける
+    const fullBody = body + "\n\n――― お問い合わせ内容 ―――\n" + (replying.data.contact_info || "");
+
+    try {
+        // メールボックスへの返信と、お問い合わせを「対応済み」にするのを同時に行う
+        const batch = writeBatch(db);
+        addMessage(batch, replying.data.user_id, title, fullBody);
+        batch.update(doc(db, "contact", replying.id), { contact_state: "対応済み" });
+        await batch.commit();
+
+        replying.data.contact_state = "対応済み";
+        const email = replying.user && replying.user.mail_address;
+        const sendMail = document.getElementById("reply-mail").checked && email;
+        window.closeReply();
+        render();
+        notify("メールボックスに返信しました");
+
+        // メールでも送る時は、メールアプリを開く（送信ボタンは自分で押す）
+        if (sendMail) {
+            window.location.href = "mailto:" + encodeURIComponent(email) +
+                "?subject=" + encodeURIComponent("【聖地巡礼NAVI】" + title) +
+                "&body=" + encodeURIComponent(fullBody);
+        }
+    } catch (error) {
+        console.error(error);
+        const box = document.getElementById("reply-error");
+        box.textContent = error && error.code === "permission-denied"
+            ? "返信する権限がありません。Firestore のルール（message）を確認してください。"
+            : "送信できませんでした。通信状況を確認して、もう一度お試しください。";
+        box.hidden = false;
+    } finally {
+        button.disabled = false;
+        button.textContent = "返信する";
+    }
+});
+
 // ---------- 申請を却下する ----------
 async function rejectRequest(item, button) {
-    if (!window.confirm("「" + (item.data.request_title || "この申請") + "」を却下しますか？")) return;
+    const title = item.data.request_title || "この申請";
+    // キャンセルしたら null、空欄で OK なら理由なし
+    const reason = window.prompt("「" + title + "」を却下します。\n申請者に伝える理由があれば入力してください（空欄でも却下できます）", "");
+    if (reason === null) return;
     button.disabled = true;
     try {
-        await updateDoc(doc(db, "request_spot", item.id), { request_state: "却下" });
+        const batch = writeBatch(db);
+        batch.update(doc(db, "request_spot", item.id), { request_state: "却下" });
+        addMessage(batch, item.data.user_id, "聖地の登録申請について",
+            "「" + title + "」の登録申請を確認しましたが、今回は地図への追加を見送りました。" +
+            (reason.trim() ? "\n\n理由：" + reason.trim() : "") +
+            "\n\nご協力いただき、ありがとうございました。");
+        await batch.commit();
         item.data.request_state = "却下";
         notify("却下しました");
         render();
@@ -484,6 +589,9 @@ document.getElementById("approve-form").addEventListener("submit", async functio
             geo_hash: encodeGeohash(lngLat.lat, lngLat.lng, 8)
         });
         batch.update(doc(db, "request_spot", approving.id), { request_state: "完了" });
+        addMessage(batch, approving.data.user_id, "聖地の登録申請が承認されました",
+            "申請いただいた「" + spotName + "」（" + titleName + "）を地図に追加しました。\n" +
+            "さっそくスタンプを集めに行ってみてください。ご協力ありがとうございました！");
         await batch.commit();
 
         approving.data.request_state = "完了";

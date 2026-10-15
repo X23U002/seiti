@@ -72,6 +72,12 @@
 
         <!-- メニュー -->
         <nav class="menu-list" aria-label="マイページメニュー">
+            <button type="button" class="menu-item" onclick="location.href='inbox.html'">
+                <span class="menu-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h4l2 3h4l2-3h4"/><path d="M5.5 5h13L20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5z"/></svg></span>
+                <span class="menu-text">お知らせ</span>
+                <span class="menu-badge" id="inbox-badge" hidden>0</span>
+                <svg class="icon menu-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            </button>
             <button type="button" class="menu-item" onclick="goToHistory()">
                 <span class="menu-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
                 <span class="menu-text">巡礼履歴・ルート案内</span>
@@ -192,6 +198,23 @@
                 document.getElementById("admin-menu").hidden = !snap.exists();
             }).catch(function () {
                 // 管理者ではない
+            });
+
+            // 未読のお知らせの数
+            import("https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js").then(async function (fs) {
+                const { db } = await import("../js/firebase-db.js");
+                const snap = await fs.getDocs(fs.query(
+                    fs.collection(db, "message"),
+                    fs.where("user_id", "==", fs.doc(db, "user", userId))
+                ));
+                let unread = 0;
+                snap.forEach(function (d) { if (!d.data().is_read) unread++; });
+                const badge = document.getElementById("inbox-badge");
+                badge.textContent = unread;
+                badge.hidden = unread === 0;
+                badge.setAttribute("aria-label", "未読 " + unread + "件");
+            }).catch(function (error) {
+                console.warn("お知らせの数を読み込めませんでした:", error);
             });
 
             window.saveNicknameToDb = function (name) {

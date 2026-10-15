@@ -213,3 +213,14 @@
     overflow-wrap: anywhere;
     user-select: all;
 }
+
+/* お問い合わせの返信ボタン */
+.reply-btn {
+    margin-bottom: 8px;
+    min-height: 44px;
+    font-size: 14px;
+}
+
+.contact-mail {
+    margin: 0 0 10px;
+}
