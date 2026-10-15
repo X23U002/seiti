@@ -1549,6 +1549,49 @@ body {
     margin-bottom: 0;
 }
 
+/* お気に入り・共有（札の行の右端） */
+.popup-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.popup-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 2px solid #dcdde1;
+    border-radius: 50%;
+    background: white;
+    color: #0b3c5d;
+    box-shadow: none;
+}
+
+.popup-icon-btn:hover {
+    border-color: #0b3c5d;
+    background: #e6f0f6;
+    transform: none;
+}
+
+.popup-icon-btn .icon {
+    width: 20px;
+    height: 20px;
+}
+
+/* お気に入り済みは赤いハート */
+.popup-fav[aria-pressed="true"] {
+    border-color: #f3c7c2;
+    background: #fdf1f0;
+    color: #e74c3c;
+}
+
+.popup-fav[aria-pressed="true"] .icon {
+    fill: currentColor;
+}
+
 .popup-ep {
     display: inline-block;
     flex-shrink: 0;
@@ -2070,6 +2113,31 @@ body {
 
 #open-google-route:hover {
     background: #14537f;
+}
+
+/* 「このルートを保存」は白地に紺の控えめなボタンに */
+#save-route {
+    width: 100%;
+    margin-top: 8px;
+    padding: 12px;
+    background: white;
+    border: 2px solid #0b3c5d;
+    border-radius: 8px;
+    color: #0b3c5d;
+    font-weight: bold;
+    box-shadow: none;
+}
+
+#save-route:hover {
+    background: #e6f0f6;
+    transform: none;
+}
+
+#save-route:disabled {
+    border-color: #dcdde1;
+    background: #f4f7f6;
+    color: #6b7b8c;
+    cursor: default;
 }
 
 /* ---------- ポップアップのアイコン ---------- */

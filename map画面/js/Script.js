@@ -2,18 +2,16 @@
 // 1. Firebase の読み込みと設定
 // =========================================================
 import {
-    initializeApp
-} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
-
-import {
     getAnalytics
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-analytics.js";
 
 import {
-    getFirestore,
     collection,
     getDocs
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+
+// Firebase の接続（ログイン・DB）は他の画面と共通
+import { app, db, getCurrentUser } from "./firebase-db.js";
 
 // 作品名と作品ごとの色（スタンプ帳・マイページと共通）
 import {
@@ -21,24 +19,20 @@ import {
     getTitleName
 } from "./title-colors.js";
 
+// 説明文から「何話の場面か」を読み取る（お気に入り一覧と共通）
+import { getEpisodeLabel } from "./episode.js";
+
+// お気に入り・保存したルート
+import {
+    loadFavorites,
+    saveRoute,
+    setFavorite
+} from "./saved-db.js";
+
 // stampsyori.js（スタンプ獲得の演出）からも同じ色を使う
 window.getTitleColor = getTitleColor;
 
-const firebaseConfig = {
-    apiKey: "AIzaSyCga1yFbLWdLXmMrNwScXuOGUWnz283eYs",
-    authDomain: "sisukai-121cf.firebaseapp.com",
-    projectId: "sisukai-121cf",
-    storageBucket: "sisukai-121cf.firebasestorage.app",
-    messagingSenderId: "83286825212",
-    appId: "1:83286825212:web:1cd57aecfb2308571a5f79",
-    measurementId: "G-GKWJ6BE9M2"
-};
-
-const app = initializeApp(firebaseConfig);
-
 getAnalytics(app);
-
-const db = getFirestore(app);
 
 
 // =========================================================
@@ -392,6 +386,70 @@ function openSpotFromUrl() {
 
 
 // =========================================================
+// map.html?route=ID,ID,... で開いた時は、そのルートを組み立てて全体を表示する
+// （「お気に入り・ルート・履歴」画面の保存したルートから使う）
+// =========================================================
+function openRouteFromUrl() {
+    const param =
+        new URLSearchParams(
+            location.search
+        ).get("route");
+
+    if (!param) {
+        return false;
+    }
+
+    param
+        .split(",")
+        .forEach(
+            function (spotId) {
+                window.addSpotToRouteById(
+                    spotId,
+                    { silent: true }
+                );
+            }
+        );
+
+    if (selectedSpots.length === 0) {
+        window.showToast(
+            "ルートの聖地が見つかりませんでした",
+            "error"
+        );
+        return false;
+    }
+
+    // 保存したルートを開いたばかりなので「保存済み」にしておく
+    lastSavedRouteKey = getRouteKey();
+    updateSaveRouteButton();
+
+    const bounds = new mapboxgl.LngLatBounds();
+    selectedSpots.forEach(
+        function (spot) {
+            bounds.extend([
+                spot.longitude,
+                spot.latitude
+            ]);
+        }
+    );
+
+    map.fitBounds(
+        bounds,
+        {
+            padding: 80,
+            maxZoom: 16,
+            duration: 0
+        }
+    );
+
+    window.showToast(
+        `保存したルート（${selectedSpots.length}か所）を開きました`
+    );
+
+    return true;
+}
+
+
+// =========================================================
 // 地図上にあるピンから、そのスポットの詳細を開く
 // =========================================================
 function openSpotMarker(spotId) {
@@ -450,51 +508,6 @@ function goToSpot(spotId) {
     );
 }
 
-
-// =========================================================
-// 説明文から「何話の場面か」を読み取って、EP5 のような札にする
-// 例）「1話。」→ EP1、「1期 第3話」→ 1期 EP3、「劇場版」→ 劇場版
-// 読み取れなければ空文字
-// =========================================================
-function getEpisodeLabel(text) {
-    // 最初の文だけを見る（後ろの「2話でも登場」などに引っ張られないように）
-    const first =
-        String(text || "")
-            .replace(/[０-９]/g, function (character) {
-                return String.fromCharCode(character.charCodeAt(0) - 0xFEE0);
-            })
-            .split("。")[0];
-
-    if (/劇場版/.test(first)) {
-        return "劇場版";
-    }
-
-    const season = first.match(/(\d+)期/);
-    const episode = first.match(/第?\s*(\d+)\s*話/);
-    const seasonText = season ? season[1] + "期" : "";
-
-    if (episode) {
-        return (seasonText ? seasonText + " " : "") + "EP" + episode[1];
-    }
-
-    if (/最終話/.test(first)) {
-        return (seasonText ? seasonText + " " : "") + "最終話";
-    }
-
-    if (seasonText) {
-        return seasonText;
-    }
-
-    if (/^(OP|ＯＰ)/.test(first)) {
-        return "OP";
-    }
-
-    if (/^(ED|ＥＤ)/.test(first)) {
-        return "ED";
-    }
-
-    return "";
-}
 
 function getEpisodeBadgeHTML(spot) {
     const label =
@@ -633,6 +646,164 @@ function renderNearbySpots(container, spot) {
             }
         );
 }
+
+
+// =========================================================
+// お気に入り（ハート）
+// ログインしている人だけ使える。DB（favorite）に保存する
+// =========================================================
+const HEART_ICON =
+    '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>';
+
+const SHARE_ICON =
+    '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.4M8.2 13.2l7.6 4.4"/></svg>';
+
+const favoriteIds = new Set();
+
+function syncFavoriteButtons(root) {
+    (root || document)
+        .querySelectorAll(".popup-fav")
+        .forEach(
+            function (button) {
+                button.setAttribute(
+                    "aria-pressed",
+                    String(favoriteIds.has(button.dataset.spotId))
+                );
+            }
+        );
+}
+
+// ログインしていればお気に入りを読み込む（失敗しても地図はそのまま使える）
+async function loadFavoriteIds() {
+    try {
+        const favorites = await loadFavorites();
+        (favorites || []).forEach(
+            function (item) {
+                favoriteIds.add(item.spotId);
+            }
+        );
+        syncFavoriteButtons();
+    } catch (error) {
+        console.warn("お気に入りを読み込めませんでした:", error);
+    }
+}
+
+async function toggleFavorite(button) {
+    const spotId = button.dataset.spotId;
+
+    if (!(await getCurrentUser())) {
+        window.showToast(
+            "お気に入りはログインすると使えます",
+            "error"
+        );
+        return;
+    }
+
+    const on = !favoriteIds.has(spotId);
+
+    // 先に見た目を変えて、保存できなかったら戻す
+    if (on) {
+        favoriteIds.add(spotId);
+    } else {
+        favoriteIds.delete(spotId);
+    }
+    syncFavoriteButtons();
+    button.disabled = true;
+
+    try {
+        await setFavorite(spotId, on);
+        window.showToast(
+            on
+                ? "お気に入りに追加しました"
+                : "お気に入りから外しました"
+        );
+    } catch (error) {
+        console.error("お気に入りを保存できませんでした:", error);
+
+        if (on) {
+            favoriteIds.delete(spotId);
+        } else {
+            favoriteIds.add(spotId);
+        }
+        syncFavoriteButtons();
+
+        window.showToast(
+            "お気に入りを保存できませんでした",
+            "error"
+        );
+    } finally {
+        button.disabled = false;
+    }
+}
+
+
+// =========================================================
+// 共有
+// スマホでは共有メニュー（LINE など）を開き、使えない時はリンクをコピーする。
+// リンクを開くと、地図でその聖地の詳細が開く（map.html?spot=ID）
+// =========================================================
+function getSpotShareURL(spotId) {
+    const url = new URL("map.html", location.href);
+    url.searchParams.set("spot", spotId);
+    return url.href;
+}
+
+async function shareSpot(spotId) {
+    const spot =
+        spots.find(
+            function (item) {
+                return String(item.id) === String(spotId);
+            }
+        );
+
+    if (!spot) {
+        return;
+    }
+
+    const url = getSpotShareURL(spot.id);
+    const text =
+        `「${getTitleName(spot)}」の聖地「${spot.spot_name || "無題のスポット"}」`;
+
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: spot.spot_name || "聖地巡礼NAVI",
+                text: text,
+                url: url
+            });
+            return;
+        } catch (error) {
+            // 共有メニューを閉じただけの時は何もしない
+            if (error && error.name === "AbortError") {
+                return;
+            }
+        }
+    }
+
+    try {
+        await navigator.clipboard.writeText(text + "\n" + url);
+        window.showToast("リンクをコピーしました");
+    } catch (error) {
+        window.prompt("このリンクをコピーしてください", url);
+    }
+}
+
+// 詳細の中のハート・共有ボタン（詳細は何度も作り直されるので、まとめて受け取る）
+document.addEventListener(
+    "click",
+    function (event) {
+        const favoriteButton = event.target.closest(".popup-fav");
+        if (favoriteButton) {
+            toggleFavorite(favoriteButton);
+            return;
+        }
+
+        const shareButton = event.target.closest(".popup-share");
+        if (shareButton) {
+            shareSpot(shareButton.dataset.spotId);
+        }
+    }
+);
 
 
 // =========================================================
@@ -814,8 +985,11 @@ function createSpotPopup(html, data, longitude, latitude) {
     popup.on(
         "open",
         function () {
-            // 閉じている間にルートが変わっていることがあるので合わせ直す
+            // 閉じている間にルートやお気に入りが変わっていることがあるので合わせ直す
             syncRouteButtons(
+                popup.getElement()
+            );
+            syncFavoriteButtons(
                 popup.getElement()
             );
 
@@ -1174,6 +1348,27 @@ function drawMarkers(list) {
                             ${escapeHTML(titleName)}
                         </div>
                         ${getEpisodeBadgeHTML(data)}
+                        <div class="popup-actions">
+                            <button
+                                type="button"
+                                class="popup-icon-btn popup-fav"
+                                data-spot-id="${escapeHTML(String(data.id))}"
+                                aria-pressed="${favoriteIds.has(String(data.id))}"
+                                aria-label="お気に入り"
+                                title="お気に入り"
+                            >
+                                ${HEART_ICON}
+                            </button>
+                            <button
+                                type="button"
+                                class="popup-icon-btn popup-share"
+                                data-spot-id="${escapeHTML(String(data.id))}"
+                                aria-label="この聖地を共有"
+                                title="共有"
+                            >
+                                ${SHARE_ICON}
+                            </button>
+                        </div>
                     </div>
 
                     <h2 class="popup-spot">
@@ -1631,11 +1826,15 @@ map.on(
         }
 
 
-        // URLで聖地が指定されていれば、そこを表示する
+        // ログインしていればお気に入りを読み込む（待たずに進める）
+        loadFavoriteIds();
+
+        // URLで聖地やルートが指定されていれば、そこを表示する
         // （その時は現在地へカメラが動かないよう、現在地の自動取得はしない）
         let openedSpot = false;
         try {
             openedSpot =
+                openRouteFromUrl() ||
                 openSpotFromUrl();
         } catch (error) {
             console.warn(
@@ -2150,13 +2349,17 @@ window.selectedSpots =
 
 // IDを使ってルートへ追加
 window.addSpotToRouteById =
-    function (spotId) {
+    function (spotId, options) {
+        // silent：保存したルートを開く時など、1件ごとのお知らせを出さない
+        const silent =
+            Boolean(options && options.silent);
+
         const spot =
             spots.find(
                 function (item) {
                     return (
-                        item.id ===
-                        spotId
+                        String(item.id) ===
+                        String(spotId)
                     );
                 }
             );
@@ -2165,6 +2368,10 @@ window.addSpotToRouteById =
             !spot ||
             !spot.coord
         ) {
+            if (silent) {
+                return;
+            }
+
             window.showToast(
                 "スポットデータが見つかりません",
                 "error"
@@ -2193,10 +2400,12 @@ window.addSpotToRouteById =
                 }
             )
         ) {
-            window.showToast(
-                "この場所はすでにルートに追加されています",
-                "error"
-            );
+            if (!silent) {
+                window.showToast(
+                    "この場所はすでにルートに追加されています",
+                    "error"
+                );
+            }
 
             return;
         }
@@ -2228,9 +2437,11 @@ window.addSpotToRouteById =
 
         syncRouteButtons();
 
-        window.showToast(
-            `「${selectedSpots[selectedSpots.length - 1].name}」をルートに追加しました`
-        );
+        if (!silent) {
+            window.showToast(
+                `「${selectedSpots[selectedSpots.length - 1].name}」をルートに追加しました`
+            );
+        }
 
     };
 
@@ -2319,6 +2530,9 @@ function updateRouteList() {
         routeCount.textContent =
             selectedSpots.length;
     }
+
+    // ルートが変わったら「このルートを保存」を押せるようにする
+    updateSaveRouteButton();
 
     if (
         selectedSpots.length === 0
@@ -2723,6 +2937,96 @@ document
     ?.addEventListener(
         "click",
         window.clearSelectedSpots
+    );
+
+
+// =========================================================
+// ルートを保存する（DBの root）
+// 保存したルートは「お気に入り・ルート・履歴」画面から開ける
+// =========================================================
+let lastSavedRouteKey = "";
+let isSavingRoute = false;
+
+function getRouteKey() {
+    return selectedSpots
+        .map(
+            function (spot) {
+                return spot.id;
+            }
+        )
+        .join(",");
+}
+
+// 今のルートを保存済みなら「保存済み」にする
+function updateSaveRouteButton() {
+    const button =
+        document.getElementById(
+            "save-route"
+        );
+
+    if (!button) {
+        return;
+    }
+
+    const saved =
+        selectedSpots.length > 0 &&
+        getRouteKey() === lastSavedRouteKey;
+
+    button.disabled = saved || isSavingRoute;
+    button.textContent =
+        isSavingRoute
+            ? "保存中…"
+            : saved
+                ? "保存済み"
+                : "このルートを保存";
+}
+
+document
+    .getElementById(
+        "save-route"
+    )
+    ?.addEventListener(
+        "click",
+        async function () {
+            if (selectedSpots.length === 0) {
+                return;
+            }
+
+            if (!(await getCurrentUser())) {
+                window.showToast(
+                    "ルートの保存はログインすると使えます",
+                    "error"
+                );
+                return;
+            }
+
+            const key = getRouteKey();
+            isSavingRoute = true;
+            updateSaveRouteButton();
+
+            try {
+                await saveRoute(
+                    selectedSpots.map(
+                        function (spot) {
+                            return spot.id;
+                        }
+                    )
+                );
+                lastSavedRouteKey = key;
+                window.showToast(
+                    "ルートを保存しました（マイページから開けます）"
+                );
+            } catch (error) {
+                console.error("ルートを保存できませんでした:", error);
+                window.showToast(
+                    "ルートを保存できませんでした",
+                    "error"
+                );
+            } finally {
+                isSavingRoute = false;
+                updateSaveRouteButton();
+            }
+        }
     );
 // ==========================================
 // デバッグ：マウスがある場所の座標を記録

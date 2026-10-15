@@ -3,81 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>履歴・ルート案内 - 聖地巡礼NAVI</title>
+    <title>お気に入り・ルート・履歴 - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css">
-    <link rel="stylesheet" href="../css/history.css">
+    <link rel="stylesheet" href="../css/history.css?v=2">
 </head>
 <body>
 
     <!-- アプリ共通ヘッダー -->
     <header class="app-header">
-        <button type="button" class="back-btn" onclick="goToMyPage()" aria-label="マイページに戻る">＜ 戻る</button>
-        <h1>履歴・ルート案内</h1>
+        <a href="mypage.html" class="back-btn" aria-label="マイページに戻る">＜ 戻る</a>
+        <h1>お気に入り・ルート・履歴</h1>
     </header>
 
     <main class="content">
 
-        <!-- 現在のルート案内（タイムライン） -->
-        <section>
-            <h2 class="section-title"><span aria-hidden="true">📍</span> 現在のルート</h2>
-            <ol class="timeline-container card">
+        <!-- 読み込み中・未ログインの時 -->
+        <div class="card empty-state" id="saved-notice">
+            <div class="empty-state-icon">⏳</div>
+            <p>読み込み中…</p>
+        </div>
 
-                <li class="timeline-node current">
-                    <div class="timeline-title">現在地</div>
-                    <div class="timeline-time">出発点</div>
-                </li>
+        <div id="saved-main" hidden>
+            <!-- タブ -->
+            <div class="saved-tabs" role="tablist" aria-label="表示する内容">
+                <button type="button" class="saved-tab" role="tab" id="tab-favorites" aria-selected="true" aria-controls="panel-favorites">
+                    お気に入り <span class="tab-count" id="count-favorites">0</span>
+                </button>
+                <button type="button" class="saved-tab" role="tab" id="tab-routes" aria-selected="false" aria-controls="panel-routes">
+                    ルート <span class="tab-count" id="count-routes">0</span>
+                </button>
+                <button type="button" class="saved-tab" role="tab" id="tab-history" aria-selected="false" aria-controls="panel-history">
+                    巡礼履歴 <span class="tab-count" id="count-history">0</span>
+                </button>
+            </div>
 
-                <li class="timeline-node">
-                    <div class="timeline-title">〇〇神社</div>
-                    <div class="timeline-time"><span class="badge">徒歩 8分</span> 14:30 着予定</div>
-                </li>
+            <!-- お気に入りの聖地 -->
+            <section id="panel-favorites" role="tabpanel" aria-labelledby="tab-favorites">
+                <ul class="saved-list" id="favorite-list"></ul>
+            </section>
 
-                <li class="timeline-node">
-                    <div class="timeline-title">〇〇駅</div>
-                    <div class="timeline-time"><span class="badge">徒歩 15分</span> 14:45 着予定</div>
-                </li>
+            <!-- 保存したルート -->
+            <section id="panel-routes" role="tabpanel" aria-labelledby="tab-routes" hidden>
+                <ul class="saved-list" id="route-list"></ul>
+            </section>
 
-                <li class="timeline-node goal">
-                    <div class="timeline-title">〇〇広場</div>
-                    <div class="timeline-time"><span class="badge badge-goal">目的地</span> 15:00 着予定</div>
-                </li>
-
-            </ol>
-
-            <button type="button" class="btn btn-success" onclick="startRoute()">▶ 案内開始</button>
-        </section>
-
-        <!-- 過去の履歴リスト -->
-        <section class="history-section">
-            <h2 class="section-title"><span aria-hidden="true">🕒</span> 過去の巡礼履歴</h2>
-            <ul class="history-list">
-
-                <li class="history-item">
-                    <div class="history-route">〇〇神社 <span class="arrow" aria-label="から">→</span> 〇〇公園</div>
-                    <div class="history-date">2026年05月15日(金) 14:30</div>
-                </li>
-
-                <li class="history-item">
-                    <div class="history-route">〇〇公園 <span class="arrow" aria-label="から">→</span> 〇〇広場</div>
-                    <div class="history-date">2026年05月15日(金) 16:00</div>
-                </li>
-
-                <li class="history-item">
-                    <div class="history-route">〇〇ベンチ <span class="arrow" aria-label="から">→</span> 〇〇山</div>
-                    <div class="history-date">2026年05月02日(土) 11:15</div>
-                </li>
-
-                <li class="history-item">
-                    <div class="history-route">〇〇学校 <span class="arrow" aria-label="から">→</span> 〇〇駅</div>
-                    <div class="history-date">2026年04月20日(月) 15:45</div>
-                </li>
-
-            </ul>
-        </section>
-
+            <!-- 巡礼履歴（スタンプを取った聖地） -->
+            <section id="panel-history" role="tabpanel" aria-labelledby="tab-history" hidden>
+                <ul class="saved-list" id="history-list"></ul>
+            </section>
+        </div>
     </main>
 
     <script src="../js/common.js"></script>
-    <script src="../js/history.js"></script>
+    <script src="../js/toast.js"></script>
+    <script type="module" src="../js/history.js?v=2"></script>
 </body>
 </html>
