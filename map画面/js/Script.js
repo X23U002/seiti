@@ -2,6 +2,10 @@
 // 1. Firebase の読み込みと設定
 // =========================================================
 import {
+    getApp
+} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
+
+import {
     getAnalytics
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-analytics.js";
 
@@ -11,7 +15,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 // Firebase の接続（ログイン・DB）は他の画面と共通
-import { app, db, getCurrentUser } from "./firebase-db.js";
+// （ブラウザに古い firebase-db.js が残っていても動くよう、前からある db と getCurrentUser だけを使う）
+import { db, getCurrentUser } from "./firebase-db.js";
 
 // 作品名と作品ごとの色（スタンプ帳・マイページと共通）
 import {
@@ -32,7 +37,8 @@ import {
 // stampsyori.js（スタンプ獲得の演出）からも同じ色を使う
 window.getTitleColor = getTitleColor;
 
-getAnalytics(app);
+// firebase-db.js が作った Firebase の接続でアクセス解析を付ける
+getAnalytics(getApp());
 
 
 // =========================================================
