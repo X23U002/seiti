@@ -383,20 +383,372 @@ function openSpotFromUrl() {
     map.once(
         "idle",
         function () {
-            const target =
-                spotMarkers.find(
-                    function (marker) {
-                        return marker.getElement().dataset.spotId === spotId;
-                    }
-                );
-            if (target && target.getPopup() && !target.getPopup().isOpen()) {
-                target.togglePopup();
-            }
+            openSpotMarker(spotId);
         }
     );
 
     return true;
 }
+
+
+// =========================================================
+// 地図上にあるピンから、そのスポットの詳細を開く
+// =========================================================
+function openSpotMarker(spotId) {
+    const target =
+        spotMarkers.find(
+            function (marker) {
+                return marker.getElement().dataset.spotId === String(spotId);
+            }
+        );
+    if (target && target.getPopup() && !target.getPopup().isOpen()) {
+        target.togglePopup();
+    }
+}
+
+
+// =========================================================
+// 別の聖地へ移動して詳細を開く（詳細の「近くの聖地」から使う）
+// =========================================================
+function goToSpot(spotId) {
+    const spot =
+        spots.find(
+            function (item) {
+                return String(item.id) === String(spotId);
+            }
+        );
+
+    if (!spot || !spot.coord) {
+        return;
+    }
+
+    // 今開いている詳細を閉じてから移動する
+    spotMarkers.forEach(
+        function (marker) {
+            const popup = marker.getPopup();
+            if (popup && popup.isOpen()) {
+                popup.remove();
+            }
+        }
+    );
+
+    map.flyTo({
+        center: [
+            Number(spot.coord.longitude),
+            Number(spot.coord.latitude)
+        ],
+        zoom: Math.max(map.getZoom(), 15),
+        duration: prefersReducedMotion() ? 0 : 1200
+    });
+
+    // 移動してピンが描き直された後に開く
+    map.once(
+        "idle",
+        function () {
+            openSpotMarker(spotId);
+        }
+    );
+}
+
+
+// =========================================================
+// 説明文から「何話の場面か」を読み取って、EP5 のような札にする
+// 例）「1話。」→ EP1、「1期 第3話」→ 1期 EP3、「劇場版」→ 劇場版
+// 読み取れなければ空文字
+// =========================================================
+function getEpisodeLabel(text) {
+    // 最初の文だけを見る（後ろの「2話でも登場」などに引っ張られないように）
+    const first =
+        String(text || "")
+            .replace(/[０-９]/g, function (character) {
+                return String.fromCharCode(character.charCodeAt(0) - 0xFEE0);
+            })
+            .split("。")[0];
+
+    if (/劇場版/.test(first)) {
+        return "劇場版";
+    }
+
+    const season = first.match(/(\d+)期/);
+    const episode = first.match(/第?\s*(\d+)\s*話/);
+    const seasonText = season ? season[1] + "期" : "";
+
+    if (episode) {
+        return (seasonText ? seasonText + " " : "") + "EP" + episode[1];
+    }
+
+    if (/最終話/.test(first)) {
+        return (seasonText ? seasonText + " " : "") + "最終話";
+    }
+
+    if (seasonText) {
+        return seasonText;
+    }
+
+    if (/^(OP|ＯＰ)/.test(first)) {
+        return "OP";
+    }
+
+    if (/^(ED|ＥＤ)/.test(first)) {
+        return "ED";
+    }
+
+    return "";
+}
+
+function getEpisodeBadgeHTML(spot) {
+    const label =
+        getEpisodeLabel(
+            spot.scene ||
+            spot.spot_info
+        );
+
+    return label
+        ? `<span class="popup-ep">${escapeHTML(label)}</span>`
+        : "";
+}
+
+
+// =========================================================
+// 2地点の距離（メートル）と、その表示
+// =========================================================
+function getDistanceMeters(a, b) {
+    const toRad = Math.PI / 180;
+    const lat1 = Number(a.latitude) * toRad;
+    const lat2 = Number(b.latitude) * toRad;
+    const dLat = lat2 - lat1;
+    const dLng = (Number(b.longitude) - Number(a.longitude)) * toRad;
+    const h =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+
+    return 6371000 * 2 * Math.asin(Math.sqrt(h));
+}
+
+function formatDistance(meters) {
+    if (meters < 1000) {
+        return Math.max(10, Math.round(meters / 10) * 10) + "m";
+    }
+
+    return (meters / 1000).toFixed(meters < 10000 ? 1 : 0) + "km";
+}
+
+
+// =========================================================
+// スポット詳細の「近くの聖地」
+// 同じ作品の聖地を近い順に表示する（遠すぎるものは出さない）
+// =========================================================
+const NEARBY_MAX_COUNT = 4;
+const NEARBY_MAX_METERS = 30000;
+
+function getNearbySpots(spot) {
+    if (!spot.coord) {
+        return [];
+    }
+
+    const titleName = getTitleName(spot);
+
+    return spots
+        .filter(
+            function (item) {
+                return (
+                    item.id !== spot.id &&
+                    item.coord &&
+                    getTitleName(item) === titleName
+                );
+            }
+        )
+        .map(
+            function (item) {
+                return {
+                    spot: item,
+                    distance: getDistanceMeters(spot.coord, item.coord)
+                };
+            }
+        )
+        .filter(
+            function (item) {
+                return (
+                    Number.isFinite(item.distance) &&
+                    item.distance <= NEARBY_MAX_METERS
+                );
+            }
+        )
+        .sort(
+            function (a, b) {
+                return a.distance - b.distance;
+            }
+        )
+        .slice(0, NEARBY_MAX_COUNT);
+}
+
+function renderNearbySpots(container, spot) {
+    if (!container) {
+        return;
+    }
+
+    const nearby = getNearbySpots(spot);
+
+    container.hidden = nearby.length === 0;
+
+    if (nearby.length === 0) {
+        container.innerHTML = "";
+        return;
+    }
+
+    container.innerHTML = `
+        <strong>近くの「${escapeHTML(getTitleName(spot))}」の聖地</strong>
+        <ul class="popup-nearby-list">
+            ${nearby.map(
+                function (item) {
+                    const collected =
+                        typeof window.hasCollectedStamp === "function" &&
+                        window.hasCollectedStamp(item.spot.id);
+
+                    return `
+                        <li>
+                            <button type="button" class="popup-nearby-item" data-spot-id="${escapeHTML(String(item.spot.id))}">
+                                ${getEpisodeBadgeHTML(item.spot)}
+                                <span class="popup-nearby-name">${escapeHTML(item.spot.spot_name || "無題のスポット")}</span>
+                                ${collected ? '<span class="popup-nearby-done" title="スタンプ獲得済み" aria-label="獲得済み">✓</span>' : ""}
+                                <span class="popup-nearby-distance">${formatDistance(item.distance)}</span>
+                            </button>
+                        </li>
+                    `;
+                }
+            ).join("")}
+        </ul>
+    `;
+
+    container
+        .querySelectorAll(".popup-nearby-item")
+        .forEach(
+            function (button) {
+                button.addEventListener(
+                    "click",
+                    function () {
+                        goToSpot(button.dataset.spotId);
+                    }
+                );
+            }
+        );
+}
+
+
+// =========================================================
+// ピンを押した時のカメラ
+// ピンを中心にして、地図をゆっくり1周させる（3D表示なら斜めから見下ろす）。
+// 地図を触ったり詳細を閉じたりしたら止める。
+// 「視差効果を減らす」設定の端末では回さない
+// =========================================================
+const ORBIT_DEGREES_PER_SECOND = 8;
+
+let orbitFrame = null;
+let orbitToken = 0;
+
+function prefersReducedMotion() {
+    return window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+    ).matches;
+}
+
+function stopOrbit() {
+    orbitToken++;
+
+    if (orbitFrame) {
+        cancelAnimationFrame(orbitFrame);
+        orbitFrame = null;
+    }
+}
+
+// スマホでは詳細が画面下半分を覆うので、地図の中心を上寄りにする
+function getSpotPadding() {
+    const isMobile =
+        window.matchMedia(
+            "(max-width: 600px)"
+        ).matches;
+
+    return {
+        top: 0,
+        right: 0,
+        bottom: isMobile ? Math.round(window.innerHeight * 0.5) : 0,
+        left: 0
+    };
+}
+
+function focusSpotCamera(longitude, latitude) {
+    stopOrbit();
+
+    const token = orbitToken;
+    const reduced = prefersReducedMotion();
+
+    // ズームは変えない（変えるとピンが描き直されて詳細が閉じてしまうため）
+    map.easeTo({
+        center: [
+            longitude,
+            latitude
+        ],
+        pitch: is3D ? 60 : 0,
+        padding: getSpotPadding(),
+        duration: reduced ? 0 : 900
+    });
+
+    if (reduced) {
+        return;
+    }
+
+    map.once(
+        "moveend",
+        function () {
+            if (token !== orbitToken) {
+                return;
+            }
+
+            const startBearing = map.getBearing();
+            let turned = 0;
+            let last = performance.now();
+
+            function step(now) {
+                if (token !== orbitToken) {
+                    return;
+                }
+
+                turned += (now - last) / 1000 * ORBIT_DEGREES_PER_SECOND;
+                last = now;
+
+                // 1周したら元の向きで止める
+                if (turned >= 360) {
+                    map.setBearing(startBearing);
+                    orbitFrame = null;
+                    return;
+                }
+
+                map.setBearing(startBearing + turned);
+                orbitFrame = requestAnimationFrame(step);
+            }
+
+            orbitFrame = requestAnimationFrame(step);
+        }
+    );
+}
+
+// 地図を触ったら回転を止める
+["mousedown", "touchstart", "wheel"].forEach(
+    function (type) {
+        map.on(type, stopOrbit);
+    }
+);
+
+map.on(
+    "movestart",
+    function (event) {
+        if (event.originalEvent) {
+            stopOrbit();
+        }
+    }
+);
+
+geolocate.on("trackuserlocationstart", stopOrbit);
 
 
 // =========================================================
@@ -451,7 +803,7 @@ function syncRouteButtons(root) {
 // スマホでは画面下からせり上がるパネルとして表示する（見た目は style.css）。
 // パネルにピンが隠れないよう、開いた時にピンを画面の上寄りへ動かす
 // =========================================================
-function createSpotPopup(html, longitude, latitude) {
+function createSpotPopup(html, data, longitude, latitude) {
     const popup =
         new mapboxgl.Popup({
             offset: 25
@@ -467,23 +819,36 @@ function createSpotPopup(html, longitude, latitude) {
                 popup.getElement()
             );
 
-            if (
-                window.matchMedia(
-                    "(max-width: 600px)"
-                ).matches
-            ) {
-                map.easeTo({
-                    center: [
-                        longitude,
-                        latitude
-                    ],
-                    offset: [
-                        0,
-                        -window.innerHeight * 0.25
-                    ],
-                    duration: 400
-                });
-            }
+            // 近くの聖地は開いた時に作る（スタンプの✓も最新にするため）
+            renderNearbySpots(
+                popup.getElement().querySelector(".popup-nearby"),
+                data
+            );
+
+            focusSpotCamera(
+                longitude,
+                latitude
+            );
+        }
+    );
+
+    popup.on(
+        "close",
+        function () {
+            stopOrbit();
+
+            // 開いている詳細が無くなったら、地図の中心を元に戻す
+            setTimeout(
+                function () {
+                    if (!document.querySelector(".mapboxgl-popup .popup-card")) {
+                        map.easeTo({
+                            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+                            duration: prefersReducedMotion() ? 0 : 300
+                        });
+                    }
+                },
+                0
+            );
         }
     );
 
@@ -801,11 +1166,14 @@ function drawMarkers(list) {
             const popupHTML = `
                 <div class="popup-card">
 
-                    <div
-                        class="popup-title"
-                        style="background:${titleColor};"
-                    >
-                        ${escapeHTML(titleName)}
+                    <div class="popup-meta">
+                        <div
+                            class="popup-title"
+                            style="background:${titleColor};"
+                        >
+                            ${escapeHTML(titleName)}
+                        </div>
+                        ${getEpisodeBadgeHTML(data)}
                     </div>
 
                     <h2 class="popup-spot">
@@ -852,6 +1220,9 @@ function drawMarkers(list) {
 
                     </div>
 
+                    <!-- 近くの聖地（開いた時に作る） -->
+                    <div class="popup-section popup-nearby" hidden></div>
+
                 </div>
             `;
 
@@ -868,6 +1239,7 @@ function drawMarkers(list) {
                     .setPopup(
                         createSpotPopup(
                             popupHTML,
+                            data,
                             longitude,
                             latitude
                         )
@@ -1325,6 +1697,8 @@ window.toggleView =
             document.getElementById(
                 "toggle-view-btn"
             );
+
+        stopOrbit();
 
         if (!is3D) {
             map.touchPitch.enable();
