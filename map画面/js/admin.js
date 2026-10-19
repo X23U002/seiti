@@ -21,7 +21,7 @@ import {
 import { db, getCurrentUser } from "./firebase-db.js";
 import { getTitleColor } from "./title-colors.js";
 import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=2";
-import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js";
+import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=2";
 
 // 地図画面と同じキー
 mapboxgl.accessToken =
@@ -833,7 +833,14 @@ function renderSpots() {
         view.textContent = "地図で見る";
         actions.append(edit, view);
 
-        li.append(badges, name, info, actions);
+        // 画像のファイル名を決める時に使う聖地のIDと、今の画像
+        const meta = document.createElement("p");
+        meta.className = "spot-meta";
+        const image = normalizeSpotImage(spot.data.image_url);
+        meta.textContent = "ID：" + spot.id + "　画像：" +
+            (image === "no_image" ? "なし" : image.replace(/^images\/spots\//, ""));
+
+        li.append(badges, name, meta, info, actions);
         ul.appendChild(li);
     });
 }

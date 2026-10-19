@@ -1,7 +1,9 @@
 // ==========================================
 // 聖地の画像（地図の詳細・管理ページで共通）
-// 画像は GitHub のこのリポジトリの map画面/images/spots/ に置く。
-// spot の image_url には「images/spots/ファイル名」を保存する（画像なしは "no_image"）。
+// 画像は GitHub のこのリポジトリの map画面/images/spots/ に、写真の種類ごとに分けて置く。
+//   anime/：アニメの場面   real/：現地の写真
+// ファイル名は聖地のID（例：anime/s11.png、real/s11.jpg）。
+// spot の image_url には「images/spots/real/s11.jpg」のように保存する（画像なしは "no_image"）。
 // https:// から始まるURLが入っていれば、そのまま使う
 // ==========================================
 
@@ -13,8 +15,12 @@ function isNoImage(value) {
     return !value || value === "no_image" || value === "not_image";
 }
 
+// 写真の種類ごとのフォルダ（images/spots/ の中）
+export const SPOT_IMAGE_KINDS = { anime: "アニメの場面", real: "現地の写真" };
+
 // 管理ページで入力された値を、保存する形にする
-// ・ファイル名だけ（ujibashi.jpg）        → images/spots/ujibashi.jpg
+// ・種類/ファイル名（real/s11.jpg）       → images/spots/real/s11.jpg
+// ・ファイル名だけ（s11.jpg）             → images/spots/s11.jpg
 // ・GitHub の画像ページのURL               → images/spots/ujibashi.jpg
 // ・map画面/images/spots/… や ../images/… → images/spots/…
 // ・それ以外の https:// のURL              → そのまま
@@ -40,8 +46,8 @@ export function normalizeSpotImage(input) {
         .replace(/^\/+/, "")
         .replace(/^map画面\//, "");
 
-    // ファイル名だけなら、画像のフォルダにあるものとする
-    if (!value.includes("/")) {
+    // 「real/s11.jpg」やファイル名だけなら、画像のフォルダの中にあるものとする
+    if (!value.startsWith("images/")) {
         value = SPOT_IMAGE_DIR + value;
     }
 
