@@ -2937,64 +2937,104 @@ function startRouteDrag(event) {
     );
 }
 
-
 // =========================================================
-// Googleマップへ渡す
+// Googleマップへ渡す＋ルート情報をローカルに保存
 // =========================================================
-window.openGoogleMapsRoute =
-    function () {
-        if (
-            selectedSpots.length === 0
-        ) {
-            window.showToast(
-                "行きたい場所を追加してください",
-                "error"
-            );
+window.openGoogleMapsRoute = function () {
 
-            return;
-        }
-
-        const locations =
-            selectedSpots.map(
-                function (spot) {
-                    return (
-                        `${spot.latitude},${spot.longitude}`
-                    );
-                }
-            );
-
-        const destination =
-            locations[
-                locations.length - 1
-            ];
-
-        const waypoints =
-            locations
-                .slice(
-                    0,
-                    -1
-                )
-                .join("|");
-
-        let url =
-            "https://www.google.com/maps/dir/?" +
-            "api=1" +
-            `&destination=${encodeURIComponent(destination)}`;
-
-        if (waypoints) {
-            url +=
-                `&waypoints=${encodeURIComponent(waypoints)}`;
-        }
-
-        url +=
-            "&travelmode=walking";
-
-        window.open(
-            url,
-            "_blank"
+    if (selectedSpots.length === 0) {
+        window.showToast(
+            "行きたい場所を追加してください",
+            "error"
         );
+
+        return;
+    }
+
+    const locations = selectedSpots.map(
+        function (spot) {
+            return `${spot.latitude},${spot.longitude}`;
+        }
+    );
+
+    const destination =
+        locations[locations.length - 1];
+
+    const waypoints = locations
+        .slice(0, -1)
+        .join("|");
+
+    let url =
+        "https://www.google.com/maps/dir/?" +
+        "api=1" +
+        `&destination=${encodeURIComponent(destination)}`;
+
+    if (waypoints) {
+        url +=
+            `&waypoints=${encodeURIComponent(waypoints)}`;
+    }
+
+    url += "&travelmode=walking";
+
+
+    // =====================================================
+    // ルート情報をローカルに保存
+    // =====================================================
+    const routeData = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+
+        // 保存日時
+        savedAt: new Date().toISOString(),
+
+        // 選択したスポット情報
+        spots: selectedSpots.map(
+            function (spot) {
+                return { ...spot };
+            }
+        ),
+
+        // 目的地・経由地
+        destination: destination,
+        waypoints: locations.slice(0, -1),
+
+        // 移動方法
+        travelMode: "walking",
+
+        // GoogleマップのURL
+        googleMapsUrl: url
     };
 
+    try {
+        const history = JSON.parse(
+            localStorage.getItem("googleMapsRouteHistory") || "[]"
+        );
+
+        // 新しい履歴を先頭に追加
+        const updatedHistory = Array.isArray(history)
+            ? history
+            : [];
+
+        updatedHistory.unshift(routeData);
+
+        // 増えすぎないよう、新しいものから50件までにする
+        localStorage.setItem(
+            "googleMapsRouteHistory",
+            JSON.stringify(updatedHistory.slice(0, 50))
+        );
+
+    } catch (error) {
+        console.error(
+            "ルート履歴の保存に失敗しました",
+            error
+        );
+    }
+
+
+    // =====================================================
+    // Googleマップを開く
+    // =====================================================
+    window.open(url, "_blank");
+};
 
 // =========================================================
 // HTML読み込み後に経路ボタンを接続
