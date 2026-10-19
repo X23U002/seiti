@@ -29,7 +29,7 @@ import {
 import { getSpotEpisodeLabel } from "./episode.js?v=2";
 
 // 聖地の画像（GitHub の map画面/images/spots/ に置いたもの）
-import { getSpotImageSrc } from "./spot-image.js";
+import { getSpotImageSrc } from "./spot-image.js?v=2";
 
 // お気に入り・保存したルート
 import {

@@ -436,3 +436,12 @@
 .form-hint.image-missing {
     color: var(--color-danger);
 }
+
+/* 聖地のIDと今の画像（画像のファイル名を決める時に使う） */
+.spot-meta {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--color-text-sub);
+    overflow-wrap: anywhere;
+    user-select: all;
+}
