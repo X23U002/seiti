@@ -28,6 +28,9 @@ import {
 // ※ ?v= を付けて、ブラウザに残った古い episode.js を使わないようにする
 import { getSpotEpisodeLabel } from "./episode.js?v=2";
 
+// 聖地の画像（GitHub の map画面/images/spots/ に置いたもの）
+import { getSpotImageSrc } from "./spot-image.js";
+
 // お気に入り・保存したルート
 import {
     loadFavorites,
@@ -1343,10 +1346,8 @@ function drawMarkers(list) {
                 "無題のスポット";
 
             // 画像が無いスポットは image_url が "no_image"（古いデータは "not_image"）
-            const hasImage =
-                Boolean(data.image_url) &&
-                data.image_url !== "no_image" &&
-                data.image_url !== "not_image";
+            const imageSrc =
+                getSpotImageSrc(data.image_url);
 
             const titleColor =
                 titleColorMap[
@@ -1457,10 +1458,10 @@ function drawMarkers(list) {
                         </p>
                     </div>
 
-                    ${hasImage
+                    ${imageSrc
                         ? `<div class="popup-image">
                             <img
-                                src="${escapeHTML(data.image_url)}"
+                                src="${escapeHTML(imageSrc)}"
                                 alt="スポット画像"
                                 onerror="this.parentNode.classList.add('no-image')"
                             >

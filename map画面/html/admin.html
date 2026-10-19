@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex">
     <title>管理ページ - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css">
-    <link rel="stylesheet" href="../css/admin.css?v=3">
+    <link rel="stylesheet" href="../css/admin.css?v=4">
 
     <!-- 位置の確認・調整に使う地図 -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
@@ -143,6 +143,16 @@
                     <input type="url" id="ap-title-url" placeholder="https://" maxlength="300">
                 </div>
 
+                <div class="form-group">
+                    <label for="ap-image">画像</label>
+                    <input type="text" id="ap-image" placeholder="(例) uji-bridge.jpg" maxlength="300" aria-describedby="ap-image-help">
+                    <p class="form-hint" id="ap-image-help">
+                        GitHub の <code>map画面/images/spots/</code> に置いた画像のファイル名を入れてください（GitHub の画像ページのURLを貼っても大丈夫です）。空欄なら画像なし。
+                    </p>
+                    <img class="image-preview" id="ap-image-preview" alt="画像のプレビュー" hidden>
+                    <p class="form-hint" id="ap-image-status" aria-live="polite"></p>
+                </div>
+
                 <button type="submit" class="btn btn-success" id="ap-submit">許可して地図に追加する</button>
             </form>
         </div>
@@ -188,6 +198,6 @@
 
     <script src="../js/common.js"></script>
     <script src="../js/toast.js"></script>
-    <script type="module" src="../js/admin.js?v=6"></script>
+    <script type="module" src="../js/admin.js?v=7"></script>
 </body>
 </html>
