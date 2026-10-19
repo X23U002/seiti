@@ -6,10 +6,6 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 
 import {
-    getAnalytics
-} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-analytics.js";
-
-import {
     collection,
     getDocs
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
@@ -42,7 +38,14 @@ import {
 window.getTitleColor = getTitleColor;
 
 // firebase-db.js が作った Firebase の接続でアクセス解析を付ける
-getAnalytics(getApp());
+// （広告ブロックなどで読み込めなくても地図は動くよう、別に読み込む）
+import("https://www.gstatic.com/firebasejs/12.15.0/firebase-analytics.js")
+    .then(function (analytics) {
+        analytics.getAnalytics(getApp());
+    })
+    .catch(function (error) {
+        console.warn("アクセス解析を読み込めませんでした:", error);
+    });
 
 
 // =========================================================
@@ -248,22 +251,12 @@ function escapeHTML(value) {
 // （色分け・絞り込みのリストと同じ名前にそろえる）
 
 
-async function loadData() {
-    const spotSnapshot =
-        await getDocs(
-            collection(
-                db,
-                "spot"
-            )
-        );
-
+// 聖地の一覧を使えるようにする（色・絞り込み・スタンプ画面にも反映する）
+function setSpots(list) {
     spots = [];
 
-    spotSnapshot.forEach(
-        function (docSnap) {
-            const data =
-                docSnap.data();
-
+    list.forEach(
+        function (data) {
             if (!data.coord) {
                 return;
             }
@@ -279,10 +272,7 @@ async function loadData() {
                     titleName
                 );
 
-            spots.push({
-                id: docSnap.id,
-                ...data
-            });
+            spots.push(data);
         }
     );
 
@@ -299,6 +289,164 @@ async function loadData() {
     ) {
         window.refreshStampUI();
     }
+}
+
+// 位置は { latitude, longitude } の形にそろえる（端末に記録できるように）
+function toSpot(id, data) {
+    const spot = Object.assign({ id: id }, data);
+
+    if (data.coord) {
+        spot.coord = {
+            latitude: Number(data.coord.latitude),
+            longitude: Number(data.coord.longitude)
+        };
+    }
+
+    return spot;
+}
+
+// ---------- Firestore から読む（ふつうの方法） ----------
+async function fetchSpotsFromFirestore() {
+    const spotSnapshot =
+        await getDocs(
+            collection(
+                db,
+                "spot"
+            )
+        );
+
+    const list = [];
+
+    spotSnapshot.forEach(
+        function (docSnap) {
+            list.push(
+                toSpot(docSnap.id, docSnap.data())
+            );
+        }
+    );
+
+    return list;
+}
+
+// ---------- Firestore の Web API から読む（予備） ----------
+// 広告ブロックの拡張機能などで Firestore の通信（…/channel）が止められると、
+// ふつうの読み込みが終わらなくなる。聖地は誰でも読めるので、別の入り口から読む
+const FIRESTORE_REST_URL =
+    "https://firestore.googleapis.com/v1/projects/sisukai-121cf/databases/(default)/documents/spot";
+
+function fromRestValue(value) {
+    if (!value || typeof value !== "object") return null;
+    if ("stringValue" in value) return value.stringValue;
+    if ("integerValue" in value) return Number(value.integerValue);
+    if ("doubleValue" in value) return Number(value.doubleValue);
+    if ("booleanValue" in value) return value.booleanValue;
+    if ("geoPointValue" in value) {
+        return {
+            latitude: Number(value.geoPointValue.latitude || 0),
+            longitude: Number(value.geoPointValue.longitude || 0)
+        };
+    }
+    if ("timestampValue" in value) return value.timestampValue;
+    return null;
+}
+
+async function fetchSpotsFromRest() {
+    const list = [];
+    let pageToken = "";
+
+    do {
+        const url =
+            FIRESTORE_REST_URL +
+            "?pageSize=300" +
+            (pageToken ? "&pageToken=" + encodeURIComponent(pageToken) : "");
+
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error("Web API から読めませんでした: " + response.status);
+        }
+
+        const json = await response.json();
+
+        (json.documents || []).forEach(
+            function (doc) {
+                const data = {};
+                Object.keys(doc.fields || {}).forEach(
+                    function (key) {
+                        data[key] = fromRestValue(doc.fields[key]);
+                    }
+                );
+                list.push(
+                    toSpot(doc.name.split("/").pop(), data)
+                );
+            }
+        );
+
+        pageToken = json.nextPageToken || "";
+    } while (pageToken);
+
+    return list;
+}
+
+// 時間内に終わらなければ失敗にする
+function withTimeout(promise, ms) {
+    return Promise.race([
+        promise,
+        new Promise(function (resolve, reject) {
+            setTimeout(function () {
+                reject(new Error(ms / 1000 + "秒以内に読み込めませんでした"));
+            }, ms);
+        })
+    ]);
+}
+
+// ---------- 前回読み込んだ聖地（すぐにピンを出すため、端末に記録しておく） ----------
+const SPOT_CACHE_KEY = "seitiSpotCache";
+
+function readSpotCache() {
+    try {
+        const list = JSON.parse(localStorage.getItem(SPOT_CACHE_KEY) || "null");
+        return Array.isArray(list) ? list : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function writeSpotCache(list) {
+    try {
+        localStorage.setItem(SPOT_CACHE_KEY, JSON.stringify(list));
+    } catch (error) {
+        // 保存できない環境では何もしない
+    }
+}
+
+// 最新の聖地を読む：Firestore（8秒まで）→ だめなら Web API
+const FIRESTORE_TIMEOUT_MS = 8000;
+
+async function fetchLatestSpots() {
+    try {
+        return await withTimeout(
+            fetchSpotsFromFirestore(),
+            FIRESTORE_TIMEOUT_MS
+        );
+    } catch (error) {
+        console.warn(
+            "Firestore から聖地を読めなかったので、Web API から読みます:",
+            error
+        );
+        return fetchSpotsFromRest();
+    }
+}
+
+// 地図の準備と同時に読み始める（地図の読み込みを待たない）
+const latestSpotsPromise =
+    fetchLatestSpots();
+
+// 前回の聖地があれば、すぐに使えるようにしておく
+const cachedSpots =
+    readSpotCache();
+
+if (cachedSpots) {
+    setSpots(cachedSpots);
 }
 
 
@@ -1865,36 +2013,70 @@ function initializeSearchBox() {
 map.on(
     "load",
     async function () {
-        // データ読み込み
-        try {
-            await loadData();
-        } catch (error) {
-            console.error(
-                "データの読み込みに失敗:",
-                error
-            );
-        }
-
-
-        // ピン描画
-        try {
-            drawMarkers(
-                spots
-            );
-        } catch (error) {
-            console.error(
-                "ピンの描画に失敗:",
-                error
-            );
-        }
-
-
-        // 検索バー表示
+        // 検索バー表示（聖地の読み込みを待たずに出す。聖地の候補は読み込めた分から出る）
         try {
             initializeSearchBox();
         } catch (error) {
             console.error(
                 "検索バーの表示に失敗:",
+                error
+            );
+        }
+
+
+        // 前回の聖地があれば、すぐにピンを出す
+        if (cachedSpots) {
+            try {
+                applyActiveFilter();
+            } catch (error) {
+                console.error(
+                    "ピンの描画に失敗:",
+                    error
+                );
+            }
+        }
+
+
+        // 最新の聖地を待つ（遅い時はお知らせする）
+        const slowTimer =
+            setTimeout(
+                function () {
+                    window.showToast(
+                        "聖地を読み込んでいます…"
+                    );
+                },
+                cachedSpots ? 15000 : 3000
+            );
+
+        try {
+            const latest =
+                await latestSpotsPromise;
+
+            setSpots(latest);
+            writeSpotCache(latest);
+        } catch (error) {
+            console.error(
+                "データの読み込みに失敗:",
+                error
+            );
+
+            if (!cachedSpots) {
+                window.showToast(
+                    "聖地を読み込めませんでした。通信状況を確認して、ページを開き直してください",
+                    "error"
+                );
+            }
+        }
+
+        clearTimeout(slowTimer);
+
+
+        // ピン描画（絞り込み中ならそれに合わせる）
+        try {
+            applyActiveFilter();
+        } catch (error) {
+            console.error(
+                "ピンの描画に失敗:",
                 error
             );
         }
