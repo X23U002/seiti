@@ -409,3 +409,30 @@
     clip: rect(0 0 0 0);
     white-space: nowrap;
 }
+
+/* ---------- 聖地の画像 ---------- */
+.image-preview {
+    display: block;
+    width: 100%;
+    max-height: 200px;
+    margin-top: 8px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    background: var(--color-bg);
+}
+
+.image-preview[hidden] {
+    display: none;
+}
+
+.form-hint code {
+    padding: 0 4px;
+    border-radius: 4px;
+    background: var(--color-bg);
+    font-size: 12px;
+}
+
+/* 画像が見つからない時 */
+.form-hint.image-missing {
+    color: var(--color-danger);
+}

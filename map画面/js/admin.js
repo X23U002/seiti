@@ -21,6 +21,7 @@ import {
 import { db, getCurrentUser } from "./firebase-db.js";
 import { getTitleColor } from "./title-colors.js";
 import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=2";
+import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js";
 
 // 地図画面と同じキー
 mapboxgl.accessToken =
@@ -530,6 +531,9 @@ function openSpotForm(mode, values) {
     document.getElementById("ap-spot-info").value = values.info || "";
     document.getElementById("ap-address").value = values.address || "";
     document.getElementById("ap-title-url").value = values.titleUrl || "";
+    const image = normalizeSpotImage(values.image);
+    document.getElementById("ap-image").value = image === "no_image" ? "" : image.replace(/^images\/spots\//, "");
+    updateImagePreview();
     document.getElementById("ap-season").value = values.season || "";
     document.getElementById("ap-episode").value = values.episode || "";
 
@@ -604,6 +608,7 @@ function openEditSpot(spot) {
         titleName: data.title_name,
         info: data.spot_info,
         titleUrl: data.title_url,
+        image: data.image_url,
         season: saved ? data.season : guess.season,
         episode: saved ? data.episode : guess.episode,
         coord: data.coord
@@ -624,6 +629,41 @@ document.getElementById("ap-title-name").addEventListener("change", function (ev
 });
 
 document.getElementById("ap-geocode").addEventListener("click", geocodeAddress);
+
+// ---------- 画像（GitHub の map画面/images/spots/ に置いたもの） ----------
+function updateImagePreview() {
+    const src = getSpotImageSrc(normalizeSpotImage(document.getElementById("ap-image").value));
+    const preview = document.getElementById("ap-image-preview");
+    const status = document.getElementById("ap-image-status");
+
+    if (!src) {
+        preview.hidden = true;
+        preview.removeAttribute("src");
+        status.textContent = "画像なし（地図には「画像はまだありません」と出ます）";
+        status.className = "form-hint";
+        return;
+    }
+
+    status.textContent = "画像を確認しています…";
+    status.className = "form-hint";
+    preview.onload = function () {
+        preview.hidden = false;
+        status.textContent = "この画像が地図に表示されます";
+    };
+    preview.onerror = function () {
+        preview.hidden = true;
+        status.textContent = "画像が見つかりません。ファイル名を確認してください（GitHub に置いてから表示されるまで数分かかることがあります）";
+        status.className = "form-hint image-missing";
+    };
+    preview.src = src;
+}
+
+// 入力が止まったら確かめる（1文字ごとに画像を読みに行かないように）
+let imagePreviewTimer = null;
+document.getElementById("ap-image").addEventListener("input", function () {
+    clearTimeout(imagePreviewTimer);
+    imagePreviewTimer = setTimeout(updateImagePreview, 500);
+});
 
 // 作品の一覧（入力候補・公式サイト）に追加する
 function rememberTitle(titleName, titleUrl) {
@@ -647,6 +687,7 @@ document.getElementById("approve-form").addEventListener("submit", async functio
     const titleUrl = document.getElementById("ap-title-url").value.trim();
     const season = readEpisodeNumber(document.getElementById("ap-season"), 99);
     const episode = readEpisodeNumber(document.getElementById("ap-episode"), 999);
+    const imageUrl = normalizeSpotImage(document.getElementById("ap-image").value);
 
     setFieldError("ap-spot-name", spotName === "");
     setFieldError("ap-title-name", titleName === "");
@@ -664,8 +705,9 @@ document.getElementById("approve-form").addEventListener("submit", async functio
     button.disabled = true;
     setSubmitText(true);
 
-    // 入力した内容（画像は変えない。新しい聖地は画像なし）
+    // 入力した内容
     const fields = {
+        image_url: imageUrl,
         spot_name: spotName,
         title_name: titleName,
         coord: new GeoPoint(lngLat.lat, lngLat.lng),
@@ -687,7 +729,7 @@ document.getElementById("approve-form").addEventListener("submit", async functio
             notify("「" + spotName + "」を保存しました");
         } else {
             const spotRef = doc(collection(db, "spot"));
-            const data = Object.assign({ image_url: "no_image" }, fields);
+            const data = Object.assign({}, fields);
             batch.set(spotRef, data);
 
             if (formMode === "approve") {
