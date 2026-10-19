@@ -506,10 +506,12 @@ async function geocodeAddress() {
 let formMode = "approve";
 let editingSpot = null;     // 編集中の聖地 { id, data }
 
+// 新しく登録と編集は、見出し・ボタンとも同じ画面にする
+const SPOT_EDIT_TEXT = { title: "聖地の登録・編集", submit: "保存する", busy: "保存中…" };
 const FORM_TEXT = {
     approve: { title: "聖地として地図に追加", submit: "許可して地図に追加する", busy: "追加中…" },
-    new: { title: "新しい聖地を登録", submit: "地図に登録する", busy: "登録中…" },
-    edit: { title: "聖地を編集", submit: "変更を保存する", busy: "保存中…" }
+    new: SPOT_EDIT_TEXT,
+    edit: SPOT_EDIT_TEXT
 };
 
 function setSubmitText(busy) {
@@ -699,7 +701,9 @@ document.getElementById("approve-form").addEventListener("submit", async functio
 
             if (formMode === "approve") approving.data.request_state = "完了";
             spots.push({ id: spotRef.id, data: data });
-            notify("「" + spotName + "」を地図に追加しました");
+            notify(formMode === "approve"
+                ? "「" + spotName + "」を地図に追加しました"
+                : "「" + spotName + "」を保存しました");
         }
 
         rememberTitle(titleName, titleUrl);
