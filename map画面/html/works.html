@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>作品一覧 - 聖地巡礼NAVI</title>
+    <link rel="stylesheet" href="../css/common.css">
+    <link rel="stylesheet" href="../css/work.css">
+</head>
+<body>
+
+    <!-- アプリ共通ヘッダー -->
+    <header class="app-header">
+        <a href="map.html" class="back-btn" aria-label="マップに戻る">＜ マップ</a>
+        <h1>作品一覧</h1>
+    </header>
+
+    <main class="content">
+        <label class="work-search">
+            <span class="visually-hidden">作品名で探す</span>
+            <input type="search" id="work-search" placeholder="作品名で探す">
+        </label>
+
+        <!-- 読み込み中・読めなかった時 -->
+        <div class="card empty-state" id="works-notice">
+            <div class="empty-state-icon">⏳</div>
+            <p>読み込み中…</p>
+        </div>
+
+        <ul class="work-list" id="work-list" hidden></ul>
+    </main>
+
+    <script src="../js/common.js"></script>
+    <script type="module" src="../js/works.js"></script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>作品 - 聖地巡礼NAVI</title>
+    <link rel="stylesheet" href="../css/common.css">
+    <link rel="stylesheet" href="../css/work.css">
+</head>
+<body>
+
+    <!-- アプリ共通ヘッダー -->
+    <header class="app-header">
+        <a href="works.html" class="back-btn" aria-label="作品一覧に戻る">＜ 作品一覧</a>
+        <h1 id="page-title">作品</h1>
+    </header>
+
+    <main class="content">
+
+        <!-- 読み込み中・見つからない時 -->
+        <div class="card empty-state" id="work-notice">
+            <div class="empty-state-icon">⏳</div>
+            <p>読み込み中…</p>
+        </div>
+
+        <div id="work-main" hidden>
+            <!-- 作品の見出し -->
+            <section class="card work-hero" id="work-hero">
+                <h2 id="work-title"></h2>
+                <p class="work-meta" id="work-meta"></p>
+                <div class="work-progress" id="work-progress" hidden><span class="work-progress-bar" id="work-progress-bar"></span></div>
+                <p class="work-progress-label" id="work-progress-label" hidden></p>
+                <div class="work-actions">
+                    <a class="btn btn-primary" id="work-map">地図でこの作品の聖地を見る</a>
+                    <a class="btn btn-secondary" id="work-official" target="_blank" rel="noopener noreferrer" hidden>公式サイト</a>
+                </div>
+            </section>
+
+            <!-- おすすめルート -->
+            <section class="work-section" id="route-section" hidden>
+                <h2 class="work-section-title">おすすめルート</h2>
+                <ul class="work-routes" id="work-routes"></ul>
+            </section>
+
+            <!-- 聖地一覧（何期の何話の順） -->
+            <section class="work-section">
+                <h2 class="work-section-title">聖地一覧 <span class="work-section-note">（話数の順）</span></h2>
+                <ul class="work-spots" id="work-spots"></ul>
+            </section>
+        </div>
+    </main>
+
+    <script src="../js/common.js"></script>
+    <script type="module" src="../js/work.js"></script>
+</body>
+</html>
