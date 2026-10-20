@@ -111,7 +111,12 @@ function renderFavorites(favorites) {
                 window.showToast("「" + spot.name + "」をお気に入りから外しました");
             } catch (error) {
                 console.error("お気に入りを外せませんでした:", error);
-                window.showToast("お気に入りを外せませんでした", "error");
+                window.showToast(
+                    error && error.code === "permission-denied"
+                        ? "お気に入りを外す権限がありません（Firestore のルールの favorite が必要です）"
+                        : "お気に入りを外せませんでした。通信状況を確認してください",
+                    "error"
+                );
                 remove.disabled = false;
             }
         });
@@ -166,7 +171,13 @@ function renderRoutes(routes) {
                 window.showToast("ルートを削除しました");
             } catch (error) {
                 console.error("ルートを削除できませんでした:", error);
-                window.showToast("ルートを削除できませんでした", "error");
+                // ルールで削除が許可されていない時は、その旨を出す（管理者がルールを直せるように）
+                window.showToast(
+                    error && error.code === "permission-denied"
+                        ? "ルートを削除する権限がありません（Firestore のルールの root に allow delete が必要です）"
+                        : "ルートを削除できませんでした。通信状況を確認してください",
+                    "error"
+                );
                 remove.disabled = false;
             }
         });
