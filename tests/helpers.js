@@ -13,7 +13,6 @@ const require = createRequire(import.meta.url);
 const here = path.dirname(fileURLToPath(import.meta.url));
 const read = (file) => fs.readFileSync(file);
 const mapboxDist = path.dirname(require.resolve("mapbox-gl/dist/mapbox-gl.js"));
-const geocoderDist = path.dirname(require.resolve("@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.min.js"));
 
 export const SPOTS = JSON.parse(fs.readFileSync(path.join(here, "fixtures/spots.json"), "utf8"));
 export const spotNamed = (name) => SPOTS.find((spot) => spot.spot_name === name);
@@ -27,6 +26,15 @@ export function withSpots(other = {}) {
 
 // 何もない背景だけの地図スタイル（地図の画像は読まない）
 const STYLE = { version: 8, sources: {}, layers: [{ id: "bg", type: "background", paint: { "background-color": "#e3ece4" } }] };
+
+// 地図の検索（Mapbox Search Box API）の答え：いつも「京都駅」が1件見つかる
+export const SEARCH_PLACE = { name: "京都駅", lng: 135.7588, lat: 34.9858 };
+const SEARCH_SUGGEST = {
+    suggestions: [{ mapbox_id: "test-kyoto-station", name: SEARCH_PLACE.name, full_address: "京都府京都市下京区東塩小路町" }]
+};
+const SEARCH_RETRIEVE = {
+    features: [{ geometry: { type: "Point", coordinates: [SEARCH_PLACE.lng, SEARCH_PLACE.lat] }, properties: { name: SEARCH_PLACE.name } }]
+};
 
 const DOCUMENTS = "projects/sisukai-121cf/databases/(default)/documents/";
 
@@ -118,12 +126,12 @@ export const test = base.extend({
             if (url.endsWith("firebase-firestore.js")) return script(route, read(path.join(here, "mocks/firestore.js")));
             if (url.endsWith("firebase-analytics.js")) return script(route, "export function getAnalytics(){return {}}");
             if (url.startsWith("https://firestore.googleapis.com/v1/")) return answerRest(route, state.data, restCalls);
-            if (url.includes("mapbox-gl-geocoder.min.js")) return script(route, read(path.join(geocoderDist, "mapbox-gl-geocoder.min.js")));
-            if (url.includes("mapbox-gl-geocoder.css")) return css(route, read(path.join(geocoderDist, "mapbox-gl-geocoder.css")));
             if (url.includes("mapbox-gl.js")) return script(route, read(path.join(mapboxDist, "mapbox-gl.js")));
             if (url.includes("mapbox-gl.css")) return css(route, read(path.join(mapboxDist, "mapbox-gl.css")));
             if (url.includes("/styles/v1/")) return json(route, STYLE);
             if (url.includes("/geocoding/v5/")) return json(route, { features: [{ center: [135.8063, 34.8930], place_name: "宇治橋" }] });
+            if (url.includes("/search/searchbox/v1/suggest")) return json(route, SEARCH_SUGGEST);
+            if (url.includes("/search/searchbox/v1/retrieve/")) return json(route, SEARCH_RETRIEVE);
             return route.fulfill({ status: 404, body: "" });
         });
 
