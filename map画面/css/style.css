@@ -2730,20 +2730,25 @@ body {
     z-index: 10;
 }
 
-/* ピンを大きく・影を付ける（ピンの先を基準に大きくする） */
+/* ピンを大きく・影を付ける（ピンの先を基準に大きくする）
+   Mapbox の標準のピン（高さ41px）は、上から 34.5px の所が地図上の位置（ピンの先）。
+   下端（影の部分）を基準にすると、大きくした時にピンの先が上にずれるため、ピンの先を基準にする */
 .mapboxgl-marker.is-selected svg {
     transform: scale(1.45);
-    transform-origin: 50% 100%;
+    transform-origin: 50% 34.5px;
     filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .45));
     transition: transform .2s ease;
 }
 
-/* ピンの先に広がる輪（地面に置いた目印のように） */
+/* ピンの先に広がる輪（地面に置いた目印のように）
+   輪の真ん中がピンの先（上から 34.5px）に来るようにする。
+   枠線の太さで大きさがずれないよう、枠線込みの大きさにする */
 .mapboxgl-marker.is-selected::before {
     content: "";
     position: absolute;
+    box-sizing: border-box;
     left: 50%;
-    bottom: -7px;
+    top: 28.5px;
     width: 30px;
     height: 12px;
     margin-left: -15px;
