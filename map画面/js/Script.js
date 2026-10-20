@@ -1555,6 +1555,12 @@ function setSelectedMarker(spotId, selected) {
                 element.classList.toggle("is-selected", selected);
             }
         );
+
+    // 詳細を開いている間は、ほかのピンを少し薄くして、見ているピンを目立たせる（style.css）
+    map.getContainer().classList.toggle(
+        "has-selected",
+        Boolean(document.querySelector(".mapboxgl-marker.is-selected"))
+    );
 }
 
 function createSpotPopup(html, data, longitude, latitude) {
@@ -1669,7 +1675,22 @@ function groupSpotsByGeohash(list) {
 // =========================================================
 // マーカー描画
 // =========================================================
+// ピンの出し方（ズームによって変わる）と、最後に描いた一覧
+// ズームしても出し方も一覧も同じなら、描き直さない（開いている詳細が閉じないように）
+function getMarkerMode() {
+    const zoom = map.getZoom();
+    if (zoom <= 7) return "group3";
+    if (zoom <= 10) return "group4";
+    return "spots";
+}
+
+let drawnMarkerMode = null;
+let drawnMarkerList = null;
+
 function drawMarkers(list) {
+    drawnMarkerMode = getMarkerMode();
+    drawnMarkerList = list;
+
     spotMarkers.forEach(
         function (spotMarker) {
             spotMarker.remove();
@@ -2082,6 +2103,16 @@ map.on(
         if (hoverPopup) {
             hoverPopup.remove();
             hoverPopup = null;
+        }
+
+        // 1か所ずつのピンを出している間は、ズームしてもピンは同じなので描き直さない
+        // （描き直すと、開いている詳細が閉じて、どのピンを見ていたか分からなくなる）
+        if (
+            getMarkerMode() === "spots" &&
+            drawnMarkerMode === "spots" &&
+            drawnMarkerList === currentSpots
+        ) {
+            return;
         }
 
         drawMarkers(
