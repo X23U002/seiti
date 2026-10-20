@@ -995,6 +995,62 @@ document.addEventListener(
 );
 
 // =========================================================
+// map.html?work=作品名 で開いた時は、その作品で絞り込んで聖地が全部見えるようにする
+// （作品ページの「地図でこの作品の聖地を見る」から使う）
+// =========================================================
+function openWorkFromUrl() {
+    const work =
+        new URLSearchParams(
+            location.search
+        ).get("work");
+
+    if (!work) {
+        return false;
+    }
+
+    const workSpots =
+        spots.filter(
+            function (spot) {
+                return getTitleName(spot) === work;
+            }
+        );
+
+    if (workSpots.length === 0) {
+        window.showToast(
+            "「" + work + "」の聖地が見つかりませんでした",
+            "error"
+        );
+        return false;
+    }
+
+    activeFilter.titles = [work];
+    activeFilter.keyword = "";
+    applyActiveFilter();
+
+    const bounds = new mapboxgl.LngLatBounds();
+    workSpots.forEach(
+        function (spot) {
+            bounds.extend(getSpotLngLat(spot));
+        }
+    );
+    map.fitBounds(
+        bounds,
+        {
+            padding: 80,
+            maxZoom: 15,
+            duration: 0
+        }
+    );
+
+    window.showToast(
+        "「" + work + "」の聖地（" + workSpots.length + "か所）を表示しています"
+    );
+
+    return true;
+}
+
+
+// =========================================================
 // 地図上にあるピンから、そのスポットの詳細を開く
 // =========================================================
 function openSpotMarker(spotId) {
@@ -2026,12 +2082,14 @@ function drawMarkers(list) {
                 <div class="popup-card">
 
                     <div class="popup-meta">
-                        <div
+                        <a
                             class="popup-title"
                             style="background:${titleColor};"
+                            href="work.html?title=${encodeURIComponent(titleName)}"
+                            title="「${escapeHTML(titleName)}」の作品ページを開く"
                         >
                             ${escapeHTML(titleName)}
-                        </div>
+                        </a>
                         ${getEpisodeBadgeHTML(data)}
                         <div class="popup-actions">
                             <button
@@ -2566,8 +2624,17 @@ map.on(
         // ログインしていればお気に入りを読み込む（待たずに進める）
         loadFavoriteIds();
 
-        // おすすめルートを読み込む（待たずに進める）
-        loadCourses();
+        // おすすめルートを読み込む（待たずに進める）。
+        // 作品ページの「このルートで巡る」（map.html?course=ID）から来た時は、読み込めたらそのルートを始める
+        loadCourses().then(
+            function () {
+                const courseId =
+                    new URLSearchParams(location.search).get("course");
+                if (courseId) {
+                    startCourse(courseId);
+                }
+            }
+        );
 
         // URLで聖地やルートが指定されていれば、そこを表示する
         // （その時は現在地へカメラが動かないよう、現在地の自動取得はしない）
@@ -2575,7 +2642,9 @@ map.on(
         try {
             openedSpot =
                 openRouteFromUrl() ||
-                openSpotFromUrl();
+                openWorkFromUrl() ||
+                openSpotFromUrl() ||
+                new URLSearchParams(location.search).has("course");
         } catch (error) {
             console.warn(
                 "指定された聖地を開けませんでした:",

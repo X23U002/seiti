@@ -1,0 +1,252 @@
+@charset "UTF-8";
+
+/* =========================================
+   作品一覧（works.html）・作品ページ（work.html）
+   作品の色は --work-color（JavaScript で入れる）
+========================================= */
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+/* ---------- 作品一覧 ---------- */
+.work-search input {
+    width: 100%;
+    min-height: 46px;
+    margin-bottom: 14px;
+    padding: 10px 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 23px;
+    background: var(--color-surface);
+    font-family: inherit;
+    font-size: 16px;
+}
+
+.work-list {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.work-card {
+    display: block;
+    padding: 16px 18px;
+    border-left: 6px solid var(--work-color, var(--color-primary));
+    color: var(--color-text);
+    text-decoration: none;
+    transition: box-shadow .2s, transform .2s;
+}
+
+.work-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.work-card h2 {
+    margin: 0 0 4px;
+    font-size: 17px;
+    color: var(--color-primary);
+    overflow-wrap: anywhere;
+}
+
+.work-meta {
+    margin: 0;
+    font-size: 13px;
+    color: var(--color-text-sub);
+}
+
+/* スタンプの進み具合 */
+.work-progress {
+    height: 8px;
+    margin-top: 10px;
+    border-radius: 4px;
+    background: var(--color-bg);
+    overflow: hidden;
+}
+
+.work-progress-bar {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    background: var(--work-color, var(--color-primary));
+}
+
+.work-progress-label {
+    margin: 4px 0 0;
+    font-size: 12px;
+    font-weight: bold;
+    color: var(--color-text-sub);
+}
+
+/* ---------- 作品ページ ---------- */
+.work-hero {
+    border-top: 6px solid var(--work-color, var(--color-primary));
+}
+
+.work-hero h2 {
+    margin: 0 0 4px;
+    font-size: 22px;
+    color: var(--color-primary);
+    overflow-wrap: anywhere;
+}
+
+.work-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.work-actions .btn {
+    flex: 1;
+    width: auto;
+    min-width: 140px;
+    text-align: center;
+    text-decoration: none;
+}
+
+.work-actions .btn[hidden] {
+    display: none;
+}
+
+.work-section {
+    margin-top: 24px;
+}
+
+.work-section-title {
+    margin: 0 0 10px;
+    font-size: 16px;
+    color: var(--color-primary);
+}
+
+.work-section-note {
+    font-size: 12px;
+    font-weight: normal;
+    color: var(--color-text-sub);
+}
+
+.work-routes,
+.work-spots {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* おすすめルート */
+.work-route h3 {
+    margin: 0 0 4px;
+    font-size: 16px;
+}
+
+.work-route-description {
+    margin: 8px 0 0;
+    font-size: 14px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+}
+
+.work-route-stops {
+    margin: 10px 0 12px;
+    padding: 0;
+    list-style: none;
+    counter-reset: stop;
+}
+
+.work-route-stops li {
+    position: relative;
+    padding: 3px 0 3px 30px;
+    font-size: 14px;
+    counter-increment: stop;
+}
+
+.work-route-stops li::before {
+    content: counter(stop);
+    position: absolute;
+    left: 0;
+    top: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+    line-height: 20px;
+    text-align: center;
+}
+
+.work-route .btn {
+    display: block;
+    text-align: center;
+    text-decoration: none;
+}
+
+/* 聖地一覧 */
+.work-spot {
+    overflow: hidden;
+}
+
+.work-spot-image {
+    display: block;
+    width: calc(100% + 40px);
+    height: 160px;
+    margin: -20px -20px 12px;
+    object-fit: cover;
+}
+
+.work-spot-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.work-spot-head h3 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--color-primary);
+    overflow-wrap: anywhere;
+}
+
+.work-ep {
+    padding: 2px 8px;
+    border: 1.5px solid var(--color-primary);
+    border-radius: 999px;
+    color: var(--color-primary);
+    font-size: 12px;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.work-done {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #e8f6ee;
+    color: var(--color-success-hover);
+    font-size: 12px;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.work-spot-info {
+    margin: 8px 0 0;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--color-text);
+}
+
+.work-spot-map {
+    display: block;
+    margin-top: 10px;
+    text-align: center;
+    text-decoration: none;
+}
