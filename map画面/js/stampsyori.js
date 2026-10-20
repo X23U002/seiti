@@ -15,7 +15,8 @@ const STAMP_FIREBASE_CONFIG = {
 };
 
 // スタンプの保存先
-// stamp/{自動ID}：{ user_id: user/{ID}への参照, spot_id: spot/{ID}への参照, time_stamp: 取得日時 }
+// stamp/{自動ID}：{ user_id: user/{ID}への参照, spot_id: spot/{ID}への参照,
+//                   position: 取った時の現在地, time_stamp: 取得日時（サーバーの時刻） }
 // ※ Firestoreのルールで「作成」だけが許可されている（更新・削除はできない）
 const STAMP_COLLECTION_NAME = "stamp";
 const USER_COLLECTION_NAME = "user";
@@ -101,77 +102,6 @@ function getStampCooldownMs() {
     return STAMP_DEBUG_MODE
         ? DEBUG_STAMP_COOLDOWN_MS
         : NORMAL_STAMP_COOLDOWN_MS;
-}
-
-
-// ==========================================
-// 以前に端末へ保存した取得時刻を読む（DBへの移行用）
-// ==========================================
-function loadLegacyLocalStampHistory() {
-    try {
-        const saved =
-            localStorage.getItem(
-                STAMP_HISTORY_STORAGE_KEY
-            );
-
-        if (saved) {
-            const parsed =
-                JSON.parse(saved);
-
-            if (
-                parsed &&
-                typeof parsed ===
-                    "object" &&
-                !Array.isArray(parsed)
-            ) {
-                return parsed;
-            }
-        }
-
-        // 古いID配列形式から移行
-        const legacySaved =
-            localStorage.getItem(
-                LEGACY_STAMP_STORAGE_KEY
-            );
-
-        if (!legacySaved) {
-            return {};
-        }
-
-        const legacyIds =
-            JSON.parse(
-                legacySaved
-            );
-
-        if (
-            !Array.isArray(
-                legacyIds
-            )
-        ) {
-            return {};
-        }
-
-        const migratedHistory = {};
-        const migratedAt =
-            Date.now();
-
-        legacyIds.forEach(
-            function (spotId) {
-                migratedHistory[
-                    String(spotId)
-                ] = migratedAt;
-            }
-        );
-
-        return migratedHistory;
-    } catch (error) {
-        console.warn(
-            "スタンプ履歴の読込に失敗しました:",
-            error
-        );
-
-        return {};
-    }
 }
 
 
@@ -797,11 +727,11 @@ function prepareStampFirebase() {
 
 // ==========================================
 // 1件分のスタンプ（stampコレクションのルールに合わせる）
-// stampedAt を省くとサーバーの時刻になる
+// 取った時刻はサーバーの時刻。取った時の現在地（position）も入れ、
+// ルールで「聖地の近くで取ったか」を確かめる
 // ==========================================
 function createStampDocument(
-    spotId,
-    stampedAt
+    spotId
 ) {
     return {
         user_id:
@@ -814,118 +744,35 @@ function createStampDocument(
                 .doc(
                     String(spotId)
                 ),
+        position:
+            new window.firebase
+                .firestore
+                .GeoPoint(
+                    currentStampPosition.latitude,
+                    currentStampPosition.longitude
+                ),
         time_stamp:
-            stampedAt
-                ? window.firebase
-                    .firestore
-                    .Timestamp
-                    .fromMillis(
-                        stampedAt
-                    )
-                : window.firebase
-                    .firestore
-                    .FieldValue
-                    .serverTimestamp()
+            window.firebase
+                .firestore
+                .FieldValue
+                .serverTimestamp()
     };
 }
 
 
 // ==========================================
-// 以前に端末へ保存したスタンプをDBへ移す（1回だけ）
+// 以前（DBに保存する前）に端末へ残したスタンプの記録を消す
+// ※ 以前は端末の記録をDBへ移していたが、端末の記録は書きかえられるため
+//   （取っていないスタンプをDBに入れられてしまう）、移さずに消す
 // ==========================================
-async function migrateLocalStampsToFirestore() {
-    let collected = [];
-
+function clearLegacyLocalStamps() {
     try {
-        collected =
-            JSON.parse(
-                localStorage.getItem(
-                    COLLECTED_STAMPS_STORAGE_KEY
-                )
-            ) || [];
+        localStorage.removeItem(STAMP_HISTORY_STORAGE_KEY);
+        localStorage.removeItem(LEGACY_STAMP_STORAGE_KEY);
+        localStorage.removeItem(COLLECTED_STAMPS_STORAGE_KEY);
     } catch (error) {
-        collected = [];
+        // 消せない環境では何もしない
     }
-
-    const localHistory =
-        loadLegacyLocalStampHistory();
-
-    // スポットID → 端末に残っていた情報
-    const localStamps = {};
-
-    collected.forEach(
-        function (stamp) {
-            if (stamp && stamp.id !== undefined) {
-                localStamps[String(stamp.id)] = stamp;
-            }
-        }
-    );
-
-    Object.keys(
-        localHistory
-    ).forEach(
-        function (spotId) {
-            localStamps[spotId] =
-                localStamps[spotId] || { id: spotId };
-        }
-    );
-
-    const spotIds =
-        Object.keys(
-            localStamps
-        ).filter(
-            function (spotId) {
-                // DBに既にあるスポットはそのまま
-                return !(spotId in stampHistory);
-            }
-        );
-
-    if (spotIds.length > 0) {
-        const batch =
-            stampDb.batch();
-
-        spotIds.forEach(
-            function (spotId) {
-                const stampedAt =
-                    Number(localHistory[spotId]) ||
-                    Date.now();
-
-                batch.set(
-                    stampDb
-                        .collection(
-                            STAMP_COLLECTION_NAME
-                        )
-                        .doc(),
-                    createStampDocument(
-                        spotId,
-                        stampedAt
-                    )
-                );
-            }
-        );
-
-        await batch.commit();
-
-        // 保存できてから地図に反映する
-        spotIds.forEach(
-            function (spotId) {
-                stampHistory[spotId] =
-                    Number(localHistory[spotId]) ||
-                    Date.now();
-
-                stampCounts[spotId] = 1;
-            }
-        );
-
-        console.log(
-            `スタンプ：端末の${spotIds.length}件をDBへ移しました`
-        );
-    }
-
-    // 移し終わったので端末からは消す
-    localStorage.removeItem(STAMP_HISTORY_STORAGE_KEY);
-    localStorage.removeItem(LEGACY_STAMP_STORAGE_KEY);
-    localStorage.removeItem(COLLECTED_STAMPS_STORAGE_KEY);
 }
 
 
@@ -1022,15 +869,7 @@ async function initializeStampStorage() {
         stampStorageState =
             "ready";
 
-        try {
-            await migrateLocalStampsToFirestore();
-        } catch (error) {
-            // 移行に失敗しても端末のデータは残っているので、次回また試す
-            console.warn(
-                "端末のスタンプをDBへ移せませんでした:",
-                error
-            );
-        }
+        clearLegacyLocalStamps();
 
         console.log(
             "スタンプ：DBから読み込み完了"
