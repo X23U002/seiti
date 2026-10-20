@@ -3,16 +3,17 @@
 // ==========================================
 import {
     doc,
-    getDoc,
     updateDoc
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 import { db } from "./firebase-db.js";
+// 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
+import { getOneDoc } from "./public-data.js";
 
 // 登録されているニックネーム（見つからなければ null）
 export async function loadUserName(userId) {
-    const snapshot = await getDoc(doc(db, "user", userId));
-    return snapshot.exists() ? snapshot.data().user_name || null : null;
+    const data = await getOneDoc("user", userId);
+    return data ? data.user_name || null : null;
 }
 
 // ニックネームを変更する

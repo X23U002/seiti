@@ -167,7 +167,7 @@
     <script src="../js/mypage.js?v=5"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
-        import { loadStampBook } from "../js/stamp-db.js?v=6";
+        import { loadStampBook } from "../js/stamp-db.js?v=7";
 
         loadStampBook().then(function (book) {
             renderRecord(book.stamps || [], book.stamps === null ? "guest" : "ready", book.summary);
@@ -177,7 +177,7 @@
         });
 
         // ニックネームはDBの内容を正とする（別の端末で変えた時も反映される）
-        import { loadUserName, saveUserName } from "../js/profile-db.js";
+        import { loadUserName, saveUserName } from "../js/profile-db.js?v=2";
         import { auth, getCurrentUser } from "../js/firebase-db.js";
         import { clearLoginState } from "../js/login-state.js";
         import { signOut } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
@@ -192,21 +192,16 @@
         showAccount(user ? user.email : null);
         if (userId) {
             // 管理者なら管理ページへの入口を出す（読めなければ管理者ではない）
-            import("https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js").then(async function (fs) {
-                const { db } = await import("../js/firebase-db.js");
-                const snap = await fs.getDoc(fs.doc(db, "admin", userId));
-                document.getElementById("admin-menu").hidden = !snap.exists();
+            // 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
+            import("../js/public-data.js").then(async function (data) {
+                document.getElementById("admin-menu").hidden = !(await data.getOneDoc("admin", userId));
             }).catch(function () {
                 // 管理者ではない
             });
 
             // 未読のお知らせの数
-            import("https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js").then(async function (fs) {
-                const { db } = await import("../js/firebase-db.js");
-                const snap = await fs.getDocs(fs.query(
-                    fs.collection(db, "message"),
-                    fs.where("user_id", "==", fs.doc(db, "user", userId))
-                ));
+            import("../js/public-data.js").then(async function (data) {
+                const snap = await data.queryMine("message");
                 let unread = 0;
                 snap.forEach(function (d) { if (!d.data().is_read) unread++; });
                 const badge = document.getElementById("inbox-badge");

@@ -40,7 +40,7 @@ import {
     loadFavorites,
     saveRoute,
     setFavorite
-} from "./saved-db.js";
+} from "./saved-db.js?v=2";
 
 // stampsyori.js（スタンプ獲得の演出）からも同じ色を使う
 window.getTitleColor = getTitleColor;

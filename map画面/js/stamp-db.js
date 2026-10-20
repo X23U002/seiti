@@ -4,15 +4,9 @@
 //   { user_id: user/{ID}への参照, spot_id: spot/{ID}への参照, time_stamp: 取得日時 }
 // （書き込みは地図画面の stampsyori.js が行う）
 // ==========================================
-import {
-    collection,
-    doc,
-    getDocs,
-    query,
-    where
-} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
-
-import { db, getCurrentUser } from "./firebase-db.js";
+import { getCurrentUser } from "./firebase-db.js";
+// 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
+import { fetchCollection, queryMine } from "./public-data.js";
 import { getTitleColor, getTitleName } from "./title-colors.js";
 
 // ログイン中のユーザーのID（Firebase Authentication の uid。未ログインなら null）
@@ -76,15 +70,20 @@ export async function loadStampBook() {
     const userId = await getLoginUserId();
 
     // 聖地の一覧と、このユーザーのスタンプを同時に読む
-    const [spotSnapshot, stampSnapshot] = await Promise.all([
-        getDocs(collection(db, "spot")),
-        userId
-            ? getDocs(query(
-                collection(db, "stamp"),
-                where("user_id", "==", doc(db, "user", userId))
-            ))
-            : null
+    const [spotList, stampSnapshot] = await Promise.all([
+        fetchCollection("spot"),
+        userId ? queryMine("stamp") : null
     ]);
+
+    // 聖地は { id, ...項目 } の配列なので、これまでと同じく forEach(doc => doc.id / doc.data()) で使える形にする
+    const spotSnapshot = {
+        forEach: function (callback) {
+            spotList.forEach(function (item) {
+                const { id, ...data } = item;
+                callback({ id: id, data: function () { return data; } });
+            });
+        }
+    };
 
     const summary = buildSpotSummary(spotSnapshot);
     if (!userId) {

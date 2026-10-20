@@ -1,12 +1,16 @@
 // ==========================================
-// 作品一覧・作品ページで使うデータ（聖地・おすすめルート・自分のスタンプ）
-// 聖地とおすすめルートは誰でも読める。広告ブロックなどで Firestore の通信が止められても
-// 読めるよう、時間内に読めなければ Firestore の Web API から読む（地図画面と同じ考え方）。
+// Firestore の読み込み（地図以外の画面で共通）
+// 広告ブロックなどで Firestore の通信（…/channel）が止められると、読み込みが終わらなくなる。
+// そこで、時間内に読めなければ Firestore の Web API（ふつうの fetch）から読む。
+// ・誰でも読めるもの（聖地・おすすめルート）：そのまま読む
+// ・自分のもの（スタンプ・お気に入り・保存したルート・お知らせ・自分の user）：
+//   ログイン中の人の ID トークンを付けて読む（Firestore のルールはそのまま効く）
 // 聖地は地図画面が端末に記録した一覧（seitiSpotCache）があれば、先にそれを使える
 // ==========================================
 import {
     collection,
     doc,
+    getDoc,
     getDocs,
     query,
     where
@@ -16,7 +20,8 @@ import { db, getCurrentUser } from "./firebase-db.js";
 import { COURSE_COLLECTION, sortCourses } from "./course.js";
 
 const FIRESTORE_TIMEOUT_MS = 8000;
-const REST_URL = "https://firestore.googleapis.com/v1/projects/sisukai-121cf/databases/(default)/documents/";
+const DATABASE_PATH = "projects/sisukai-121cf/databases/(default)/documents";
+const REST_URL = "https://firestore.googleapis.com/v1/" + DATABASE_PATH + "/";
 const SPOT_CACHE_KEY = "seitiSpotCache";
 
 function withTimeout(promise, ms) {
@@ -81,8 +86,123 @@ async function fetchFromFirestore(collectionName) {
     return list;
 }
 
-// Firestore（8秒まで）→ だめなら Web API
-async function fetchCollection(collectionName) {
+// ---------- 自分のもの（ID トークンを付けて読む） ----------
+
+// Web API の日時・参照を、Firestore の読み込み結果と同じように使える形にする
+function toTimestampLike(iso) {
+    const ms = Date.parse(iso);
+    return {
+        seconds: Math.floor(ms / 1000),
+        toMillis: function () { return ms; },
+        toDate: function () { return new Date(ms); }
+    };
+}
+
+function fromRestValueRich(value) {
+    if (value && typeof value === "object") {
+        if ("referenceValue" in value) {
+            return { id: value.referenceValue.split("/").pop(), path: value.referenceValue };
+        }
+        if ("timestampValue" in value) return toTimestampLike(value.timestampValue);
+        if ("arrayValue" in value) return (value.arrayValue.values || []).map(fromRestValueRich);
+    }
+    return fromRestValue(value);
+}
+
+function restFields(fields) {
+    const data = {};
+    Object.keys(fields || {}).forEach(function (key) {
+        data[key] = fromRestValueRich(fields[key]);
+    });
+    return data;
+}
+
+// { id, data() } の形（Firestore の読み込み結果の doc と同じように使える）
+function toDocLike(id, data) {
+    return { id: id, data: function () { return data; } };
+}
+
+async function authHeaders() {
+    const user = await getCurrentUser();
+    if (!user) throw Object.assign(new Error("ログインしていません"), { code: "not-logged-in" });
+    return {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + await user.getIdToken()
+    };
+}
+
+function restError(response) {
+    return Object.assign(
+        new Error("Web API から読めませんでした: " + response.status),
+        { code: response.status === 403 ? "permission-denied" : "unavailable" }
+    );
+}
+
+// collectionName のうち、user_id が自分のものを読む。[{ id, data() }]
+export async function queryMine(collectionName) {
+    const user = await getCurrentUser();
+    if (!user) return [];
+
+    try {
+        const snapshot = await withTimeout(
+            getDocs(query(collection(db, collectionName), where("user_id", "==", doc(db, "user", user.uid)))),
+            FIRESTORE_TIMEOUT_MS
+        );
+        const list = [];
+        snapshot.forEach(function (d) { list.push(toDocLike(d.id, d.data())); });
+        return list;
+    } catch (error) {
+        if (error && error.code === "permission-denied") throw error;
+        console.warn(collectionName + " を Firestore から読めなかったので、Web API から読みます:", error);
+    }
+
+    const response = await fetch(REST_URL.replace(/\/$/, "") + ":runQuery", {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({
+            structuredQuery: {
+                from: [{ collectionId: collectionName }],
+                where: {
+                    fieldFilter: {
+                        field: { fieldPath: "user_id" },
+                        op: "EQUAL",
+                        value: { referenceValue: DATABASE_PATH + "/user/" + user.uid }
+                    }
+                }
+            }
+        })
+    });
+    if (!response.ok) throw restError(response);
+
+    return (await response.json())
+        .filter(function (row) { return row.document; })
+        .map(function (row) {
+            return toDocLike(row.document.name.split("/").pop(), restFields(row.document.fields));
+        });
+}
+
+// 1件だけ読む（自分の user・自分の admin など）。無ければ null、あれば項目
+export async function getOneDoc(collectionName, docId) {
+    try {
+        const snapshot = await withTimeout(getDoc(doc(db, collectionName, docId)), FIRESTORE_TIMEOUT_MS);
+        return snapshot.exists() ? snapshot.data() : null;
+    } catch (error) {
+        if (error && error.code === "permission-denied") throw error;
+        console.warn(collectionName + "/" + docId + " を Firestore から読めなかったので、Web API から読みます:", error);
+    }
+
+    const response = await fetch(REST_URL + collectionName + "/" + encodeURIComponent(docId), {
+        headers: await authHeaders()
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw restError(response);
+    return restFields((await response.json()).fields);
+}
+
+// ---------- 誰でも読めるもの ----------
+
+// Firestore（8秒まで）→ だめなら Web API。[{ id, ...項目 }]
+export async function fetchCollection(collectionName) {
     try {
         return await withTimeout(fetchFromFirestore(collectionName), FIRESTORE_TIMEOUT_MS);
     } catch (error) {
@@ -137,13 +257,8 @@ export async function loadMyStampCounts() {
     const user = await getCurrentUser();
     if (!user) return null;
 
-    const snapshot = await withTimeout(
-        getDocs(query(collection(db, "stamp"), where("user_id", "==", doc(db, "user", user.uid)))),
-        FIRESTORE_TIMEOUT_MS
-    );
-
     const counts = {};
-    snapshot.forEach(function (stampDoc) {
+    (await queryMine("stamp")).forEach(function (stampDoc) {
         const spotId = stampDoc.data().spot_id && stampDoc.data().spot_id.id;
         if (spotId) counts[spotId] = (counts[spotId] || 0) + 1;
     });

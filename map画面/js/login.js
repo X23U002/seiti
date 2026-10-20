@@ -5,12 +5,9 @@ import {
     signInWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
 
-import {
-    doc,
-    getDoc
-} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
-
-import { auth, db } from "./firebase-db.js";
+import { auth } from "./firebase-db.js";
+// 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
+import { getOneDoc } from "./public-data.js";
 import { authErrorMessage, saveLoginState } from "./login-state.js";
 
 // 「メールアドレスを保存する」で使う保存先
@@ -51,9 +48,9 @@ async function login() {
         // ニックネームは user/{uid} に保存してある（無ければメールアドレスの@より前を仮の名前にする）
         let nickname = email.split("@")[0];
         try {
-            const userSnap = await getDoc(doc(db, "user", uid));
-            if (userSnap.exists() && userSnap.data().user_name) {
-                nickname = userSnap.data().user_name;
+            const user = await getOneDoc("user", uid);
+            if (user && user.user_name) {
+                nickname = user.user_name;
             }
         } catch (error) {
             console.warn("ニックネームを読み込めませんでした:", error);
