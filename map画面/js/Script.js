@@ -638,6 +638,24 @@ function goToSpot(spotId) {
         return;
     }
 
+    // 検索で1か所だけ表示している時などは、移動先のピンが地図に無いので、
+    // 絞り込みどおりの表示に戻してから移動する（それでも無ければ移動先を足す）
+    const isShown = function () {
+        return currentSpots.some(
+            function (item) {
+                return String(item.id) === String(spot.id);
+            }
+        );
+    };
+
+    if (!isShown()) {
+        currentSpots = filterSpots();
+        if (!isShown()) {
+            currentSpots = currentSpots.concat([spot]);
+        }
+        drawMarkers(currentSpots);
+    }
+
     // 今開いている詳細を閉じてから移動する
     spotMarkers.forEach(
         function (marker) {
@@ -654,6 +672,8 @@ function goToSpot(spotId) {
             Number(spot.coord.latitude)
         ],
         zoom: Math.max(map.getZoom(), 15),
+        // 詳細を開くとピンの位置を合わせ直すので、移動中は余白なしで真ん中へ
+        padding: { top: 0, right: 0, bottom: 0, left: 0 },
         duration: prefersReducedMotion() ? 0 : 1200
     });
 
@@ -1234,9 +1254,13 @@ function createSpotPopup(html, data, longitude, latitude) {
             setSelectedMarker(data.id, false);
 
             // 開いている詳細が無くなったら、地図の中心を元に戻す
+            // （「近くの聖地」で別の聖地へ移動中の時は、その移動を止めてしまうので戻さない）
             setTimeout(
                 function () {
-                    if (!document.querySelector(".mapboxgl-popup .popup-card")) {
+                    if (
+                        !document.querySelector(".mapboxgl-popup .popup-card") &&
+                        !map.isMoving()
+                    ) {
                         map.easeTo({
                             padding: { top: 0, right: 0, bottom: 0, left: 0 },
                             duration: prefersReducedMotion() ? 0 : 300
