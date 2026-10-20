@@ -538,6 +538,8 @@ const FORM_TEXT = {
 function setSubmitText(busy) {
     const text = FORM_TEXT[formMode];
     document.getElementById("ap-submit").textContent = busy ? text.busy : text.submit;
+    // 削除は、登録済みの聖地を編集している時だけ
+    document.getElementById("ap-delete").hidden = formMode !== "edit";
 }
 
 // values：{ spotName, titleName, info, address, titleUrl, season, episode, coord }
@@ -686,6 +688,76 @@ let imagePreviewTimer = null;
 document.getElementById("ap-image").addEventListener("input", function () {
     clearTimeout(imagePreviewTimer);
     imagePreviewTimer = setTimeout(updateImagePreview, 500);
+});
+
+// ---------- 聖地の削除 ----------
+// この聖地を通るおすすめルートからも外す（2か所未満になるルートは削除する）。
+// スタンプ・お気に入り・保存したルートの記録は残るが、聖地が無いので表示されなくなる
+document.getElementById("ap-delete").addEventListener("click", async function () {
+    if (formMode !== "edit" || !editingSpot) return;
+
+    const spot = editingSpot;
+    const name = spot.data.spot_name || "（スポット名なし）";
+    const affected = courseList.filter(function (course) {
+        return (course.data.spot_ids || []).includes(spot.id);
+    });
+
+    const message =
+        "「" + name + "」を削除しますか？元に戻せません。\n\n" +
+        (affected.length
+            ? "この聖地を通るおすすめルート（" + affected.length + "本）からも外します。\n"
+            : "") +
+        "この聖地のスタンプ・お気に入りの記録は残りますが、表示されなくなります。";
+    if (!window.confirm(message)) return;
+
+    const button = this;
+    button.disabled = true;
+    button.textContent = "削除中…";
+
+    try {
+        const batch = writeBatch(db);
+        batch.delete(doc(db, "spot", spot.id));
+
+        const courseChanges = affected.map(function (course) {
+            const spotIds = course.data.spot_ids.filter(function (id) { return id !== spot.id; });
+            const ref = doc(db, COURSE_COLLECTION, course.id);
+            if (spotIds.length < COURSE_MIN_SPOTS) {
+                batch.delete(ref);
+                return { course: course, removed: true };
+            }
+            const data = Object.assign({}, course.data, { spot_ids: spotIds, updated_at: serverTimestamp() });
+            batch.set(ref, data);
+            return { course: course, removed: false, data: data };
+        });
+
+        await batch.commit();
+
+        spots = spots.filter(function (item) { return item !== spot; });
+        courseChanges.forEach(function (change) {
+            if (change.removed) {
+                courseList = courseList.filter(function (course) { return course !== change.course; });
+            } else {
+                change.course.data = change.data;
+            }
+        });
+
+        notify("「" + name + "」を削除しました");
+        window.closeApprove();
+        renderSpots();
+        renderEpisodes();
+        renderCourses();
+    } catch (error) {
+        console.error(error);
+        notify(
+            error && error.code === "permission-denied"
+                ? "削除する権限がありません。Firestore のルールの spot に allow delete を追加してください"
+                : "削除できませんでした。通信状況を確認してください",
+            "error"
+        );
+    } finally {
+        button.disabled = false;
+        button.textContent = "この聖地を削除する";
+    }
 });
 
 // 作品の一覧（入力候補・公式サイト）に追加する

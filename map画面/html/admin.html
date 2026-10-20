@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex">
     <title>管理ページ - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css">
-    <link rel="stylesheet" href="../css/admin.css?v=6">
+    <link rel="stylesheet" href="../css/admin.css?v=7">
 
     <!-- 位置の確認・調整に使う地図 -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
@@ -166,6 +166,9 @@
                 </div>
 
                 <button type="submit" class="btn btn-success" id="ap-submit">許可して地図に追加する</button>
+
+                <!-- 編集の時だけ出す -->
+                <button type="button" class="btn btn-secondary spot-delete" id="ap-delete" hidden>この聖地を削除する</button>
             </form>
         </div>
     </div>

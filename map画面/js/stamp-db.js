@@ -112,9 +112,11 @@ export async function loadStampBook() {
         entry.count += 1;
     });
 
+    // 削除された聖地のスタンプは出さない
     const stamps = Object.keys(bySpot)
+        .filter(function (spotId) { return spots[spotId]; })
         .map(function (spotId) {
-            const spot = spots[spotId] || {};
+            const spot = spots[spotId];
             return {
                 id: spotId,
                 name: spot.spot_name || "無題のスポット",
