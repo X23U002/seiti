@@ -445,3 +445,134 @@
     overflow-wrap: anywhere;
     user-select: all;
 }
+
+/* タブが増えたので、狭い画面では折り返す */
+.admin-tabs {
+    flex-wrap: wrap;
+}
+
+.admin-tab {
+    min-width: 72px;
+}
+
+/* ---------- おすすめ聖地巡礼ルート ---------- */
+#course-new {
+    margin-bottom: 12px;
+}
+
+.course-select {
+    width: 100%;
+    min-height: 46px;
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    font-family: inherit;
+    font-size: 16px;
+}
+
+/* 選んだ聖地（回る順） */
+.course-chosen {
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: course-stop;
+}
+
+.course-chosen li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--color-border);
+    counter-increment: course-stop;
+}
+
+.course-chosen li:not(.course-chosen-empty)::before {
+    content: counter(course-stop);
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 12px;
+    font-weight: bold;
+    line-height: 24px;
+    text-align: center;
+}
+
+.course-chosen-empty {
+    color: var(--color-text-sub);
+    font-size: 13px;
+}
+
+.course-stop-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: bold;
+    overflow-wrap: anywhere;
+}
+
+.course-stop-buttons {
+    display: flex;
+    flex-shrink: 0;
+    gap: 4px;
+}
+
+.course-stop-buttons .btn {
+    width: 40px;
+    min-height: 40px;
+    padding: 0;
+    font-size: 14px;
+}
+
+.course-stop-buttons .course-remove {
+    color: var(--color-danger);
+}
+
+.course-sort {
+    width: auto;
+    margin-top: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+}
+
+.course-candidates-label {
+    margin-top: 16px;
+}
+
+.course-candidates {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.course-candidate {
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.course-candidate:hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-light);
+}
+
+.course-candidate:disabled {
+    opacity: .5;
+    cursor: default;
+}
+
+.course-delete {
+    flex: 0 0 auto;
+    color: var(--color-danger);
+}

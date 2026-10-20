@@ -40,7 +40,7 @@
     <!-- 自作CSS -->
     <link
         rel="stylesheet"
-        href="../css/style.css?v=5"
+        href="../css/style.css?v=6"
     >
 
     <!-- スタンプのランク（回数で枠の色が変わる） -->
@@ -81,6 +81,10 @@
         </div>
 
         <ul>
+            <li>
+                <a href="#" onclick="openCourses(); return false;"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16"/></svg>おすすめルート</a>
+            </li>
+
             <li>
                 <a href="mypage.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>マイページ</a>
             </li>
@@ -220,6 +224,40 @@
     ></div>
 
 
+    <!-- おすすめ聖地巡礼ルート（下から出るシート） -->
+    <div
+        id="course-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="course-heading"
+    >
+
+        <div class="filter-header">
+
+            <h2 id="course-heading">おすすめルート</h2>
+
+            <button
+                type="button"
+                onclick="closeCourses()"
+                aria-label="閉じる"
+            >
+                ✕
+            </button>
+
+        </div>
+
+        <p class="filter-note">選ぶと、そのルートがルート案内に入ります。距離と時間は直線距離からの目安です。</p>
+
+        <div id="course-list"></div>
+
+    </div>
+
+    <div
+        id="course-backdrop"
+        onclick="closeCourses()"
+    ></div>
+
+
     <!-- 現在地 -->
     <button
         id="location-btn"
@@ -335,7 +373,7 @@
     ====================================================== -->
     <script
         type="module"
-        src="../js/Script.js?v=15"
+        src="../js/Script.js?v=16"
     ></script>
 
 
@@ -356,6 +394,10 @@
 
             if (document.getElementById("filter-modal").style.display === "block") {
                 window.closeFilter();
+            }
+
+            if (document.getElementById("course-modal").style.display === "block") {
+                window.closeCourses();
             }
         });
     </script>

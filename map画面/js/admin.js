@@ -5,6 +5,7 @@
 // ・申請者・お問い合わせした人のメールボックス（message）にお知らせを届ける
 // ・聖地を新しく登録する・登録済みの聖地を編集する
 // ・登録済みの聖地の「何期の何話か」（spot の season・episode）をまとめて入力する
+// ・作品ごとのおすすめ聖地巡礼ルート（course）を作る・直す・消す
 // 誰が管理者かは Firestore のルールでも確かめている（画面を開けても、管理者でなければ読み書きできない）
 // ==========================================
 import {
@@ -22,6 +23,15 @@ import { db, getCurrentUser } from "./firebase-db.js";
 import { getTitleColor } from "./title-colors.js";
 import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=2";
 import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=2";
+import {
+    COURSE_COLLECTION,
+    COURSE_MAX_SPOTS,
+    COURSE_MIN_SPOTS,
+    courseDistance,
+    formatCourseLength,
+    orderByNearest,
+    sortCourses
+} from "./course.js";
 
 // 地図画面と同じキー
 mapboxgl.accessToken =
@@ -1018,20 +1028,323 @@ document.getElementById("episode-save").addEventListener("click", async function
     }
 });
 
+// ---------- おすすめ聖地巡礼ルート（course コレクション） ----------
+let courseList = [];        // { id, data }
+let editingCourse = null;   // 編集中のルート（新しく作る時は null）
+let courseSpotIds = [];     // 編集中のルートの聖地（回る順）
+
+async function loadCourseList() {
+    const snapshot = await getDocs(collection(db, COURSE_COLLECTION));
+    courseList = [];
+    snapshot.forEach(function (d) { courseList.push({ id: d.id, data: d.data() }); });
+}
+
+function findAdminSpot(spotId) {
+    return spots.find(function (spot) { return spot.id === String(spotId); });
+}
+
+// 聖地のデータを、距離の計算に使う形にする
+function toCourseSpot(spot) {
+    return { id: spot.id, spot_name: spot.data.spot_name, coord: spot.data.coord };
+}
+
+function courseSpotsOf(ids) {
+    return ids
+        .map(findAdminSpot)
+        .filter(function (spot) { return spot && spot.data.coord; })
+        .map(toCourseSpot);
+}
+
+function renderCourses() {
+    const ul = document.getElementById("course-list");
+    ul.innerHTML = "";
+    document.getElementById("count-courses").textContent = courseList.length;
+
+    if (courseList.length === 0) {
+        ul.appendChild(emptyItem("まだおすすめルートはありません。「＋ 新しいおすすめルート」から作れます。"));
+        return;
+    }
+
+    sortCourses(courseList.map(function (course) {
+        return Object.assign({ _course: course }, course.data);
+    })).forEach(function (item) {
+        const course = item._course;
+        const courseSpots = courseSpotsOf(course.data.spot_ids || []);
+
+        const li = document.createElement("li");
+        li.className = "card spot-item";
+
+        const badges = document.createElement("div");
+        badges.className = "spot-badges";
+        const title = document.createElement("span");
+        title.className = "spot-title-chip";
+        title.textContent = course.data.title_name || "その他";
+        title.style.background = getTitleColor(course.data.title_name || "その他");
+        badges.appendChild(title);
+
+        const name = document.createElement("h2");
+        name.textContent = course.data.course_name || "（ルート名なし）";
+
+        const meta = document.createElement("p");
+        meta.className = "spot-meta";
+        meta.textContent = courseSpots.length + "か所・" + formatCourseLength(courseDistance(courseSpots)) +
+            "　" + courseSpots.map(function (spot) { return spot.spot_name; }).join(" → ");
+
+        const actions = document.createElement("div");
+        actions.className = "item-actions";
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "btn btn-primary";
+        edit.textContent = "編集";
+        edit.onclick = function () { openCourseEditor(course); };
+        actions.appendChild(edit);
+
+        li.append(badges, name, meta, actions);
+        ul.appendChild(li);
+    });
+}
+
+// 作品の選択肢（聖地がある作品）
+function renderCourseTitleOptions(selected) {
+    const select = document.getElementById("cs-title");
+    const titles = [...new Set(spots.map(function (spot) { return spot.data.title_name || "その他"; }))]
+        .sort(function (a, b) { return a.localeCompare(b, "ja"); });
+
+    select.innerHTML = "";
+    titles.forEach(function (title) {
+        const option = document.createElement("option");
+        option.value = title;
+        option.textContent = title;
+        select.appendChild(option);
+    });
+    if (selected && titles.includes(selected)) select.value = selected;
+}
+
+function openCourseEditor(course) {
+    editingCourse = course || null;
+    const data = course ? course.data : {};
+
+    document.getElementById("course-editor-title").textContent =
+        course ? "おすすめルートを編集" : "新しいおすすめルート";
+    document.getElementById("cs-delete").hidden = !course;
+    document.getElementById("course-error").hidden = true;
+
+    renderCourseTitleOptions(data.title_name);
+    document.getElementById("cs-name").value = data.course_name || "";
+    document.getElementById("cs-description").value = data.description || "";
+    courseSpotIds = (data.spot_ids || []).filter(function (id) { return findAdminSpot(id); });
+    ["cs-name", "cs-spots"].forEach(function (id) { setFieldError(id, false); });
+
+    renderCourseEditor();
+    document.getElementById("course-modal").style.display = "flex";
+    document.getElementById("cs-name").focus();
+}
+
+window.closeCourseEditor = function () {
+    document.getElementById("course-modal").style.display = "none";
+    editingCourse = null;
+};
+
+// 選んだ聖地（回る順）と、まだ選んでいない同じ作品の聖地
+function renderCourseEditor() {
+    const title = document.getElementById("cs-title").value;
+
+    // 作品を変えたら、別の作品の聖地は外す
+    courseSpotIds = courseSpotIds.filter(function (id) {
+        const spot = findAdminSpot(id);
+        return spot && (spot.data.title_name || "その他") === title;
+    });
+
+    const chosen = document.getElementById("cs-chosen");
+    chosen.innerHTML = "";
+
+    courseSpotIds.forEach(function (id, index) {
+        const spot = findAdminSpot(id);
+        const li = document.createElement("li");
+
+        const name = document.createElement("span");
+        name.className = "course-stop-name";
+        name.textContent = spot.data.spot_name || "（スポット名なし）";
+
+        const buttons = document.createElement("span");
+        buttons.className = "course-stop-buttons";
+        [["↑", "上へ", index - 1], ["↓", "下へ", index + 1]].forEach(function (b) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "btn btn-secondary";
+            button.textContent = b[0];
+            button.setAttribute("aria-label", (spot.data.spot_name || "") + "を" + b[1]);
+            button.disabled = b[2] < 0 || b[2] >= courseSpotIds.length;
+            button.onclick = function () {
+                const moved = courseSpotIds.splice(index, 1)[0];
+                courseSpotIds.splice(b[2], 0, moved);
+                renderCourseEditor();
+            };
+            buttons.appendChild(button);
+        });
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "btn btn-secondary course-remove";
+        remove.textContent = "✕";
+        remove.setAttribute("aria-label", (spot.data.spot_name || "") + "をルートから外す");
+        remove.onclick = function () {
+            courseSpotIds.splice(index, 1);
+            renderCourseEditor();
+        };
+        buttons.appendChild(remove);
+
+        li.append(name, buttons);
+        chosen.appendChild(li);
+    });
+
+    if (courseSpotIds.length === 0) {
+        const li = document.createElement("li");
+        li.className = "course-chosen-empty";
+        li.textContent = "下の一覧から、回る聖地を追加してください。";
+        chosen.appendChild(li);
+    }
+
+    const courseSpots = courseSpotsOf(courseSpotIds);
+
+    // となりの聖地まで遠すぎる所があれば知らせる（徒歩の目安が大きくなりすぎるため）
+    const FAR_METERS = 5000;
+    const hasFarLeg = courseSpots.some(function (spot, index) {
+        return index > 0 && courseDistance([courseSpots[index - 1], spot]) >= FAR_METERS;
+    });
+
+    document.getElementById("cs-summary").textContent = courseSpotIds.length >= 2
+        ? courseSpotIds.length + "か所・" + formatCourseLength(courseDistance(courseSpots)) + "（直線距離からの目安）" +
+            (hasFarLeg ? "　※5km以上離れた聖地の間があります。電車などでの移動も考えて、紹介文に書いておくと親切です" : "")
+        : courseSpotIds.length + "か所（" + COURSE_MIN_SPOTS + "か所以上選んでください）";
+    document.getElementById("cs-sort").disabled = courseSpotIds.length < 3;
+
+    // 追加できる聖地
+    const candidates = document.getElementById("cs-candidates");
+    candidates.innerHTML = "";
+    spots
+        .filter(function (spot) {
+            return (spot.data.title_name || "その他") === title && spot.data.coord &&
+                !courseSpotIds.includes(spot.id);
+        })
+        .sort(function (a, b) {
+            return (a.data.spot_name || "").localeCompare(b.data.spot_name || "", "ja");
+        })
+        .forEach(function (spot) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "course-candidate";
+            button.textContent = "＋ " + (spot.data.spot_name || "（スポット名なし）");
+            button.disabled = courseSpotIds.length >= COURSE_MAX_SPOTS;
+            button.onclick = function () {
+                courseSpotIds.push(spot.id);
+                setFieldError("cs-spots", false);
+                renderCourseEditor();
+            };
+            candidates.appendChild(button);
+        });
+}
+
+document.getElementById("cs-title").addEventListener("change", renderCourseEditor);
+
+// 近い順に並べる（いちばん上の聖地から出発）
+document.getElementById("cs-sort").addEventListener("click", function () {
+    courseSpotIds = orderByNearest(courseSpotsOf(courseSpotIds)).map(function (spot) { return spot.id; });
+    renderCourseEditor();
+    notify("いちばん上の聖地から近い順に並べました");
+});
+
+document.getElementById("course-form").addEventListener("submit", async function (event) {
+    event.preventDefault();
+
+    const name = document.getElementById("cs-name").value.trim();
+    const description = document.getElementById("cs-description").value.trim();
+    const title = document.getElementById("cs-title").value;
+
+    setFieldError("cs-name", name === "");
+    setFieldError("cs-spots", courseSpotIds.length < COURSE_MIN_SPOTS);
+    if (name === "") {
+        document.getElementById("cs-name").focus();
+        return;
+    }
+    if (courseSpotIds.length < COURSE_MIN_SPOTS) return;
+
+    const button = document.getElementById("cs-submit");
+    button.disabled = true;
+    button.textContent = "保存中…";
+
+    const data = {
+        title_name: title,
+        course_name: name,
+        description: description,
+        spot_ids: courseSpotIds.slice(),
+        updated_at: serverTimestamp()
+    };
+
+    try {
+        const batch = writeBatch(db);
+        const ref = editingCourse
+            ? doc(db, COURSE_COLLECTION, editingCourse.id)
+            : doc(collection(db, COURSE_COLLECTION));
+        batch.set(ref, data);
+        await batch.commit();
+
+        if (editingCourse) {
+            editingCourse.data = data;
+        } else {
+            courseList.push({ id: ref.id, data: data });
+        }
+        notify("「" + name + "」を保存しました");
+        window.closeCourseEditor();
+        renderCourses();
+    } catch (error) {
+        console.error(error);
+        const box = document.getElementById("course-error");
+        box.textContent = error && error.code === "permission-denied"
+            ? "保存する権限がありません。Firestore のルールに course を追加してください。"
+            : "保存できませんでした。通信状況を確認して、もう一度お試しください。";
+        box.hidden = false;
+    } finally {
+        button.disabled = false;
+        button.textContent = "保存する";
+    }
+});
+
+document.getElementById("cs-delete").addEventListener("click", async function () {
+    if (!editingCourse) return;
+    if (!window.confirm("「" + (editingCourse.data.course_name || "") + "」を削除しますか？")) return;
+
+    try {
+        const batch = writeBatch(db);
+        batch.delete(doc(db, COURSE_COLLECTION, editingCourse.id));
+        await batch.commit();
+
+        courseList = courseList.filter(function (course) { return course !== editingCourse; });
+        notify("おすすめルートを削除しました");
+        window.closeCourseEditor();
+        renderCourses();
+    } catch (error) {
+        console.error(error);
+        notify("削除できませんでした", "error");
+    }
+});
+
+document.getElementById("course-new").addEventListener("click", function () { openCourseEditor(null); });
+
 // ---------- タブ ----------
 function selectTab(name) {
-    ["requests", "contacts", "spots", "episodes"].forEach(function (key) {
+    ["requests", "contacts", "spots", "episodes", "courses"].forEach(function (key) {
         const selected = key === name;
         document.getElementById("tab-" + key).setAttribute("aria-selected", String(selected));
         document.getElementById("panel-" + key).hidden = !selected;
     });
     // 「対応済みも表示」は申請・お問い合わせの時だけ
-    document.getElementById("show-done-label").hidden = name === "spots" || name === "episodes";
+    document.getElementById("show-done-label").hidden = name === "spots" || name === "episodes" || name === "courses";
 }
 document.getElementById("tab-requests").addEventListener("click", function () { selectTab("requests"); });
 document.getElementById("tab-contacts").addEventListener("click", function () { selectTab("contacts"); });
 document.getElementById("tab-spots").addEventListener("click", function () { selectTab("spots"); });
 document.getElementById("tab-episodes").addEventListener("click", function () { selectTab("episodes"); });
+document.getElementById("tab-courses").addEventListener("click", function () { selectTab("courses"); });
 document.getElementById("show-done").addEventListener("change", render);
 
 // ---------- 開いた時 ----------
@@ -1085,6 +1398,15 @@ document.getElementById("show-done").addEventListener("change", render);
     render();
     renderSpots();
     renderEpisodes();
+
+    // おすすめルート（ルールに course が無くても、他の管理はできるよう別に読む）
+    try {
+        await loadCourseList();
+    } catch (error) {
+        console.error("おすすめルートを読めませんでした:", error);
+        notify("おすすめルートを読めませんでした。Firestore のルールに course を追加してください", "error");
+    }
+    renderCourses();
 })();
 
 // 色の確認用（作品名の入力欄の横に作品の色を出す）
