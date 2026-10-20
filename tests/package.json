@@ -1,0 +1,14 @@
+{
+  "name": "seiti-tests",
+  "private": true,
+  "type": "module",
+  "description": "聖地巡礼NAVI（map画面）の自動テスト",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@mapbox/mapbox-gl-geocoder": "5.0.0",
+    "@playwright/test": "1.56.1",
+    "mapbox-gl": "3.12.0"
+  }
+}
