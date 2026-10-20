@@ -895,18 +895,32 @@ function renderCourseList() {
     );
 }
 
-// ---------- 聖地の詳細の「この聖地を通るおすすめルート」 ----------
+// ---------- 聖地の詳細の「おすすめルート」 ----------
+// ピンを押した聖地と同じ作品のおすすめルートを出す。
+// この聖地を通るルートは「この聖地を通る」の印を付けて先に並べる
 function renderSpotCourses(container, spotId) {
     if (!container) {
         return;
     }
 
-    const list = courses.filter(
-        function (course) {
-            return course.spot_ids.map(String).includes(String(spotId)) &&
-                getCourseSpots(course).length > 0;
-        }
-    );
+    const spot = findSpot(spotId);
+    const titleName = spot ? getTitleName(spot) : "";
+    const passes = function (course) {
+        return course.spot_ids.map(String).includes(String(spotId));
+    };
+
+    const list = courses
+        .filter(
+            function (course) {
+                return (passes(course) || (titleName && course.title_name === titleName)) &&
+                    getCourseSpots(course).length > 0;
+            }
+        )
+        .sort(
+            function (a, b) {
+                return Number(passes(b)) - Number(passes(a));
+            }
+        );
 
     container.hidden = list.length === 0;
     container.innerHTML = "";
@@ -916,7 +930,9 @@ function renderSpotCourses(container, spotId) {
     }
 
     const title = document.createElement("strong");
-    title.textContent = "この聖地を通るおすすめルート";
+    title.textContent = titleName
+        ? "「" + titleName + "」のおすすめルート"
+        : "おすすめルート";
     container.appendChild(title);
 
     list.forEach(
@@ -926,15 +942,42 @@ function renderSpotCourses(container, spotId) {
             button.className = "popup-course course-start";
             button.dataset.courseId = course.id;
 
+            const head = document.createElement("span");
+            head.className = "popup-course-head";
+
             const name = document.createElement("span");
             name.className = "popup-course-name";
             name.textContent = course.course_name || "おすすめルート";
+            head.appendChild(name);
+
+            if (passes(course)) {
+                const badge = document.createElement("span");
+                badge.className = "popup-course-badge";
+                badge.textContent = "この聖地を通る";
+                head.appendChild(badge);
+            }
 
             const meta = document.createElement("span");
             meta.className = "popup-course-meta";
             meta.textContent = getCourseSummary(course);
 
-            button.append(name, meta);
+            // 回る順（この聖地は太字）
+            const stops = document.createElement("span");
+            stops.className = "popup-course-stops";
+            getCourseSpots(course).forEach(
+                function (item, index) {
+                    if (index > 0) {
+                        stops.append(" → ");
+                    }
+                    const stop = document.createElement(
+                        String(item.id) === String(spotId) ? "b" : "span"
+                    );
+                    stop.textContent = item.spot_name || "無題のスポット";
+                    stops.appendChild(stop);
+                }
+            );
+
+            button.append(head, meta, stops);
             container.appendChild(button);
         }
     );
@@ -2028,11 +2071,11 @@ function drawMarkers(list) {
 
                     </div>
 
+                    <!-- この作品のおすすめルート（開いた時に作る） -->
+                    <div class="popup-section popup-courses" data-spot-id="${escapeHTML(String(data.id))}" hidden></div>
+
                     <!-- 近くの聖地（開いた時に作る） -->
                     <div class="popup-section popup-nearby" hidden></div>
-
-                    <!-- この聖地を通るおすすめルート（開いた時に作る） -->
-                    <div class="popup-section popup-courses" data-spot-id="${escapeHTML(String(data.id))}" hidden></div>
 
                 </div>
             `;
