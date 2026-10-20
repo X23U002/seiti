@@ -2720,3 +2720,59 @@ body {
     font-size: 12px;
     color: #6b7b8c;
 }
+
+/* =========================================================
+   詳細を開いているピンを目立たせる
+   （まわりにピンが多くても、どのピンを見ているか分かるように）
+========================================================= */
+/* ほかのピンより手前に出す */
+.mapboxgl-marker.is-selected {
+    z-index: 10;
+}
+
+/* ピンを大きく・影を付ける（ピンの先を基準に大きくする） */
+.mapboxgl-marker.is-selected svg {
+    transform: scale(1.45);
+    transform-origin: 50% 100%;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .45));
+    transition: transform .2s ease;
+}
+
+/* ピンの先に広がる輪（地面に置いた目印のように） */
+.mapboxgl-marker.is-selected::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -7px;
+    width: 30px;
+    height: 12px;
+    margin-left: -15px;
+    border: 3px solid #0b3c5d;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, .9);
+    pointer-events: none;
+    animation: selected-pin-pulse 1.6s ease-out infinite;
+}
+
+@keyframes selected-pin-pulse {
+    from { transform: scale(.6); opacity: .95; }
+    to { transform: scale(2.2); opacity: 0; }
+}
+
+/* 詳細を開いている間は、ほかのピンを薄くする */
+#map.has-selected .mapboxgl-marker[data-spot-id]:not(.is-selected) {
+    opacity: .45 !important;
+}
+
+/* 動きを減らす設定の人には、輪を広げず止めて表示する */
+@media (prefers-reduced-motion: reduce) {
+    .mapboxgl-marker.is-selected::before {
+        animation: none;
+        transform: scale(1.2);
+        opacity: .9;
+    }
+
+    .mapboxgl-marker.is-selected svg {
+        transition: none;
+    }
+}
