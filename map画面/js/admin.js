@@ -147,9 +147,9 @@ function stateBadge(state) {
     return badge;
 }
 
-// request_info は「作品名：…／住所：…／説明：…」の形で送られてくる
+// request_info は「作品名：…／住所：…／（期：…／話：…）／説明：…」の形で送られてくる
 function parseRequestInfo(text) {
-    const result = { title: "", address: "", info: "" };
+    const result = { title: "", address: "", info: "", season: null, episode: null };
     const lines = String(text || "").split("\n");
     let inInfo = false;
     lines.forEach(function (line) {
@@ -159,6 +159,10 @@ function parseRequestInfo(text) {
             result.title = line.slice(4);
         } else if (line.startsWith("住所：")) {
             result.address = line.slice(3);
+        } else if (line.startsWith("期：")) {
+            result.season = Number(line.slice(2)) || 0;
+        } else if (line.startsWith("話：")) {
+            result.episode = Number(line.slice(2)) || 0;
         } else if (line.startsWith("説明：")) {
             result.info = line.slice(3);
             inInfo = true;
@@ -214,7 +218,13 @@ function renderRequests(list) {
 
         const dl = document.createElement("dl");
         dl.className = "item-detail";
-        [["作品名", parsed.title], ["住所", parsed.address], ["説明", parsed.info], ["申請者", userLabel(item.user)]]
+        const episodeText = parsed.season || parsed.episode
+            ? (parsed.season ? parsed.season + "期 " : "") + (parsed.episode ? parsed.episode + "話" : "")
+            : "";
+        const placeText = item.data.coord
+            ? "地図でピンを指定済み" + (parsed.address ? "（" + parsed.address + "）" : "")
+            : parsed.address;
+        [["作品名", parsed.title], ["場所", placeText], ["期・話", episodeText], ["説明", parsed.info], ["申請者", userLabel(item.user)]]
             .forEach(function (row) {
                 const dt = document.createElement("dt");
                 dt.textContent = row[0];
@@ -586,8 +596,9 @@ function openApprove(item) {
     approving = item;
     editingSpot = null;
     const parsed = parseRequestInfo(item.data.request_info);
-    // 何期の何話か：説明文から読み取れたら入れておく
-    const episode = parseEpisode(parsed.info);
+    // 何期の何話か：申請に入っていればそれ、無ければ説明文から読み取る
+    const guess = parseEpisode(parsed.info);
+    const hasEpisode = parsed.season !== null || parsed.episode !== null;
 
     openSpotForm("approve", {
         spotName: item.data.request_title,
@@ -595,8 +606,10 @@ function openApprove(item) {
         info: parsed.info,
         address: parsed.address,
         titleUrl: titleUrls[parsed.title],
-        season: episode.season,
-        episode: episode.episode
+        season: hasEpisode ? parsed.season : guess.season,
+        episode: hasEpisode ? parsed.episode : guess.episode,
+        // 申請者が地図でピンを置いていれば、その位置から始める
+        coord: item.data.coord || null
     });
 }
 
