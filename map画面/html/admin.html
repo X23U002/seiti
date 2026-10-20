@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex">
     <title>管理ページ - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css">
-    <link rel="stylesheet" href="../css/admin.css?v=5">
+    <link rel="stylesheet" href="../css/admin.css?v=6">
 
     <!-- 位置の確認・調整に使う地図 -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
@@ -42,6 +42,9 @@
                 </button>
                 <button type="button" class="admin-tab" role="tab" id="tab-episodes" aria-selected="false" aria-controls="panel-episodes">
                     期・話
+                </button>
+                <button type="button" class="admin-tab" role="tab" id="tab-courses" aria-selected="false" aria-controls="panel-courses">
+                    ルート <span class="tab-count" id="count-courses">0</span>
                 </button>
             </div>
 
@@ -85,6 +88,15 @@
                 <div class="episode-save">
                     <button type="button" class="btn btn-primary" id="episode-save" disabled>変更はありません</button>
                 </div>
+            </section>
+
+            <!-- 作品ごとのおすすめ聖地巡礼ルート -->
+            <section id="panel-courses" role="tabpanel" aria-labelledby="tab-courses" hidden>
+                <p class="episode-lead">
+                    作品ごとのおすすめ聖地巡礼ルートを作れます。地図のメニュー「おすすめルート」と、聖地の詳細に表示され、選ぶとルート案内に入ります。
+                </p>
+                <button type="button" class="btn btn-success" id="course-new">＋ 新しいおすすめルート</button>
+                <ul class="admin-list" id="course-list"></ul>
             </section>
         </div>
     </main>
@@ -158,6 +170,50 @@
         </div>
     </div>
 
+    <!-- =============== おすすめルートを作る・直すポップアップ =============== -->
+    <div id="course-modal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="course-editor-title">
+        <div class="modal-content approve-box">
+            <button type="button" class="modal-close-btn" onclick="closeCourseEditor()" aria-label="閉じる" data-modal-close>✕</button>
+            <h2 class="modal-title" id="course-editor-title">新しいおすすめルート</h2>
+
+            <form id="course-form" novalidate>
+                <p class="form-alert" id="course-error" role="alert" hidden></p>
+
+                <div class="form-group">
+                    <label for="cs-title">作品<span class="required">必須</span></label>
+                    <select id="cs-title" class="course-select"></select>
+                </div>
+
+                <div class="form-group">
+                    <label for="cs-name">ルート名<span class="required">必須</span></label>
+                    <input type="text" id="cs-name" maxlength="50" placeholder="(例) 宇治をめぐる1期ルート">
+                    <p class="error-text">ルート名を入力してください。</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="cs-description">紹介文</label>
+                    <textarea id="cs-description" maxlength="500" placeholder="(例) 京阪宇治駅から出発して、1期の名場面をめぐる半日コース。"></textarea>
+                </div>
+
+                <div class="form-group" id="cs-spots">
+                    <span class="form-label">回る聖地（上から順に回る）<span class="required">必須</span></span>
+                    <ol class="course-chosen" id="cs-chosen"></ol>
+                    <p class="form-hint" id="cs-summary" aria-live="polite"></p>
+                    <button type="button" class="btn btn-secondary course-sort" id="cs-sort">いちばん上の聖地から近い順に並べる</button>
+                    <p class="error-text">聖地を2か所以上選んでください。</p>
+
+                    <p class="form-label course-candidates-label">この作品の聖地（押すと追加）</p>
+                    <div class="course-candidates" id="cs-candidates"></div>
+                </div>
+
+                <div class="item-actions">
+                    <button type="submit" class="btn btn-success" id="cs-submit">保存する</button>
+                    <button type="button" class="btn btn-secondary course-delete" id="cs-delete" hidden>削除</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- =============== お問い合わせに返信するポップアップ =============== -->
     <div id="reply-modal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="reply-heading">
         <div class="modal-content approve-box">
@@ -198,6 +254,6 @@
 
     <script src="../js/common.js"></script>
     <script src="../js/toast.js"></script>
-    <script type="module" src="../js/admin.js?v=8"></script>
+    <script type="module" src="../js/admin.js?v=9"></script>
 </body>
 </html>

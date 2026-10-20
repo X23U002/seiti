@@ -27,6 +27,14 @@ import { getSpotEpisodeLabel } from "./episode.js?v=2";
 // 聖地の画像（GitHub の map画面/images/spots/ に置いたもの）
 import { getSpotImageSrc } from "./spot-image.js?v=2";
 
+// おすすめ聖地巡礼ルート
+import {
+    COURSE_COLLECTION,
+    courseDistance,
+    formatCourseLength,
+    sortCourses
+} from "./course.js";
+
 // お気に入り・保存したルート
 import {
     loadFavorites,
@@ -332,7 +340,7 @@ async function fetchSpotsFromFirestore() {
 // 広告ブロックの拡張機能などで Firestore の通信（…/channel）が止められると、
 // ふつうの読み込みが終わらなくなる。聖地は誰でも読めるので、別の入り口から読む
 const FIRESTORE_REST_URL =
-    "https://firestore.googleapis.com/v1/projects/sisukai-121cf/databases/(default)/documents/spot";
+    "https://firestore.googleapis.com/v1/projects/sisukai-121cf/databases/(default)/documents/";
 
 function fromRestValue(value) {
     if (!value || typeof value !== "object") return null;
@@ -347,16 +355,21 @@ function fromRestValue(value) {
         };
     }
     if ("timestampValue" in value) return value.timestampValue;
+    if ("arrayValue" in value) {
+        return (value.arrayValue.values || []).map(fromRestValue);
+    }
     return null;
 }
 
-async function fetchSpotsFromRest() {
+// collectionName のドキュメントを全部読む（{ id, ...項目 } の配列）
+async function fetchCollectionFromRest(collectionName) {
     const list = [];
     let pageToken = "";
 
     do {
         const url =
             FIRESTORE_REST_URL +
+            collectionName +
             "?pageSize=300" +
             (pageToken ? "&pageToken=" + encodeURIComponent(pageToken) : "");
 
@@ -376,7 +389,7 @@ async function fetchSpotsFromRest() {
                     }
                 );
                 list.push(
-                    toSpot(doc.name.split("/").pop(), data)
+                    Object.assign({ id: doc.name.split("/").pop() }, data)
                 );
             }
         );
@@ -385,6 +398,16 @@ async function fetchSpotsFromRest() {
     } while (pageToken);
 
     return list;
+}
+
+async function fetchSpotsFromRest() {
+    const list = await fetchCollectionFromRest("spot");
+    return list.map(
+        function (item) {
+            const { id, ...data } = item;
+            return toSpot(id, data);
+        }
+    );
 }
 
 // 時間内に終わらなければ失敗にする
@@ -580,6 +603,106 @@ function openRouteFromUrl() {
     lastSavedRouteKey = getRouteKey();
     updateSaveRouteButton();
 
+    fitRouteBounds();
+
+    window.showToast(
+        `保存したルート（${selectedSpots.length}か所）を開きました`
+    );
+
+    return true;
+}
+
+
+// =========================================================
+// おすすめ聖地巡礼ルート（管理者が作ったもの。course コレクション）
+// 地図のメニュー「おすすめルート」と、聖地の詳細の「この聖地を通るおすすめルート」から選ぶと、
+// そのままルート案内に入る
+// =========================================================
+let courses = [];
+
+async function fetchCoursesFromFirestore() {
+    const snapshot =
+        await getDocs(
+            collection(
+                db,
+                COURSE_COLLECTION
+            )
+        );
+
+    const list = [];
+    snapshot.forEach(
+        function (docSnap) {
+            list.push(
+                Object.assign({ id: docSnap.id }, docSnap.data())
+            );
+        }
+    );
+    return list;
+}
+
+// 聖地と同じく、Firestore で読めなければ Web API から読む
+async function loadCourses() {
+    let list;
+
+    try {
+        list = await withTimeout(
+            fetchCoursesFromFirestore(),
+            FIRESTORE_TIMEOUT_MS
+        );
+    } catch (error) {
+        try {
+            list = await fetchCollectionFromRest(COURSE_COLLECTION);
+        } catch (restError) {
+            console.warn("おすすめルートを読み込めませんでした:", restError);
+            list = [];
+        }
+    }
+
+    courses = sortCourses(
+        list.filter(
+            function (course) {
+                return Array.isArray(course.spot_ids) && course.spot_ids.length > 0;
+            }
+        )
+    );
+
+    // 開いている詳細があれば、この聖地を通るルートを出し直す
+    document
+        .querySelectorAll(".popup-courses")
+        .forEach(
+            function (container) {
+                renderSpotCourses(container, container.dataset.spotId);
+            }
+        );
+}
+
+function findSpot(spotId) {
+    return spots.find(
+        function (item) {
+            return String(item.id) === String(spotId);
+        }
+    );
+}
+
+// ルートの聖地（削除された聖地は除く）
+function getCourseSpots(course) {
+    return course.spot_ids
+        .map(findSpot)
+        .filter(
+            function (spot) {
+                return spot && spot.coord;
+            }
+        );
+}
+
+// 「5か所・約2.4km・徒歩 約40分」
+function getCourseSummary(course) {
+    const courseSpots = getCourseSpots(course);
+    return courseSpots.length + "か所・" + formatCourseLength(courseDistance(courseSpots));
+}
+
+// ルート案内に入れたスポットが全部入るように地図を動かす
+function fitRouteBounds() {
     const bounds = new mapboxgl.LngLatBounds();
     selectedSpots.forEach(
         function (spot) {
@@ -595,17 +718,238 @@ function openRouteFromUrl() {
         {
             padding: 80,
             maxZoom: 16,
-            duration: 0
+            duration: prefersReducedMotion() ? 0 : 800
+        }
+    );
+}
+
+// おすすめルートでルート案内を始める（今のルート案内は入れかわる）
+function startCourse(courseId) {
+    const course = courses.find(
+        function (item) {
+            return item.id === courseId;
         }
     );
 
-    window.showToast(
-        `保存したルート（${selectedSpots.length}か所）を開きました`
+    if (!course) {
+        return;
+    }
+
+    window.clearSelectedSpots();
+
+    course.spot_ids.forEach(
+        function (spotId) {
+            window.addSpotToRouteById(
+                spotId,
+                { silent: true }
+            );
+        }
     );
 
-    return true;
+    if (selectedSpots.length === 0) {
+        window.showToast(
+            "このルートの聖地が見つかりませんでした",
+            "error"
+        );
+        return;
+    }
+
+    // 開いている詳細・メニューを閉じてから、ルート全体を見せる
+    spotMarkers.forEach(
+        function (marker) {
+            const popup = marker.getPopup();
+            if (popup && popup.isOpen()) {
+                popup.remove();
+            }
+        }
+    );
+    window.closeCourses();
+    if (document.getElementById("side-menu").classList.contains("open")) {
+        window.toggleMenu();
+    }
+
+    fitRouteBounds();
+
+    window.showToast(
+        `「${course.course_name}」（${selectedSpots.length}か所）をルート案内に入れました`
+    );
 }
 
+// ---------- メニューの「おすすめルート」 ----------
+window.openCourses =
+    function () {
+        if (document.getElementById("side-menu").classList.contains("open")) {
+            window.toggleMenu();
+        }
+
+        renderCourseList();
+
+        document
+            .getElementById(
+                "course-modal"
+            )
+            .style
+            .display =
+                "block";
+
+        document
+            .querySelector("#course-modal .filter-header button")
+            .focus();
+    };
+
+window.closeCourses =
+    function () {
+        document
+            .getElementById(
+                "course-modal"
+            )
+            .style
+            .display =
+                "none";
+    };
+
+function renderCourseList() {
+    const list =
+        document.getElementById(
+            "course-list"
+        );
+
+    list.innerHTML = "";
+
+    if (courses.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "course-empty";
+        empty.textContent = "まだおすすめルートはありません。";
+        list.appendChild(empty);
+        return;
+    }
+
+    // 作品で絞り込み中なら、その作品のルートを先に出す
+    const ordered = courses.slice().sort(
+        function (a, b) {
+            return Number(activeFilter.titles.includes(b.title_name)) -
+                Number(activeFilter.titles.includes(a.title_name));
+        }
+    );
+
+    let lastTitle = null;
+
+    ordered.forEach(
+        function (course) {
+            const courseSpots = getCourseSpots(course);
+
+            if (courseSpots.length === 0) {
+                return;
+            }
+
+            if (course.title_name !== lastTitle) {
+                lastTitle = course.title_name;
+
+                const heading = document.createElement("h3");
+                heading.className = "course-work";
+                const dot = document.createElement("span");
+                dot.className = "course-work-dot";
+                dot.style.background = getTitleColor(course.title_name || "その他");
+                heading.append(dot, course.title_name || "その他");
+                list.appendChild(heading);
+            }
+
+            const card = document.createElement("article");
+            card.className = "course-card";
+
+            const name = document.createElement("h4");
+            name.textContent = course.course_name || "おすすめルート";
+
+            const meta = document.createElement("p");
+            meta.className = "course-meta";
+            meta.textContent = getCourseSummary(course);
+
+            card.append(name, meta);
+
+            if (course.description) {
+                const description = document.createElement("p");
+                description.className = "course-description";
+                description.textContent = course.description;
+                card.appendChild(description);
+            }
+
+            const stops = document.createElement("ol");
+            stops.className = "course-stops";
+            courseSpots.forEach(
+                function (spot) {
+                    const li = document.createElement("li");
+                    li.textContent = spot.spot_name || "無題のスポット";
+                    stops.appendChild(li);
+                }
+            );
+
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "course-start";
+            button.dataset.courseId = course.id;
+            button.textContent = "このルートで巡る";
+
+            card.append(stops, button);
+            list.appendChild(card);
+        }
+    );
+}
+
+// ---------- 聖地の詳細の「この聖地を通るおすすめルート」 ----------
+function renderSpotCourses(container, spotId) {
+    if (!container) {
+        return;
+    }
+
+    const list = courses.filter(
+        function (course) {
+            return course.spot_ids.map(String).includes(String(spotId)) &&
+                getCourseSpots(course).length > 0;
+        }
+    );
+
+    container.hidden = list.length === 0;
+    container.innerHTML = "";
+
+    if (list.length === 0) {
+        return;
+    }
+
+    const title = document.createElement("strong");
+    title.textContent = "この聖地を通るおすすめルート";
+    container.appendChild(title);
+
+    list.forEach(
+        function (course) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "popup-course course-start";
+            button.dataset.courseId = course.id;
+
+            const name = document.createElement("span");
+            name.className = "popup-course-name";
+            name.textContent = course.course_name || "おすすめルート";
+
+            const meta = document.createElement("span");
+            meta.className = "popup-course-meta";
+            meta.textContent = getCourseSummary(course);
+
+            button.append(name, meta);
+            container.appendChild(button);
+        }
+    );
+}
+
+// 「このルートで巡る」（メニューと詳細の両方。詳細は何度も作り直されるので、まとめて受け取る）
+document.addEventListener(
+    "click",
+    function (event) {
+        const button = event.target.closest(".course-start[data-course-id]");
+        if (button) {
+            startCourse(button.dataset.courseId);
+        }
+    }
+);
 
 // =========================================================
 // 地図上にあるピンから、そのスポットの詳細を開く
@@ -1238,6 +1582,11 @@ function createSpotPopup(html, data, longitude, latitude) {
                 data
             );
 
+            renderSpotCourses(
+                popup.getElement().querySelector(".popup-courses"),
+                data.id
+            );
+
             setSelectedMarker(data.id, true);
 
             focusSpotCamera(
@@ -1660,6 +2009,9 @@ function drawMarkers(list) {
 
                     <!-- 近くの聖地（開いた時に作る） -->
                     <div class="popup-section popup-nearby" hidden></div>
+
+                    <!-- この聖地を通るおすすめルート（開いた時に作る） -->
+                    <div class="popup-section popup-courses" data-spot-id="${escapeHTML(String(data.id))}" hidden></div>
 
                 </div>
             `;
@@ -2108,6 +2460,9 @@ map.on(
 
         // ログインしていればお気に入りを読み込む（待たずに進める）
         loadFavoriteIds();
+
+        // おすすめルートを読み込む（待たずに進める）
+        loadCourses();
 
         // URLで聖地やルートが指定されていれば、そこを表示する
         // （その時は現在地へカメラが動かないよう、現在地の自動取得はしない）
