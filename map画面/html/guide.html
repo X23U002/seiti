@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>操作ガイド - 聖地巡礼NAVI</title>
-    <link rel="stylesheet" href="../css/common.css">
-    <link rel="stylesheet" href="../css/guide.css">
+    <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
+    <link rel="stylesheet" href="../css/guide.css?v=13fadb48">
 </head>
 <body>
 
@@ -28,53 +28,68 @@
                 <summary><span class="guide-icon" aria-hidden="true">🗺</span>地図を見る</summary>
                 <ul>
                     <li>指でドラッグして移動、2本指でピンチして拡大・縮小できます。</li>
-                    <li>右下の <b>📍</b> ボタンで現在地に移動します。</li>
-                    <li>右下の <b>🔄 3D</b> ボタンで、建物が立体的に見える3D表示に切り替わります。</li>
+                    <li>右下の <b>現在地ボタン（◎）</b> で現在地に移動します。</li>
+                    <li>右下の <b>2D ／ 3D</b> で、建物が立体的に見える3D表示に切り替わります。</li>
+                    <li>地図を縮小しているときは、近くの聖地が <b>数字の丸</b> にまとまります。丸のまわりの色は作品の色で、タップするとその場所まで拡大します。1か所だけのところは <b>小さな色の点</b> で、タップするとその聖地が開きます。</li>
                 </ul>
             </details>
 
             <details class="guide-item">
                 <summary><span class="guide-icon" aria-hidden="true">📍</span>聖地（スポット）を見る</summary>
                 <ul>
-                    <li>地図上のピンをタップすると、スポットの画像・登場シーンが表示されます。</li>
-                    <li>ピンの色は作品ごとに分かれています。</li>
-                    <li>地図を縮小しているときは、近くのスポットがまとめて <b>数字の丸</b> で表示されます。タップすると含まれるスポット名が見られます。</li>
-                    <li>🌐 ボタンで作品の公式サイトが開きます。</li>
+                    <li>地図上のピンをタップすると、聖地の詳細（画像・何期の何話の場面か・登場シーン）が開きます。見ているピンは大きく表示され、ほかのピンは薄くなります。</li>
+                    <li>ピンの色は作品ごとに分かれています。詳細の <b>作品名の札</b> をタップすると、その作品のページが開きます。</li>
+                    <li>詳細には、その作品の <b>おすすめルート</b> と、近くにある同じ作品の聖地（<b>近くの聖地</b>）も出ます。タップするとそのルート・聖地に移ります。</li>
+                    <li>🌐 で作品の公式サイト、♡ でお気に入り、共有ボタンでこの聖地のリンクを送れます。</li>
                 </ul>
             </details>
 
             <details class="guide-item">
                 <summary><span class="guide-icon" aria-hidden="true">🔍</span>探す・絞り込む</summary>
                 <ul>
-                    <li>画面上の検索バーに、地名やスポット名を入力して探せます。</li>
-                    <li><b>🎬 アニメで絞り込み</b> から作品を選ぶと、その作品のスポットだけを表示できます。</li>
-                    <li>絞り込みを解除するときは「リセット」を押してください。</li>
+                    <li>画面上の検索バーに、地名・駅名・聖地の名前を入力して探せます。</li>
+                    <li><b>作品で絞り込み</b> から作品を選ぶと、その作品の聖地だけを表示できます。絞り込み中の作品は検索バーの下に出て、× で外せます。</li>
+                    <li>メニューの <b>作品一覧</b> から作品を選ぶと、その作品の聖地（話数の順）・おすすめルート・スタンプの進み具合をまとめて見られます。</li>
                 </ul>
             </details>
 
             <details class="guide-item">
                 <summary><span class="guide-icon" aria-hidden="true">💮</span>スタンプを集める</summary>
                 <ul>
-                    <li>スポットの近く（おおむね <b>半径50m以内</b>）まで行くと、ポップアップの「スタンプを取得」ボタンが押せるようになります。</li>
+                    <li>聖地の近く（おおむね <b>半径50m以内</b>）まで行くと、詳細の「スタンプを取得」ボタンが押せるようになります。スタンプを集めるにはログインが必要です。</li>
                     <li>GPSの精度が悪いときは取得できません。屋外の見晴らしの良い場所でお試しください。</li>
-                    <li>取得したスタンプにはピンに <b>✓</b> が付き、マイページの「獲得スタンプ一覧」で確認できます。</li>
+                    <li>取得した聖地のピンには <b>✓</b> が付きます。同じ聖地で何度も取ると、スタンプの枠の色が変わります。</li>
+                    <li>メニューの「獲得スタンプ」やマイページで、集めたスタンプを確認できます。</li>
                 </ul>
             </details>
 
             <details class="guide-item">
-                <summary><span class="guide-icon" aria-hidden="true">🚶</span>ルートを作る</summary>
+                <summary><span class="guide-icon" aria-hidden="true">🚶</span>ルートを作る・巡る</summary>
                 <ul>
-                    <li>ポップアップの <b>📍ルートに追加</b> で、行きたい場所をリストに追加できます。</li>
-                    <li>追加した順番に巡るルートとして、<b>Googleマップで案内</b> から徒歩ルートを開けます。</li>
-                    <li>リストの × で1件ずつ、「全削除」でまとめて削除できます。</li>
+                    <li>詳細の <b>ルートに追加</b> で、行きたい聖地をルート案内に入れられます。順番は ↑↓ やドラッグで入れ替えられます。</li>
+                    <li>メニューの <b>おすすめルート</b> や作品ページから選ぶと、おすすめの順番でルート案内に入ります。</li>
+                    <li><b>Googleマップで案内</b> で、その順番の徒歩ルートが開きます。</li>
+                    <li><b>このルートを保存</b> で、あとから開けるように保存できます（ログインが必要）。</li>
+                </ul>
+            </details>
+
+            <details class="guide-item">
+                <summary><span class="guide-icon" aria-hidden="true">♡</span>お気に入り・保存したルート・履歴</summary>
+                <ul>
+                    <li>マイページの <b>お気に入り・ルート・履歴</b> で、次のものを見られます。</li>
+                    <li><b>お気に入り</b>：♡ を付けた聖地。</li>
+                    <li><b>ルート</b>：保存したルート。「地図で開く」でルート案内に入ります。</li>
+                    <li><b>案内履歴</b>：「Googleマップで案内」を押したルート（この端末だけに記録されます）。</li>
+                    <li><b>巡礼履歴</b>：スタンプを取った聖地。</li>
                 </ul>
             </details>
 
             <details class="guide-item">
                 <summary><span class="guide-icon" aria-hidden="true">✍</span>聖地を登録・お問い合わせ</summary>
                 <ul>
-                    <li>まだ地図にない聖地は、メニューの「聖地登録」から申請できます。運営が確認後に追加します。</li>
+                    <li>まだ地図にない聖地は、メニューの「聖地登録」から申請できます。地図でピンを置き、何期の何話の場面かも入れられます。運営が確認後に追加します。</li>
                     <li>不具合やご要望は、メニューの「お問い合わせ」からお送りください。</li>
+                    <li>申請の結果やお問い合わせへの返事は、マイページの <b>お知らせ</b> に届きます。</li>
                 </ul>
             </details>
 
@@ -84,6 +99,6 @@
 
     </main>
 
-    <script src="../js/common.js"></script>
+    <script src="../js/common.js?v=d714509d"></script>
 </body>
 </html>

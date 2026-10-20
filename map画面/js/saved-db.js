@@ -10,14 +10,13 @@ import {
     collection,
     deleteDoc,
     doc,
-    getDocs,
-    query,
     serverTimestamp,
-    setDoc,
-    where
+    setDoc
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-import { db, getCurrentUser } from "./firebase-db.js";
+import { db, getCurrentUser } from "./firebase-db.js?v=917161b9";
+// 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
+import { queryMine } from "./public-data.js?v=c815b81a";
 
 // ログイン中のユーザーのID（未ログインなら null）
 export async function getSavedUserId() {
@@ -29,12 +28,9 @@ function toMillis(time) {
     return time && typeof time.toMillis === "function" ? time.toMillis() : 0;
 }
 
-// 自分のドキュメントだけを読む
-async function readMine(collectionName, userId) {
-    return getDocs(query(
-        collection(db, collectionName),
-        where("user_id", "==", doc(db, "user", userId))
-    ));
+// 自分のドキュメントだけを読む（[{ id, data() }]）
+async function readMine(collectionName) {
+    return queryMine(collectionName);
 }
 
 // ---------- お気に入り ----------
@@ -45,7 +41,7 @@ export async function loadFavorites() {
     const userId = await getSavedUserId();
     if (!userId) return null;
 
-    const snapshot = await readMine("favorite", userId);
+    const snapshot = await readMine("favorite");
     const list = [];
     snapshot.forEach(function (favoriteDoc) {
         const data = favoriteDoc.data();
@@ -97,7 +93,7 @@ export async function loadSavedRoutes() {
     const userId = await getSavedUserId();
     if (!userId) return null;
 
-    const snapshot = await readMine("root", userId);
+    const snapshot = await readMine("root");
     const list = [];
     snapshot.forEach(function (routeDoc) {
         const data = routeDoc.data();

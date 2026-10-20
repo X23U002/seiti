@@ -5,42 +5,50 @@ import {
     getApp
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 
-import {
-    collection,
-    getDocs
-} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
-
-// Firebase の接続（ログイン・DB）は他の画面と共通
-// （ブラウザに古い firebase-db.js が残っていても動くよう、前からある db と getCurrentUser だけを使う）
-import { db, getCurrentUser } from "./firebase-db.js";
+// Firebase の接続（ログイン）は他の画面と共通
+// （ブラウザに古い firebase-db.js が残っていても動くよう、前からある getCurrentUser だけを使う）
+import { getCurrentUser } from "./firebase-db.js?v=917161b9";
 
 // 作品名と作品ごとの色（スタンプ帳・マイページと共通）
 import {
     getTitleColor,
     getTitleName
-} from "./title-colors.js";
+} from "./title-colors.js?v=5c634da9";
 
 // 何期の何話の場面か（入力された期・話、無ければ説明文から。お気に入り一覧と共通）
 // ※ ?v= を付けて、ブラウザに残った古い episode.js を使わないようにする
-import { getSpotEpisodeLabel } from "./episode.js?v=2";
+import { getSpotEpisodeLabel } from "./episode.js?v=feb7ee57";
+
+// 検索のあいまい比較・作品の略称・HTMLエスケープ
+import {
+    escapeHTML,
+    findAliasTitles,
+    normalizeText
+} from "./map-text.js?v=2c4e86eb";
 
 // 聖地の画像（GitHub の map画面/images/spots/ に置いたもの）
-import { getSpotImageSrc } from "./spot-image.js?v=2";
+import { getSpotImageSrc } from "./spot-image.js?v=9f48db08";
 
 // おすすめ聖地巡礼ルート
 import {
-    COURSE_COLLECTION,
     courseDistance,
-    formatCourseLength,
-    sortCourses
-} from "./course.js";
+    distanceMeters,
+    formatCourseLength
+} from "./course.js?v=5729311e";
+
+// 聖地・おすすめルートの読み込み（他の画面と共通。通信が止められた時の予備の読み方あり）
+import {
+    loadCourses as fetchCourseList,
+    loadSpots,
+    readCachedSpots
+} from "./public-data.js?v=c815b81a";
 
 // お気に入り・保存したルート
 import {
     loadFavorites,
     saveRoute,
     setFavorite
-} from "./saved-db.js";
+} from "./saved-db.js?v=2aaaa116";
 
 // stampsyori.js（スタンプ獲得の演出）からも同じ色を使う
 window.getTitleColor = getTitleColor;
@@ -155,7 +163,7 @@ window.geolocate = geolocate;
 // 現在地に歩く3Dキャラクターを表示（walker.js）
 // 読み込みに失敗しても地図は使えるよう、別に読み込む
 // =========================================================
-import("./walker.js")
+import("./walker.js?v=27d32a9f")
     .then(function (walker) {
         walker.initWalker(
             map,
@@ -168,88 +176,6 @@ import("./walker.js")
             error
         );
     });
-
-
-// =========================================================
-// あいまい検索用の文字変換
-// =========================================================
-function normalizeText(text) {
-    if (!text) {
-        return "";
-    }
-
-    return String(text)
-        .toLowerCase()
-
-        .replace(
-            /[Ａ-Ｚａ-ｚ０-９]/g,
-            function (character) {
-                return String.fromCharCode(
-                    character.charCodeAt(0) -
-                    0xFEE0
-                );
-            }
-        )
-
-        .replace(
-            /[\u30a1-\u30f6]/g,
-            function (character) {
-                return String.fromCharCode(
-                    character.charCodeAt(0) -
-                    0x60
-                );
-            }
-        )
-
-        .replace(
-            /[  ・！!？\?△○〇\-ー。、，,．.【】「」『』（）()〔〕［］\[\]“”"'’〜~：:]/g,
-            ""
-        );
-}
-
-// =========================================================
-// 作品の略称（検索欄に略称を入れても作品の聖地が出るように）
-// キー：略称、値：Firestore の title_name
-// =========================================================
-const TITLE_ALIASES = {
-    "ガルクラ": "ガールズバンドクライ",
-    "ユーフォ": "響け！ユーフォニアム",
-    "響け": "響け！ユーフォニアム",
-    "俺ガイル": "やはり俺の青春ラブコメはまちがっている。",
-    "はまち": "やはり俺の青春ラブコメはまちがっている。",
-    "かぐや姫": "超かぐや姫！",
-    "青ブタ": "青春ブタ野郎はバニーガール先輩の夢を見ない",
-    "ゆるキャン": "ゆるキャン△",
-    "冴えカノ": "冴えない彼女の育てかた",
-    "リコリコ": "リコリス・リコイル",
-    "推しの子": "【推しの子】",
-    "鬼滅": "鬼滅の刃"
-};
-
-// 入力が略称（またはその一部）なら、対応する作品名を返す
-function findAliasTitles(keyword) {
-    return Object.keys(TITLE_ALIASES)
-        .filter(function (alias) {
-            const normalizedAlias = normalizeText(alias);
-            return normalizedAlias.includes(keyword) || keyword.includes(normalizedAlias);
-        })
-        .map(function (alias) {
-            return normalizeText(TITLE_ALIASES[alias]);
-        });
-}
-
-
-// =========================================================
-// HTMLエスケープ
-// =========================================================
-function escapeHTML(value) {
-    return String(value || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
 
 
 // =========================================================
@@ -299,174 +225,16 @@ function setSpots(list) {
     }
 }
 
-// 位置は { latitude, longitude } の形にそろえる（端末に記録できるように）
-function toSpot(id, data) {
-    const spot = Object.assign({ id: id }, data);
-
-    if (data.coord) {
-        spot.coord = {
-            latitude: Number(data.coord.latitude),
-            longitude: Number(data.coord.longitude)
-        };
-    }
-
-    return spot;
-}
-
-// ---------- Firestore から読む（ふつうの方法） ----------
-async function fetchSpotsFromFirestore() {
-    const spotSnapshot =
-        await getDocs(
-            collection(
-                db,
-                "spot"
-            )
-        );
-
-    const list = [];
-
-    spotSnapshot.forEach(
-        function (docSnap) {
-            list.push(
-                toSpot(docSnap.id, docSnap.data())
-            );
-        }
-    );
-
-    return list;
-}
-
-// ---------- Firestore の Web API から読む（予備） ----------
-// 広告ブロックの拡張機能などで Firestore の通信（…/channel）が止められると、
-// ふつうの読み込みが終わらなくなる。聖地は誰でも読めるので、別の入り口から読む
-const FIRESTORE_REST_URL =
-    "https://firestore.googleapis.com/v1/projects/sisukai-121cf/databases/(default)/documents/";
-
-function fromRestValue(value) {
-    if (!value || typeof value !== "object") return null;
-    if ("stringValue" in value) return value.stringValue;
-    if ("integerValue" in value) return Number(value.integerValue);
-    if ("doubleValue" in value) return Number(value.doubleValue);
-    if ("booleanValue" in value) return value.booleanValue;
-    if ("geoPointValue" in value) {
-        return {
-            latitude: Number(value.geoPointValue.latitude || 0),
-            longitude: Number(value.geoPointValue.longitude || 0)
-        };
-    }
-    if ("timestampValue" in value) return value.timestampValue;
-    if ("arrayValue" in value) {
-        return (value.arrayValue.values || []).map(fromRestValue);
-    }
-    return null;
-}
-
-// collectionName のドキュメントを全部読む（{ id, ...項目 } の配列）
-async function fetchCollectionFromRest(collectionName) {
-    const list = [];
-    let pageToken = "";
-
-    do {
-        const url =
-            FIRESTORE_REST_URL +
-            collectionName +
-            "?pageSize=300" +
-            (pageToken ? "&pageToken=" + encodeURIComponent(pageToken) : "");
-
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error("Web API から読めませんでした: " + response.status);
-        }
-
-        const json = await response.json();
-
-        (json.documents || []).forEach(
-            function (doc) {
-                const data = {};
-                Object.keys(doc.fields || {}).forEach(
-                    function (key) {
-                        data[key] = fromRestValue(doc.fields[key]);
-                    }
-                );
-                list.push(
-                    Object.assign({ id: doc.name.split("/").pop() }, data)
-                );
-            }
-        );
-
-        pageToken = json.nextPageToken || "";
-    } while (pageToken);
-
-    return list;
-}
-
-async function fetchSpotsFromRest() {
-    const list = await fetchCollectionFromRest("spot");
-    return list.map(
-        function (item) {
-            const { id, ...data } = item;
-            return toSpot(id, data);
-        }
-    );
-}
-
-// 時間内に終わらなければ失敗にする
-function withTimeout(promise, ms) {
-    return Promise.race([
-        promise,
-        new Promise(function (resolve, reject) {
-            setTimeout(function () {
-                reject(new Error(ms / 1000 + "秒以内に読み込めませんでした"));
-            }, ms);
-        })
-    ]);
-}
-
-// ---------- 前回読み込んだ聖地（すぐにピンを出すため、端末に記録しておく） ----------
-const SPOT_CACHE_KEY = "seitiSpotCache";
-
-function readSpotCache() {
-    try {
-        const list = JSON.parse(localStorage.getItem(SPOT_CACHE_KEY) || "null");
-        return Array.isArray(list) ? list : null;
-    } catch (error) {
-        return null;
-    }
-}
-
-function writeSpotCache(list) {
-    try {
-        localStorage.setItem(SPOT_CACHE_KEY, JSON.stringify(list));
-    } catch (error) {
-        // 保存できない環境では何もしない
-    }
-}
-
-// 最新の聖地を読む：Firestore（8秒まで）→ だめなら Web API
-const FIRESTORE_TIMEOUT_MS = 8000;
-
-async function fetchLatestSpots() {
-    try {
-        return await withTimeout(
-            fetchSpotsFromFirestore(),
-            FIRESTORE_TIMEOUT_MS
-        );
-    } catch (error) {
-        console.warn(
-            "Firestore から聖地を読めなかったので、Web API から読みます:",
-            error
-        );
-        return fetchSpotsFromRest();
-    }
-}
+// 聖地の読み込みは public-data.js にまとめてある
+// （Firestore から8秒以内に読めなければ Web API から読む・読めた聖地を端末に記録する）
 
 // 地図の準備と同時に読み始める（地図の読み込みを待たない）
 const latestSpotsPromise =
-    fetchLatestSpots();
+    loadSpots();
 
 // 前回の聖地があれば、すぐに使えるようにしておく
 const cachedSpots =
-    readSpotCache();
+    readCachedSpots();
 
 if (cachedSpots) {
     setSpots(cachedSpots);
@@ -620,51 +388,14 @@ function openRouteFromUrl() {
 // =========================================================
 let courses = [];
 
-async function fetchCoursesFromFirestore() {
-    const snapshot =
-        await getDocs(
-            collection(
-                db,
-                COURSE_COLLECTION
-            )
-        );
-
-    const list = [];
-    snapshot.forEach(
-        function (docSnap) {
-            list.push(
-                Object.assign({ id: docSnap.id }, docSnap.data())
-            );
-        }
-    );
-    return list;
-}
-
-// 聖地と同じく、Firestore で読めなければ Web API から読む
+// 聖地と同じく、Firestore で読めなければ Web API から読む（public-data.js）
 async function loadCourses() {
-    let list;
-
     try {
-        list = await withTimeout(
-            fetchCoursesFromFirestore(),
-            FIRESTORE_TIMEOUT_MS
-        );
+        courses = await fetchCourseList();
     } catch (error) {
-        try {
-            list = await fetchCollectionFromRest(COURSE_COLLECTION);
-        } catch (restError) {
-            console.warn("おすすめルートを読み込めませんでした:", restError);
-            list = [];
-        }
+        console.warn("おすすめルートを読み込めませんでした:", error);
+        courses = [];
     }
-
-    courses = sortCourses(
-        list.filter(
-            function (course) {
-                return Array.isArray(course.spot_ids) && course.spot_ids.length > 0;
-            }
-        )
-    );
 
     // 開いている詳細があれば、この聖地を通るルートを出し直す
     document
@@ -1143,18 +874,8 @@ function getEpisodeBadgeHTML(spot) {
 // =========================================================
 // 2地点の距離（メートル）と、その表示
 // =========================================================
-function getDistanceMeters(a, b) {
-    const toRad = Math.PI / 180;
-    const lat1 = Number(a.latitude) * toRad;
-    const lat2 = Number(b.latitude) * toRad;
-    const dLat = lat2 - lat1;
-    const dLng = (Number(b.longitude) - Number(a.longitude)) * toRad;
-    const h =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-
-    return 6371000 * 2 * Math.asin(Math.sqrt(h));
-}
+// 2地点の距離はおすすめルートと同じ計算（course.js）
+const getDistanceMeters = distanceMeters;
 
 function formatDistance(meters) {
     if (meters < 1000) {
@@ -2592,7 +2313,6 @@ map.on(
                 await latestSpotsPromise;
 
             setSpots(latest);
-            writeSpotCache(latest);
         } catch (error) {
             console.error(
                 "データの読み込みに失敗:",

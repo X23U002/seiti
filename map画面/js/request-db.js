@@ -8,11 +8,12 @@
 import {
     addDoc,
     collection,
-    doc
+    doc,
+    GeoPoint
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-import { db } from "./firebase-db.js";
-import { getLoginUserId } from "./stamp-db.js?v=5";
+import { db } from "./firebase-db.js?v=917161b9";
+import { getLoginUserId } from "./stamp-db.js?v=fb2d2a17";
 
 export { getLoginUserId };
 
@@ -42,21 +43,35 @@ function notLoggedIn() {
 }
 
 // 聖地登録の申請
-// request_title：スポット名、request_info：作品名・住所・説明をまとめた文
+// request_title：スポット名、request_info：作品名・住所・期・話・説明をまとめた文
+// （説明は複数行になるので最後に置く。管理ページの parseRequestInfo で読み取る）
+// coord：地図でピンを置いた位置（置いていなければ入れない）
 export async function sendSpotRequest(fields) {
     const userId = await getLoginUserId();
     if (!userId) throw notLoggedIn();
 
-    await addDoc(collection(db, "request_spot"), {
+    const lines = [
+        "作品名：" + fields.titleName,
+        "住所：" + (fields.address || "")
+    ];
+    if (fields.season || fields.episode) {
+        lines.push("期：" + (fields.season || 0));
+        lines.push("話：" + (fields.episode || 0));
+    }
+    lines.push("説明：" + fields.spotInfo);
+
+    const data = {
         user_id: doc(db, "user", userId),
         request_title: fields.spotName,
         image_url: "",
-        request_info:
-            "作品名：" + fields.titleName + "\n" +
-            "住所：" + fields.address + "\n" +
-            "説明：" + fields.spotInfo,
+        request_info: lines.join("\n"),
         request_state: "申請中"
-    });
+    };
+    if (fields.position) {
+        data.coord = new GeoPoint(fields.position.lat, fields.position.lng);
+    }
+
+    await addDoc(collection(db, "request_spot"), data);
     rememberSent("request_spot");
 }
 

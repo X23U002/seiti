@@ -4,8 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>聖地登録 - 聖地巡礼NAVI</title>
-    <link rel="stylesheet" href="../css/common.css">
-    <link rel="stylesheet" href="../css/register.css">
+    <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
+    <link rel="stylesheet" href="../css/register.css?v=d4b0a627">
+
+    <!-- 位置を決める地図 -->
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js"></script>
 </head>
 <body>
 
@@ -38,8 +42,9 @@
                 <!-- 作品名 -->
                 <div class="form-group">
                     <label for="animeName">作品名<span class="required">必須</span></label>
-                    <input type="text" id="animeName" placeholder="(例) 君の名は。" aria-describedby="animeName-hint" maxlength="100">
-                    <p class="form-hint" id="animeName-hint">略称ではなく正式名称で入力してください。</p>
+                    <input type="text" id="animeName" placeholder="(例) 君の名は。" aria-describedby="animeName-hint" maxlength="100" list="title-options">
+                    <datalist id="title-options"></datalist>
+                    <p class="form-hint" id="animeName-hint">略称ではなく正式名称で入力してください。既にある作品は候補から選べます。</p>
                     <p class="error-text">作品名を入力してください（100文字以内）。</p>
                 </div>
 
@@ -50,19 +55,34 @@
                     <p class="error-text">スポット名を入力してください（100文字以内）。</p>
                 </div>
 
-                <!-- 住所 -->
-                <div class="form-group">
-                    <label for="address">住所<span class="required">必須</span></label>
-                    <input type="text" id="address" placeholder="(例) 東京都新宿区須賀町5" autocomplete="street-address" maxlength="200">
-                    <p class="error-text">住所を入力してください（200文字以内）。</p>
-                </div>
-
                 <!-- スポット説明 -->
                 <div class="form-group">
                     <label for="spotText">スポットの説明<span class="required">必須</span></label>
-                    <textarea id="spotText" placeholder="(例) 2期3話、主人公たちが待ち合わせをした階段" aria-describedby="spotText-hint" maxlength="1000"></textarea>
-                    <p class="form-hint" id="spotText-hint">何期・何話・どのシーンかを書いていただけると助かります。</p>
+                    <textarea id="spotText" placeholder="(例) 主人公たちが待ち合わせをした階段" aria-describedby="spotText-hint" maxlength="1000"></textarea>
+                    <p class="form-hint" id="spotText-hint">どのシーンで登場したかを書いていただけると助かります。</p>
                     <p class="error-text">スポットの説明を入力してください（1000文字以内）。</p>
+                </div>
+
+                <!-- 何期の何話 -->
+                <div class="form-group">
+                    <span class="form-label">何期の何話の場面か<span class="optional">任意</span></span>
+                    <div class="episode-inputs">
+                        <label><input type="number" id="season" min="0" max="99" inputmode="numeric" aria-label="期"> 期</label>
+                        <label><input type="number" id="episode" min="0" max="999" inputmode="numeric" aria-label="話"> 話</label>
+                    </div>
+                    <p class="form-hint">分からない・劇場版などは空欄のままで大丈夫です。</p>
+                </div>
+
+                <!-- 場所（住所と地図のピン） -->
+                <div class="form-group">
+                    <label for="address">場所<span class="required">必須</span></label>
+                    <div class="address-row">
+                        <input type="text" id="address" placeholder="(例) 東京都新宿区須賀町5" autocomplete="street-address" maxlength="200">
+                        <button type="button" class="btn btn-secondary" id="geocode-btn">位置を調べる</button>
+                    </div>
+                    <p class="form-hint" id="coord-text"></p>
+                    <div class="pin-map" id="pin-map"></div>
+                    <p class="error-text">住所を入れて「位置を調べる」を押すか、地図をタップしてピンを置いてください。</p>
                 </div>
 
                 <button type="submit" class="btn btn-primary" id="register-btn">聖地登録を申請する</button>
@@ -85,7 +105,7 @@
 
     </main>
 
-    <script src="../js/common.js"></script>
-    <script type="module" src="../js/register.js?v=4"></script>
+    <script src="../js/common.js?v=d714509d"></script>
+    <script type="module" src="../js/register.js?v=f72aef49"></script>
 </body>
 </html>

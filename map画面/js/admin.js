@@ -19,10 +19,10 @@ import {
     writeBatch
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-import { db, getCurrentUser } from "./firebase-db.js";
-import { getTitleColor } from "./title-colors.js";
-import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=2";
-import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=2";
+import { db, getCurrentUser } from "./firebase-db.js?v=917161b9";
+import { getTitleColor } from "./title-colors.js?v=5c634da9";
+import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=feb7ee57";
+import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=9f48db08";
 import {
     COURSE_COLLECTION,
     COURSE_MAX_SPOTS,
@@ -31,7 +31,7 @@ import {
     formatCourseLength,
     orderByNearest,
     sortCourses
-} from "./course.js";
+} from "./course.js?v=5729311e";
 
 // 地図画面と同じキー
 mapboxgl.accessToken =
@@ -147,9 +147,9 @@ function stateBadge(state) {
     return badge;
 }
 
-// request_info は「作品名：…／住所：…／説明：…」の形で送られてくる
+// request_info は「作品名：…／住所：…／（期：…／話：…）／説明：…」の形で送られてくる
 function parseRequestInfo(text) {
-    const result = { title: "", address: "", info: "" };
+    const result = { title: "", address: "", info: "", season: null, episode: null };
     const lines = String(text || "").split("\n");
     let inInfo = false;
     lines.forEach(function (line) {
@@ -159,6 +159,10 @@ function parseRequestInfo(text) {
             result.title = line.slice(4);
         } else if (line.startsWith("住所：")) {
             result.address = line.slice(3);
+        } else if (line.startsWith("期：")) {
+            result.season = Number(line.slice(2)) || 0;
+        } else if (line.startsWith("話：")) {
+            result.episode = Number(line.slice(2)) || 0;
         } else if (line.startsWith("説明：")) {
             result.info = line.slice(3);
             inInfo = true;
@@ -214,7 +218,13 @@ function renderRequests(list) {
 
         const dl = document.createElement("dl");
         dl.className = "item-detail";
-        [["作品名", parsed.title], ["住所", parsed.address], ["説明", parsed.info], ["申請者", userLabel(item.user)]]
+        const episodeText = parsed.season || parsed.episode
+            ? (parsed.season ? parsed.season + "期 " : "") + (parsed.episode ? parsed.episode + "話" : "")
+            : "";
+        const placeText = item.data.coord
+            ? "地図でピンを指定済み" + (parsed.address ? "（" + parsed.address + "）" : "")
+            : parsed.address;
+        [["作品名", parsed.title], ["場所", placeText], ["期・話", episodeText], ["説明", parsed.info], ["申請者", userLabel(item.user)]]
             .forEach(function (row) {
                 const dt = document.createElement("dt");
                 dt.textContent = row[0];
@@ -528,6 +538,8 @@ const FORM_TEXT = {
 function setSubmitText(busy) {
     const text = FORM_TEXT[formMode];
     document.getElementById("ap-submit").textContent = busy ? text.busy : text.submit;
+    // 削除は、登録済みの聖地を編集している時だけ
+    document.getElementById("ap-delete").hidden = formMode !== "edit";
 }
 
 // values：{ spotName, titleName, info, address, titleUrl, season, episode, coord }
@@ -586,8 +598,9 @@ function openApprove(item) {
     approving = item;
     editingSpot = null;
     const parsed = parseRequestInfo(item.data.request_info);
-    // 何期の何話か：説明文から読み取れたら入れておく
-    const episode = parseEpisode(parsed.info);
+    // 何期の何話か：申請に入っていればそれ、無ければ説明文から読み取る
+    const guess = parseEpisode(parsed.info);
+    const hasEpisode = parsed.season !== null || parsed.episode !== null;
 
     openSpotForm("approve", {
         spotName: item.data.request_title,
@@ -595,8 +608,10 @@ function openApprove(item) {
         info: parsed.info,
         address: parsed.address,
         titleUrl: titleUrls[parsed.title],
-        season: episode.season,
-        episode: episode.episode
+        season: hasEpisode ? parsed.season : guess.season,
+        episode: hasEpisode ? parsed.episode : guess.episode,
+        // 申請者が地図でピンを置いていれば、その位置から始める
+        coord: item.data.coord || null
     });
 }
 
@@ -673,6 +688,76 @@ let imagePreviewTimer = null;
 document.getElementById("ap-image").addEventListener("input", function () {
     clearTimeout(imagePreviewTimer);
     imagePreviewTimer = setTimeout(updateImagePreview, 500);
+});
+
+// ---------- 聖地の削除 ----------
+// この聖地を通るおすすめルートからも外す（2か所未満になるルートは削除する）。
+// スタンプ・お気に入り・保存したルートの記録は残るが、聖地が無いので表示されなくなる
+document.getElementById("ap-delete").addEventListener("click", async function () {
+    if (formMode !== "edit" || !editingSpot) return;
+
+    const spot = editingSpot;
+    const name = spot.data.spot_name || "（スポット名なし）";
+    const affected = courseList.filter(function (course) {
+        return (course.data.spot_ids || []).includes(spot.id);
+    });
+
+    const message =
+        "「" + name + "」を削除しますか？元に戻せません。\n\n" +
+        (affected.length
+            ? "この聖地を通るおすすめルート（" + affected.length + "本）からも外します。\n"
+            : "") +
+        "この聖地のスタンプ・お気に入りの記録は残りますが、表示されなくなります。";
+    if (!window.confirm(message)) return;
+
+    const button = this;
+    button.disabled = true;
+    button.textContent = "削除中…";
+
+    try {
+        const batch = writeBatch(db);
+        batch.delete(doc(db, "spot", spot.id));
+
+        const courseChanges = affected.map(function (course) {
+            const spotIds = course.data.spot_ids.filter(function (id) { return id !== spot.id; });
+            const ref = doc(db, COURSE_COLLECTION, course.id);
+            if (spotIds.length < COURSE_MIN_SPOTS) {
+                batch.delete(ref);
+                return { course: course, removed: true };
+            }
+            const data = Object.assign({}, course.data, { spot_ids: spotIds, updated_at: serverTimestamp() });
+            batch.set(ref, data);
+            return { course: course, removed: false, data: data };
+        });
+
+        await batch.commit();
+
+        spots = spots.filter(function (item) { return item !== spot; });
+        courseChanges.forEach(function (change) {
+            if (change.removed) {
+                courseList = courseList.filter(function (course) { return course !== change.course; });
+            } else {
+                change.course.data = change.data;
+            }
+        });
+
+        notify("「" + name + "」を削除しました");
+        window.closeApprove();
+        renderSpots();
+        renderEpisodes();
+        renderCourses();
+    } catch (error) {
+        console.error(error);
+        notify(
+            error && error.code === "permission-denied"
+                ? "削除する権限がありません。Firestore のルールの spot に allow delete を追加してください"
+                : "削除できませんでした。通信状況を確認してください",
+            "error"
+        );
+    } finally {
+        button.disabled = false;
+        button.textContent = "この聖地を削除する";
+    }
 });
 
 // 作品の一覧（入力候補・公式サイト）に追加する

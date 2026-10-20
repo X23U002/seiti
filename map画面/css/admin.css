@@ -576,3 +576,13 @@
     flex: 0 0 auto;
     color: var(--color-danger);
 }
+
+/* 聖地の削除（編集の時だけ） */
+.spot-delete {
+    margin-top: 10px;
+    color: var(--color-danger);
+}
+
+.spot-delete[hidden] {
+    display: none;
+}

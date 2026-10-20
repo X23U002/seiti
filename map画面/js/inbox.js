@@ -4,15 +4,13 @@
 // 開いたものは既読（is_read: true）にする
 // ==========================================
 import {
-    collection,
     doc,
-    getDocs,
-    query,
-    updateDoc,
-    where
+    updateDoc
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-import { db, getCurrentUser } from "./firebase-db.js";
+import { db, getCurrentUser } from "./firebase-db.js?v=917161b9";
+// 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
+import { queryMine } from "./public-data.js?v=c815b81a";
 
 function showNotice(icon, text, link) {
     const notice = document.getElementById("inbox-notice");
@@ -111,10 +109,7 @@ function render(messages) {
     }
 
     try {
-        const snapshot = await getDocs(query(
-            collection(db, "message"),
-            where("user_id", "==", doc(db, "user", user.uid))
-        ));
+        const snapshot = await queryMine("message");
 
         const messages = [];
         snapshot.forEach(function (d) {

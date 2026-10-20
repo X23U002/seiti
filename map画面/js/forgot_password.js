@@ -5,8 +5,8 @@ import {
     sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
 
-import { auth } from "./firebase-db.js";
-import { authErrorMessage } from "./login-state.js";
+import { auth } from "./firebase-db.js?v=917161b9";
+import { authErrorMessage } from "./login-state.js?v=3858a481";
 
 // メールの文面を日本語にする
 auth.languageCode = "ja";

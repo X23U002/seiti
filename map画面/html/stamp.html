@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>スタンプ帳 - 聖地巡礼NAVI</title>
-    <link rel="stylesheet" href="../css/common.css">
-    <link rel="stylesheet" href="../css/stamp-rank.css">
-    <link rel="stylesheet" href="../css/stamp.css">
+    <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
+    <link rel="stylesheet" href="../css/stamp-rank.css?v=63a337bd">
+    <link rel="stylesheet" href="../css/stamp.css?v=6072c4ec">
 </head>
 <body>
 
@@ -86,12 +86,12 @@
         </div>
     </div>
 
-    <script src="../js/common.js"></script>
-    <script src="../js/stamp-rank.js"></script>
-    <script src="../js/stamp.js?v=6"></script>
+    <script src="../js/common.js?v=d714509d"></script>
+    <script src="../js/stamp-rank.js?v=5854d0d9"></script>
+    <script src="../js/stamp.js?v=7606a823"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
-        import { loadStampBook } from "../js/stamp-db.js?v=5";
+        import { loadStampBook } from "../js/stamp-db.js?v=fb2d2a17";
 
         loadStampBook().then(function (book) {
             showStamps(book.stamps || [], book.stamps === null ? "guest" : "ready", book.summary);
