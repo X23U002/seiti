@@ -1675,43 +1675,202 @@ function createSpotPopup(html, data, longitude, latitude) {
 
 
 // =========================================================
-// GeoHashでグループ化
+// ズームアウトした時のまとめピン
+// 画面上で近いピン同士（CLUSTER_RADIUS_PX 以内）を1つにまとめ、
+// 作品の色の輪（作品ごとの割合）と件数で表す。押すと、まとめた聖地が見える所まで拡大する
 // =========================================================
-function groupSpotsByGeohash(list) {
-    const zoom =
-        map.getZoom();
+const CLUSTER_RADIUS_PX = 48;
 
-    let geohashLength;
+function getSpotLngLat(spot) {
+    const longitude = Number(spot.coord?.longitude);
+    const latitude = Number(spot.coord?.latitude);
 
-    if (zoom <= 7) {
-        geohashLength = 3;
-    } else {
-        geohashLength = 4;
-    }
+    return Number.isFinite(longitude) && Number.isFinite(latitude)
+        ? [longitude, latitude]
+        : null;
+}
 
-    const groups = {};
+// 画面上の位置で近いものからまとめる（件数が少ないので、全部の組み合わせを調べる）
+function clusterSpots(list) {
+    const clusters = [];
 
     list.forEach(
-        function (data) {
-            if (!data.geo_hash) {
+        function (spot) {
+            const lngLat = getSpotLngLat(spot);
+            if (!lngLat) {
                 return;
             }
 
-            const key =
-                data.geo_hash.substring(
-                    0,
-                    geohashLength
-                );
+            const point = map.project(lngLat);
+            const near = clusters.find(
+                function (cluster) {
+                    return Math.hypot(cluster.x - point.x, cluster.y - point.y) <= CLUSTER_RADIUS_PX;
+                }
+            );
 
-            if (!groups[key]) {
-                groups[key] = [];
+            if (near) {
+                near.spots.push(spot);
+                // まとめた中心は、入っている聖地の平均の位置
+                near.x += (point.x - near.x) / near.spots.length;
+                near.y += (point.y - near.y) / near.spots.length;
+            } else {
+                clusters.push({ x: point.x, y: point.y, spots: [spot] });
             }
-
-            groups[key].push(data);
         }
     );
 
-    return Object.values(groups);
+    return clusters.map(
+        function (cluster) {
+            return cluster.spots;
+        }
+    );
+}
+
+// まとめた聖地の真ん中（緯度・経度の平均）
+function getGroupCenter(group) {
+    let longitude = 0;
+    let latitude = 0;
+
+    group.forEach(
+        function (spot) {
+            const lngLat = getSpotLngLat(spot);
+            longitude += lngLat[0];
+            latitude += lngLat[1];
+        }
+    );
+
+    return [longitude / group.length, latitude / group.length];
+}
+
+// 作品の色の輪（作品ごとの件数の割合で区切る）
+function getClusterRing(group) {
+    const counts = {};
+    group.forEach(
+        function (spot) {
+            const title = getTitleName(spot);
+            counts[title] = (counts[title] || 0) + 1;
+        }
+    );
+
+    const titles = Object.keys(counts).sort(
+        function (a, b) {
+            return counts[b] - counts[a];
+        }
+    );
+
+    let start = 0;
+    const stops = titles.map(
+        function (title) {
+            const end = start + counts[title] / group.length * 360;
+            const color = titleColorMap[title] || getTitleColor(title);
+            const stop = `${color} ${start}deg ${end}deg`;
+            start = end;
+            return stop;
+        }
+    );
+
+    return { gradient: `conic-gradient(${stops.join(", ")})`, titles: titles };
+}
+
+// まとめた聖地が全部見える所まで拡大する（個別のピンが出るズーム11以上にする）
+function zoomToGroup(group) {
+    const bounds = new mapboxgl.LngLatBounds();
+    group.forEach(
+        function (spot) {
+            bounds.extend(getSpotLngLat(spot));
+        }
+    );
+
+    const camera = map.cameraForBounds(bounds, { padding: 80, maxZoom: 15 });
+    map.easeTo({
+        center: camera ? camera.center : bounds.getCenter(),
+        zoom: Math.max(11, camera ? camera.zoom : 11),
+        duration: prefersReducedMotion() ? 0 : 700
+    });
+}
+
+// 押した時・Enter／Space で同じ動きをさせる
+function onActivate(element, handler) {
+    element.addEventListener("click", handler);
+    element.addEventListener(
+        "keydown",
+        function (event) {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                handler();
+            }
+        }
+    );
+}
+
+// 2か所以上：作品の色の輪と件数
+function createClusterMarker(group) {
+    const ring = getClusterRing(group);
+
+    const element = document.createElement("div");
+    element.className = "spot-cluster";
+    element.setAttribute("role", "button");
+    element.tabIndex = 0;
+
+    // 件数が多いほど少し大きく（32〜52px）
+    const size = Math.round(32 + Math.min(20, Math.log2(group.length) * 5));
+    element.style.width = size + "px";
+    element.style.height = size + "px";
+    element.style.background = ring.gradient;
+
+    const count = document.createElement("span");
+    count.className = "spot-cluster-count";
+    count.textContent = group.length;
+    element.appendChild(count);
+
+    const label =
+        ring.titles.slice(0, 3).join("・") +
+        (ring.titles.length > 3 ? " ほか" : "") +
+        `の聖地 ${group.length}か所（押すと拡大）`;
+    element.setAttribute("aria-label", label);
+    element.title = label;
+
+    onActivate(
+        element,
+        function () {
+            zoomToGroup(group);
+        }
+    );
+
+    return new mapboxgl.Marker(element)
+        .setLngLat(getGroupCenter(group))
+        .addTo(map);
+}
+
+// 1か所だけ：作品の色の小さな点（押すと拡大して詳細を開く）
+function createSingleDotMarker(spot) {
+    const lngLat = getSpotLngLat(spot);
+    if (!lngLat) {
+        return null;
+    }
+
+    const title = getTitleName(spot);
+
+    const element = document.createElement("div");
+    element.className = "spot-dot";
+    element.setAttribute("role", "button");
+    element.tabIndex = 0;
+    element.style.background = titleColorMap[title] || getTitleColor(title);
+
+    const label = `${spot.spot_name || "無題のスポット"}（${title}）`;
+    element.setAttribute("aria-label", label + "（押すと拡大）");
+    element.title = label;
+
+    onActivate(
+        element,
+        function () {
+            goToSpot(spot.id);
+        }
+    );
+
+    return new mapboxgl.Marker(element)
+        .setLngLat(lngLat)
+        .addTo(map);
 }
 
 
@@ -1750,144 +1909,16 @@ function drawMarkers(list) {
     // ズーム10以下はスポットをまとめて表示
     // =====================================================
     if (zoom <= 10) {
-        const groups =
-            groupSpotsByGeohash(list);
-
-        groups.forEach(
+        clusterSpots(list).forEach(
             function (group) {
-                const data =
-                    group[0];
+                const marker =
+                    group.length === 1
+                        ? createSingleDotMarker(group[0])
+                        : createClusterMarker(group);
 
-                const longitude =
-                    Number(
-                        data.coord
-                            ?.longitude
-                    );
-
-                const latitude =
-                    Number(
-                        data.coord
-                            ?.latitude
-                    );
-
-                if (
-                    !Number.isFinite(
-                        longitude
-                    ) ||
-                    !Number.isFinite(
-                        latitude
-                    )
-                ) {
-                    return;
+                if (marker) {
+                    spotMarkers.push(marker);
                 }
-
-                const element =
-                    document.createElement(
-                        "div"
-                    );
-
-                element.textContent =
-                    group.length;
-
-                element.style.width =
-                    "25px";
-
-                element.style.height =
-                    "25px";
-
-                element.style.borderRadius =
-                    "50%";
-
-                element.style.backgroundColor =
-                    "deepskyblue";
-
-                element.style.color =
-                    "white";
-
-                element.style.fontWeight =
-                    "bold";
-
-                element.style.display =
-                    "flex";
-
-                element.style.justifyContent =
-                    "center";
-
-                element.style.alignItems =
-                    "center";
-
-                element.style.border =
-                    "2px solid white";
-
-                element.style.cursor =
-                    "pointer";
-
-                const displaySpots =
-                    group.slice(
-                        0,
-                        3
-                    );
-
-                let hoverHTML =
-                    displaySpots
-                        .map(
-                            function (spot) {
-                                return escapeHTML(
-                                    spot.spot_name ||
-                                    "無題のスポット"
-                                );
-                            }
-                        )
-                        .join("<br>");
-
-                if (
-                    group.length > 3
-                ) {
-                    hoverHTML +=
-                        `<br>...あと${group.length - 3}件`;
-                }
-
-                const groupMarker =
-                    new mapboxgl.Marker(
-                        element
-                    )
-                        .setLngLat([
-                            longitude,
-                            latitude
-                        ])
-                        .addTo(map);
-
-                groupMarker
-                    .getElement()
-                    .addEventListener(
-                        "click",
-                        function () {
-                            if (
-                                hoverPopup
-                            ) {
-                                hoverPopup.remove();
-                            }
-
-                            hoverPopup =
-                                new mapboxgl.Popup({
-                                    closeButton: false,
-                                    closeOnClick: false,
-                                    offset: 15
-                                })
-                                    .setLngLat([
-                                        longitude,
-                                        latitude
-                                    ])
-                                    .setHTML(
-                                        hoverHTML
-                                    )
-                                    .addTo(map);
-                        }
-                    );
-
-                spotMarkers.push(
-                    groupMarker
-                );
             }
         );
 
