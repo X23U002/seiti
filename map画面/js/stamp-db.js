@@ -4,10 +4,10 @@
 //   { user_id: user/{ID}への参照, spot_id: spot/{ID}への参照, time_stamp: 取得日時 }
 // （書き込みは地図画面の stampsyori.js が行う）
 // ==========================================
-import { getCurrentUser } from "./firebase-db.js";
+import { getCurrentUser } from "./firebase-db.js?v=917161b9";
 // 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
-import { fetchCollection, queryMine } from "./public-data.js";
-import { getTitleColor, getTitleName } from "./title-colors.js";
+import { fetchCollection, queryMine } from "./public-data.js?v=c815b81a";
+import { getTitleColor, getTitleName } from "./title-colors.js?v=5c634da9";
 
 // ログイン中のユーザーのID（Firebase Authentication の uid。未ログインなら null）
 export async function getLoginUserId() {

@@ -2,10 +2,10 @@
 // 聖地登録（申請を request_spot に送る。運営が確認してから地図に追加する）
 // 入力は管理ページの「聖地として地図に追加」とそろえている（作品名・スポット名・説明・期・話・場所）
 // ========================================
-import { getLoginUserId, getWaitSeconds, sendSpotRequest } from "./request-db.js?v=4";
-import { createPinPicker } from "./pin-picker.js";
-import { getTitleName } from "./title-colors.js";
-import { readCachedSpots } from "./public-data.js";
+import { getLoginUserId, getWaitSeconds, sendSpotRequest } from "./request-db.js?v=dfe037be";
+import { createPinPicker } from "./pin-picker.js?v=5d46f1f5";
+import { getTitleName } from "./title-colors.js?v=5c634da9";
+import { readCachedSpots } from "./public-data.js?v=c815b81a";
 
 // 入力の上限（DBのルールと同じ）
 const LIMITS = { animeName: 100, spotName: 100, spotText: 1000 };

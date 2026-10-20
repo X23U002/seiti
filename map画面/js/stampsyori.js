@@ -39,7 +39,7 @@ const NORMAL_STAMP_COOLDOWN_MS =
     24 * 60 * 60 * 1000;
 
 // 以前は端末（localStorage）に保存していた。
-// ログイン後に一度だけDBへ移して、端末からは消す
+// 端末の記録は書きかえられるので、DBへは移さずに消す（clearLegacyLocalStamps）
 const STAMP_HISTORY_STORAGE_KEY =
     "osikatumap-stamp-history-v2";
 

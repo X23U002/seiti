@@ -12,8 +12,8 @@ import {
     GeoPoint
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-import { db } from "./firebase-db.js";
-import { getLoginUserId } from "./stamp-db.js?v=7";
+import { db } from "./firebase-db.js?v=917161b9";
+import { getLoginUserId } from "./stamp-db.js?v=fb2d2a17";
 
 export { getLoginUserId };
 

@@ -19,10 +19,10 @@ import {
     writeBatch
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-import { db, getCurrentUser } from "./firebase-db.js";
-import { getTitleColor } from "./title-colors.js";
-import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=2";
-import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=2";
+import { db, getCurrentUser } from "./firebase-db.js?v=917161b9";
+import { getTitleColor } from "./title-colors.js?v=5c634da9";
+import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=feb7ee57";
+import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=9f48db08";
 import {
     COURSE_COLLECTION,
     COURSE_MAX_SPOTS,
@@ -31,7 +31,7 @@ import {
     formatCourseLength,
     orderByNearest,
     sortCourses
-} from "./course.js";
+} from "./course.js?v=5729311e";
 
 // 地図画面と同じキー
 mapboxgl.accessToken =

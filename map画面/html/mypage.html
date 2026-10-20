@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>マイページ - 聖地巡礼NAVI</title>
-    <link rel="stylesheet" href="../css/common.css">
-    <link rel="stylesheet" href="../css/stamp-rank.css">
-    <link rel="stylesheet" href="../css/mypage.css">
+    <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
+    <link rel="stylesheet" href="../css/stamp-rank.css?v=63a337bd">
+    <link rel="stylesheet" href="../css/mypage.css?v=c6b5dfba">
 </head>
 <body>
 
@@ -162,12 +162,12 @@
         </div>
     </div>
 
-    <script src="../js/common.js"></script>
-    <script src="../js/stamp-rank.js"></script>
-    <script src="../js/mypage.js?v=5"></script>
+    <script src="../js/common.js?v=d714509d"></script>
+    <script src="../js/stamp-rank.js?v=5854d0d9"></script>
+    <script src="../js/mypage.js?v=1e24e91c"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
-        import { loadStampBook } from "../js/stamp-db.js?v=7";
+        import { loadStampBook } from "../js/stamp-db.js?v=fb2d2a17";
 
         loadStampBook().then(function (book) {
             renderRecord(book.stamps || [], book.stamps === null ? "guest" : "ready", book.summary);
@@ -177,9 +177,9 @@
         });
 
         // ニックネームはDBの内容を正とする（別の端末で変えた時も反映される）
-        import { loadUserName, saveUserName } from "../js/profile-db.js?v=2";
-        import { auth, getCurrentUser } from "../js/firebase-db.js";
-        import { clearLoginState } from "../js/login-state.js";
+        import { loadUserName, saveUserName } from "../js/profile-db.js?v=df103e5b";
+        import { auth, getCurrentUser } from "../js/firebase-db.js?v=917161b9";
+        import { clearLoginState } from "../js/login-state.js?v=3858a481";
         import { signOut } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
 
         window.firebaseSignOut = async function () {
@@ -193,14 +193,14 @@
         if (userId) {
             // 管理者なら管理ページへの入口を出す（読めなければ管理者ではない）
             // 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
-            import("../js/public-data.js").then(async function (data) {
+            import("../js/public-data.js?v=c815b81a").then(async function (data) {
                 document.getElementById("admin-menu").hidden = !(await data.getOneDoc("admin", userId));
             }).catch(function () {
                 // 管理者ではない
             });
 
             // 未読のお知らせの数
-            import("../js/public-data.js").then(async function (data) {
+            import("../js/public-data.js?v=c815b81a").then(async function (data) {
                 const snap = await data.queryMine("message");
                 let unread = 0;
                 snap.forEach(function (d) { if (!d.data().is_read) unread++; });

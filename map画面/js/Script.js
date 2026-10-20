@@ -7,48 +7,48 @@ import {
 
 // Firebase の接続（ログイン）は他の画面と共通
 // （ブラウザに古い firebase-db.js が残っていても動くよう、前からある getCurrentUser だけを使う）
-import { getCurrentUser } from "./firebase-db.js";
+import { getCurrentUser } from "./firebase-db.js?v=917161b9";
 
 // 作品名と作品ごとの色（スタンプ帳・マイページと共通）
 import {
     getTitleColor,
     getTitleName
-} from "./title-colors.js";
+} from "./title-colors.js?v=5c634da9";
 
 // 何期の何話の場面か（入力された期・話、無ければ説明文から。お気に入り一覧と共通）
 // ※ ?v= を付けて、ブラウザに残った古い episode.js を使わないようにする
-import { getSpotEpisodeLabel } from "./episode.js?v=2";
+import { getSpotEpisodeLabel } from "./episode.js?v=feb7ee57";
 
 // 検索のあいまい比較・作品の略称・HTMLエスケープ
 import {
     escapeHTML,
     findAliasTitles,
     normalizeText
-} from "./map-text.js";
+} from "./map-text.js?v=2c4e86eb";
 
 // 聖地の画像（GitHub の map画面/images/spots/ に置いたもの）
-import { getSpotImageSrc } from "./spot-image.js?v=2";
+import { getSpotImageSrc } from "./spot-image.js?v=9f48db08";
 
 // おすすめ聖地巡礼ルート
 import {
     courseDistance,
     distanceMeters,
     formatCourseLength
-} from "./course.js";
+} from "./course.js?v=5729311e";
 
 // 聖地・おすすめルートの読み込み（他の画面と共通。通信が止められた時の予備の読み方あり）
 import {
     loadCourses as fetchCourseList,
     loadSpots,
     readCachedSpots
-} from "./public-data.js";
+} from "./public-data.js?v=c815b81a";
 
 // お気に入り・保存したルート
 import {
     loadFavorites,
     saveRoute,
     setFavorite
-} from "./saved-db.js?v=2";
+} from "./saved-db.js?v=2aaaa116";
 
 // stampsyori.js（スタンプ獲得の演出）からも同じ色を使う
 window.getTitleColor = getTitleColor;
@@ -163,7 +163,7 @@ window.geolocate = geolocate;
 // 現在地に歩く3Dキャラクターを表示（walker.js）
 // 読み込みに失敗しても地図は使えるよう、別に読み込む
 // =========================================================
-import("./walker.js")
+import("./walker.js?v=27d32a9f")
     .then(function (walker) {
         walker.initWalker(
             map,

@@ -3,10 +3,10 @@
 // お気に入り（favorite）と保存したルート（root）は地図画面で追加する。
 // 巡礼履歴は獲得したスタンプ（stamp）から作る
 // ==========================================
-import { loadStampBook } from "./stamp-db.js?v=7";
-import { deleteSavedRoute, loadFavorites, loadSavedRoutes, setFavorite } from "./saved-db.js?v=2";
-import { getSpotEpisodeLabel } from "./episode.js?v=2";
-import { getTitleColor } from "./title-colors.js";
+import { loadStampBook } from "./stamp-db.js?v=fb2d2a17";
+import { deleteSavedRoute, loadFavorites, loadSavedRoutes, setFavorite } from "./saved-db.js?v=2aaaa116";
+import { getSpotEpisodeLabel } from "./episode.js?v=feb7ee57";
+import { getTitleColor } from "./title-colors.js?v=5c634da9";
 
 // スポットID → { id, name, title, info }
 let spotById = {};

@@ -5,10 +5,10 @@ import {
     signInWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
 
-import { auth } from "./firebase-db.js";
+import { auth } from "./firebase-db.js?v=917161b9";
 // 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
-import { getOneDoc } from "./public-data.js";
-import { authErrorMessage, saveLoginState } from "./login-state.js";
+import { getOneDoc } from "./public-data.js?v=c815b81a";
+import { authErrorMessage, saveLoginState } from "./login-state.js?v=3858a481";
 
 // 「メールアドレスを保存する」で使う保存先
 const SAVED_EMAIL_KEY = "seitiSavedEmail";
