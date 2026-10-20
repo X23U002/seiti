@@ -1347,15 +1347,53 @@ body {
     pointer-events: none;
 }
 
-/* ---------- ズームアウト時のまとめピン（件数表示） ---------- */
-/* ※ 現在地の点（.mapboxgl-user-location）と誤差の円（-accuracy-circle）は対象外 */
-.mapboxgl-marker:not([data-spot-id]):not(.mapboxgl-user-location):not(.mapboxgl-user-location-accuracy-circle):not(:has(svg)) {
-    width: 34px !important;
-    height: 34px !important;
-    background-color: #0b3c5d !important;
-    border: 3px solid white !important;
-    box-shadow: 0 0 0 4px rgba(11, 60, 93, .25), 0 3px 8px rgba(0, 0, 0, .3);
+/* ---------- ズームアウト時のまとめピン ----------
+   外側の輪：作品の色（作品ごとの件数の割合）　真ん中：件数
+   大きさは件数に合わせて Script.js で決める（32〜52px） */
+.spot-cluster {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px #fff, 0 3px 8px rgba(0, 0, 0, .35);
+    cursor: pointer;
+    transition: box-shadow .15s ease;
+}
+
+.spot-cluster-count {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: calc(100% - 12px);
+    height: calc(100% - 12px);
+    border-radius: 50%;
+    background: #fff;
+    color: #0b3c5d;
     font-size: 14px;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.spot-cluster:hover,
+.spot-cluster:focus-visible {
+    box-shadow: 0 0 0 3px #0b3c5d, 0 4px 10px rgba(0, 0, 0, .4);
+    outline: none;
+}
+
+/* 1か所だけの所：作品の色の小さな点 */
+.spot-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, .4);
+    cursor: pointer;
+}
+
+.spot-dot:hover,
+.spot-dot:focus-visible {
+    box-shadow: 0 0 0 3px #0b3c5d, 0 2px 6px rgba(0, 0, 0, .45);
+    outline: none;
 }
 
 /* ---------- ポップアップ共通 ---------- */
