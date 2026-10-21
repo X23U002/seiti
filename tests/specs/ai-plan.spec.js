@@ -32,11 +32,17 @@ async function fakeServer(page, answer) {
 const loggedIn = { user: "uid2", data: withSpots({ user: { uid2: PROFILE("巡礼者", "p@x.jp") } }) };
 const openWork = (page) => page.goto("html/work.html?title=" + encodeURIComponent(EUPHO));
 
-test("中継サーバーの URL が無いあいだは、AI の欄を出さない", async ({ page }) => {
+test("ふだんは公開した中継サーバーに作品名を送る", async ({ page }) => {
+    const sent = [];
+    await page.route("https://seiti-ai-plan.x23u002.workers.dev/plan", async (route) => {
+        sent.push(route.request().postDataJSON());
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ plan: PLAN, remaining: 4 }) });
+    });
     await seed(page, loggedIn);
     await openWork(page);
-    await expect(page.locator("#work-main")).toBeVisible();
-    await expect(page.locator("#ai-section")).toBeHidden();
+    await page.click("#ai-plan-btn");
+    await expect(page.locator("#ai-plan-result h3")).toHaveText(PLAN.title);
+    expect(sent).toEqual([{ title: EUPHO }]);
 });
 
 test("未ログインだと、ログインへの案内を出す", async ({ page }) => {

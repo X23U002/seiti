@@ -3,6 +3,9 @@
 name = "seiti-ai-plan"
 main = "src/index.js"
 compatibility_date = "2026-10-01"
+# 公開先は https://seiti-ai-plan.x23u002.workers.dev（版ごとのお試し用 URL は作らない）
+workers_dev = true
+preview_urls = false
 
 [vars]
 FIREBASE_PROJECT_ID = "sisukai-121cf"
