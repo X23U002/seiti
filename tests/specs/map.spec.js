@@ -93,3 +93,40 @@ test("検索：聖地以外の場所を選ぶと仮のピンを置き、地図�
     await expect(temporary).toHaveCount(0);
     await expect(page.locator("#search-box")).toHaveValue("");
 });
+
+test("ルート案内の区間ごとに、徒歩の目安と「電車で」（Googleマップの乗換案内）が出る", async ({ page }) => {
+    const [station, bridge, nagoya] = ["京阪宇治駅", "宇治橋", "名古屋国際会議場（センチュリーホール）"].map(spotNamed);
+    await seed(page, {
+        data: withSpots({
+            course: { c1: { title_name: station.title_name, course_name: "遠い区間ありのルート", description: "", spot_ids: [station.id, bridge.id, nagoya.id], updated_at: { __ts: 1 } } }
+        })
+    });
+    await page.goto("html/map.html?course=c1");
+    await expect(page.locator(".routeItem")).toHaveCount(3);
+
+    const legs = page.locator("#routeList .route-leg");
+    await expect(legs).toHaveCount(3);
+    const transitUrl = async (i) => new URL(await legs.nth(i).locator("a.route-leg-transit").getAttribute("href"));
+    const at = (spot) => `${spot.coord.latitude},${spot.coord.longitude}`;
+
+    // 1か所目は現在地から（origin なし）
+    await expect(legs.nth(0)).toContainText("現在地から");
+    let url = await transitUrl(0);
+    expect(url.searchParams.get("origin")).toBeNull();
+    expect(url.searchParams.get("destination")).toBe(at(station));
+    expect(url.searchParams.get("travelmode")).toBe("transit");
+
+    // 近い区間：徒歩の目安。電車はすすめない
+    await expect(legs.nth(1)).toContainText(/徒歩 約\d+m・\d+分/);
+    await expect(legs.nth(1).locator("a.route-leg-transit")).not.toHaveClass(/is-recommended/);
+    url = await transitUrl(1);
+    expect(url.searchParams.get("origin")).toBe(at(station));
+    expect(url.searchParams.get("destination")).toBe(at(bridge));
+
+    // 遠い区間（宇治 → 名古屋）：電車をすすめる
+    await expect(legs.nth(2)).toContainText("電車がおすすめ");
+    await expect(legs.nth(2).locator("a.route-leg-transit")).toHaveClass(/is-recommended/);
+    url = await transitUrl(2);
+    expect(url.searchParams.get("origin")).toBe(at(bridge));
+    expect(url.searchParams.get("destination")).toBe(at(nagoya));
+});

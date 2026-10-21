@@ -2325,6 +2325,57 @@ body {
     margin-left: 0;
 }
 
+/* ---------- ルートの区間（徒歩の目安・電車で行くボタン） ---------- */
+.route-leg {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 0 4px 30px;      /* つまみの幅だけ右へ寄せて、項目の間の「つなぎ」に見せる */
+    font-size: 12px;
+    color: #6b7b8c;
+}
+
+.route-leg-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.route-leg-transit {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border: 1px solid #b8cad8;
+    border-radius: 999px;
+    background: #fff;
+    color: #0b3c5d;
+    font-size: 12px;
+    font-weight: bold;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.route-leg-transit:hover,
+.route-leg-transit:focus-visible {
+    background: #e6f0f6;
+}
+
+/* 遠い区間は電車をすすめる */
+.route-leg-transit.is-recommended {
+    border-color: #0b3c5d;
+    background: #0b3c5d;
+    color: #fff;
+}
+
+.route-leg-transit.is-recommended:hover,
+.route-leg-transit.is-recommended:focus-visible {
+    background: #145a87;
+}
+
+/* 並べ替え中は区間を隠す（離すと描き直す） */
+#routeList.is-dragging .route-leg {
+    display: none;
+}
+
 /* ドラッグ中の項目 */
 .routeItem.dragging {
     border-radius: 8px;

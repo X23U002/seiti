@@ -3303,6 +3303,14 @@ function updateRouteList() {
 
     selectedSpots.forEach(
         function (spot, index) {
+            // 前の聖地（1か所目は現在地）からの行き方
+            routeList.appendChild(
+                createRouteLeg(
+                    selectedSpots[index - 1] || null,
+                    spot
+                )
+            );
+
             const routeItem =
                 document.createElement(
                     "div"
@@ -3427,6 +3435,110 @@ function updateRouteList() {
 }
 
 
+// =========================================================
+// ルートの区間（前の聖地 → この聖地）
+// 徒歩の目安と、電車・バスで行く時の「Googleマップで乗換案内」ボタン
+// （Googleマップは電車のモードだと経由地を使えないので、区間ごとに開く）
+// =========================================================
+
+// これより遠い区間は、電車で行くのをすすめる
+const TRANSIT_SUGGEST_METERS = 2000;
+
+// 道は直線より長いので 1.3 倍、歩く速さは分速 80m として目安を出す
+function estimateWalk(meters) {
+    const walkMeters = meters * 1.3;
+    return {
+        distanceText: walkMeters < 1000
+            ? "約" + Math.round(walkMeters / 10) * 10 + "m"
+            : "約" + (walkMeters / 1000).toFixed(1) + "km",
+        minutes: Math.max(1, Math.round(walkMeters / 80))
+    };
+}
+
+// Googleマップの乗換案内のURL（from が無ければ現在地から）
+function buildTransitUrl(from, to) {
+    let url =
+        "https://www.google.com/maps/dir/?api=1" +
+        `&destination=${encodeURIComponent(`${to.latitude},${to.longitude}`)}`;
+
+    if (from) {
+        url += `&origin=${encodeURIComponent(`${from.latitude},${from.longitude}`)}`;
+    }
+
+    return url + "&travelmode=transit";
+}
+
+function createRouteLeg(from, to) {
+    const leg =
+        document.createElement(
+            "div"
+        );
+
+    leg.className =
+        "route-leg";
+
+    const info =
+        document.createElement(
+            "span"
+        );
+
+    info.className =
+        "route-leg-info";
+
+    let isFar = false;
+
+    if (from) {
+        const meters =
+            getDistanceMeters(from, to);
+        const walk =
+            estimateWalk(meters);
+
+        isFar =
+            meters >= TRANSIT_SUGGEST_METERS;
+
+        info.textContent =
+            `徒歩 ${walk.distanceText}・${walk.minutes}分` +
+            (isFar ? "（電車がおすすめ）" : "");
+    } else {
+        info.textContent =
+            "現在地から";
+    }
+
+    const transit =
+        document.createElement(
+            "a"
+        );
+
+    transit.className =
+        "route-leg-transit" +
+        (isFar ? " is-recommended" : "");
+
+    transit.href =
+        buildTransitUrl(from, to);
+
+    transit.target =
+        "_blank";
+
+    transit.rel =
+        "noopener";
+
+    transit.textContent =
+        "🚃 電車で";
+
+    transit.setAttribute(
+        "aria-label",
+        `「${to.name}」まで${from ? `「${from.name}」から` : "現在地から"}電車・バスで行く（Googleマップの乗換案内を開く）`
+    );
+
+    leg.append(
+        info,
+        transit
+    );
+
+    return leg;
+}
+
+
 // ▲▼ボタンを作る（端の項目では押せないようにする）
 function createRouteMoveButton(label, ariaLabel, fromIndex, toIndex) {
     const button =
@@ -3523,6 +3635,11 @@ function startRouteDrag(event) {
         "dragging"
     );
 
+    // 並べ替え中は区間の表示を隠す（離すと描き直す）
+    routeList.classList.add(
+        "is-dragging"
+    );
+
     function onMove(moveEvent) {
         const siblings =
             Array.from(
@@ -3588,6 +3705,10 @@ function startRouteDrag(event) {
 
         item.classList.remove(
             "dragging"
+        );
+
+        routeList.classList.remove(
+            "is-dragging"
         );
 
         if (toIndex === fromIndex) {
