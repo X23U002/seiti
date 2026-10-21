@@ -19,6 +19,8 @@ ALLOWED_ORIGINS = "https://x23u002.github.io"
 DAILY_LIMIT = "5"
 # 使う Gemini のモデル（AI Studio で使えるモデル名に合わせる）
 GEMINI_MODEL = "gemini-flash-latest"
+# 混んでいる時に代わりに使うモデル（軽くて混みにくい）
+GEMINI_FALLBACK_MODEL = "gemini-flash-lite-latest"
 
 # 1人1日の回数を数える場所（Cloudflare の画面で作った KV「seiti-ai-usage」）
 [[kv_namespaces]]
