@@ -6,8 +6,8 @@
 // ==========================================
 import { getCurrentUser } from "./firebase-db.js?v=917161b9";
 
-// 中継サーバーの URL（worker/README.md の手順で公開したら入れる。空のあいだは AI の欄を出さない）
-const AI_PLAN_ENDPOINT = "";
+// 中継サーバーの URL（worker/README.md の手順で公開したもの。空にすると AI の欄を出さない）
+const AI_PLAN_ENDPOINT = "https://seiti-ai-plan.x23u002.workers.dev/plan";
 
 // 待つ時間の上限（AI の答えは数秒〜数十秒かかる）
 const TIMEOUT_MS = 60000;
