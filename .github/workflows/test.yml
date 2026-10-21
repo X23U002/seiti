@@ -20,7 +20,15 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: tests/package-lock.json
+          cache-dependency-path: |
+            tests/package-lock.json
+            worker/package-lock.json
+
+      - name: AI プランの中継サーバーのテスト
+        working-directory: worker
+        run: |
+          npm ci
+          npm test
 
       - name: テストの道具を入れる
         working-directory: tests

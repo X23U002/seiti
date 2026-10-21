@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>作品 - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
-    <link rel="stylesheet" href="../css/work.css?v=f0fb6afd">
+    <link rel="stylesheet" href="../css/work.css?v=bdbefce4">
 </head>
 <body>
 
@@ -36,6 +36,18 @@
                 </div>
             </section>
 
+            <!-- AI のおすすめプラン（中継サーバーを用意した時だけ出す） -->
+            <section class="work-section" id="ai-section" hidden>
+                <h2 class="work-section-title">AI におまかせプラン</h2>
+                <div class="card ai-plan">
+                    <p class="ai-plan-lead">この作品の聖地から、半日くらいで歩いて回れるプランを AI が作ります。</p>
+                    <button type="button" class="btn btn-primary" id="ai-plan-btn" hidden>AI にプランを作ってもらう</button>
+                    <a class="btn btn-secondary" id="ai-plan-login" href="login.html" hidden>ログインして使う</a>
+                    <p class="ai-plan-status" id="ai-plan-status" role="status" aria-live="polite"></p>
+                    <div class="ai-plan-result" id="ai-plan-result" hidden></div>
+                </div>
+            </section>
+
             <!-- おすすめルート -->
             <section class="work-section" id="route-section" hidden>
                 <h2 class="work-section-title">おすすめルート</h2>
@@ -51,6 +63,6 @@
     </main>
 
     <script src="../js/common.js?v=d714509d"></script>
-    <script type="module" src="../js/work.js?v=3792162f"></script>
+    <script type="module" src="../js/work.js?v=0f6d4052"></script>
 </body>
 </html>

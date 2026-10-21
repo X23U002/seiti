@@ -1,0 +1,52 @@
+# AI プランの中継サーバー（worker/）を Cloudflare Workers に公開する
+# main に worker/ の変更が入った時と、Actions の画面から手で動かした時に動く
+# 必要な GitHub の Secrets：CLOUDFLARE_API_TOKEN・CLOUDFLARE_ACCOUNT_ID・GEMINI_API_KEY（worker/README.md）
+name: AI プランのサーバーを公開
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "worker/**"
+      - "map画面/js/course.js"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Secrets が無ければ公開しない
+        if: env.CLOUDFLARE_API_TOKEN == ''
+        run: echo "CLOUDFLARE_API_TOKEN が登録されていないので、公開をとばします（worker/README.md の手順を参照）"
+
+      - uses: actions/checkout@v4
+        if: env.CLOUDFLARE_API_TOKEN != ''
+
+      - uses: actions/setup-node@v4
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - name: テストしてから公開する
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        working-directory: worker
+        run: |
+          npm ci
+          npm test
+
+      - uses: cloudflare/wrangler-action@v3
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          wranglerVersion: "4.146.0"
+          secrets: |
+            GEMINI_API_KEY
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
