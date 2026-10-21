@@ -97,9 +97,23 @@ async function fetchSpots(title, env) {
         .filter((spot) => spot.coord && spot.spot_name);
 }
 
-async function askGemini(title, spots, env) {
-    const model = env.GEMINI_MODEL || "gemini-flash-latest";
-    const response = await fetch(
+// 混んでいる（503）時に、やり直すまで待つ時間（テストでは 0 にする）
+export const RETRY_WAIT = { ms: 1500 };
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Google のエラー文（取り出せなければ本文のまま）
+async function errorReason(response) {
+    const text = await response.text();
+    try {
+        return String(JSON.parse(text).error.message || text).slice(0, 300);
+    } catch (error) {
+        return text.slice(0, 300);
+    }
+}
+
+function callGemini(model, title, spots, env) {
+    return fetch(
         "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent",
         {
             method: "POST",
@@ -111,22 +125,44 @@ async function askGemini(title, spots, env) {
             })
         }
     );
-    if (response.status === 429 || response.status === 503) {
-        throw new PlanError("busy", "Gemini " + response.status);
-    }
-    if (!response.ok) {
-        const text = await response.text();
-        console.error("Gemini", response.status, text);
-        let reason = text;
-        try {
-            reason = JSON.parse(text).error.message || text;
-        } catch (error) {
-            // JSON でなければそのまま
+}
+
+// 混んでいる時の手当て：
+// ・503（混んでいる）は少し待って、同じモデルでもう1回
+// ・429（そのモデルの無料枠の上限）や、やり直しても混んでいる時は、予備のモデル（GEMINI_FALLBACK_MODEL）へ
+async function askGemini(title, spots, env) {
+    const models = [...new Set([env.GEMINI_MODEL || "gemini-flash-latest", env.GEMINI_FALLBACK_MODEL].filter(Boolean))];
+    let busyReason = "";
+
+    for (const model of models) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+            const response = await callGemini(model, title, spots, env);
+
+            if (response.status === 429 || response.status === 503) {
+                busyReason = "Gemini " + response.status + "（" + model + "）: " + await errorReason(response);
+                console.warn(busyReason);
+                if (response.status === 503 && attempt === 0) {
+                    await wait(RETRY_WAIT.ms);
+                    continue;
+                }
+                break;
+            }
+
+            if (!response.ok) {
+                const reason = await errorReason(response);
+                console.error("Gemini", response.status, model, reason);
+                throw new PlanError("failed", "Gemini " + response.status + "（" + model + "）: " + reason, true);
+            }
+
+            return readAnswer(await response.json());
         }
-        throw new PlanError("failed", "Gemini " + response.status + ": " + String(reason).slice(0, 300), true);
     }
 
-    const body = await response.json();
+    // Google が断った分は無料枠も減らないので、今日の回数には数えない
+    throw new PlanError("busy", busyReason, true);
+}
+
+function readAnswer(body) {
     const answer = parseGeminiResponse(body);
     if (!answer) {
         console.error("Gemini の答えを読めませんでした", JSON.stringify(body).slice(0, 2000));
@@ -219,8 +255,8 @@ export function createHandler(deps = defaultDeps) {
             try {
                 answer = await deps.askGemini(title, spots, env);
             } catch (error) {
-                // Gemini が断った・届かなかった時は、数えた分を戻す
-                // （「混み合っています」と、答えはあったが使えなかった時は数えたまま）
+                // Gemini が断った・混んでいた・届かなかった時は、数えた分を戻す
+                // （答えはあったが使えなかった時は、無料枠を使っているので数えたまま）
                 if (!(error instanceof PlanError) || error.refund) {
                     await deps.usage.set(uid, env, now, used);
                 }

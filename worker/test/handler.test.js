@@ -1,7 +1,9 @@
 // 受け付け（サイトの確認・ログイン・回数制限・エラー）のテスト。通信する部品は差しかえる
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PlanError, createHandler } from "../src/index.js";
+import { PlanError, RETRY_WAIT, createHandler, defaultDeps } from "../src/index.js";
+
+RETRY_WAIT.ms = 0;
 
 const ORIGIN = "https://x23u002.github.io";
 const env = { ALLOWED_ORIGINS: ORIGIN + ",http://localhost:8765", DAILY_LIMIT: "2", FIREBASE_PROJECT_ID: "p" };
@@ -84,18 +86,12 @@ test("作品の指定が無い・聖地が無い時", async () => {
     assert.equal((await handle(request({ title: "ない作品" }), env)).status, 404);
 });
 
-test("AI の答えが使えない時は 502、AI が混んでいる時は 503（どちらも回数は数える）", async () => {
+test("AI の答えが使えない時は 502（無料枠を使ったので回数は数える）", async () => {
     const bad = setup({ askGemini: async () => ({ stops: [{ spot_id: "zzz" }] }) });
     const badResponse = await bad.handle(request({ title: "作品" }), env);
     assert.equal(badResponse.status, 502);
     assert.match((await badResponse.json()).detail, /2か所以上/);
     assert.equal(bad.counts.get("uid1"), 1);
-
-    const busy = setup({ askGemini: async () => { throw new PlanError("busy"); } });
-    const response = await busy.handle(request({ title: "作品" }), env);
-    assert.equal(response.status, 503);
-    assert.equal((await response.json()).error, "busy");
-    assert.equal(busy.counts.get("uid1"), 1);
 });
 
 test("/plan 以外・POST 以外は 404", async () => {
@@ -112,7 +108,7 @@ test("Gemini が断った時は、その理由を detail に入れて返す", as
         const { handle, counts } = setup({ askGemini: defaultDeps.askGemini });
         const response = await handle(request({ title: "作品" }), Object.assign({ GEMINI_API_KEY: "k" }, env));
         assert.equal(response.status, 502);
-        assert.equal((await response.json()).detail, "Gemini 404: models/xxx is not found");
+        assert.equal((await response.json()).detail, "Gemini 404（gemini-flash-latest）: models/xxx is not found");
         // こちらの設定の問題なので、今日の回数には数えない
         assert.equal(counts.get("uid1"), 0);
     } finally {
@@ -139,4 +135,66 @@ test("Gemini に届かなかった時（通信の失敗）も、今日の回数�
     const response = await handle(request({ title: "作品" }), env);
     assert.equal(response.status, 502);
     assert.equal(counts.get("uid1"), 0);
+});
+
+// ---------- 混んでいる時の手当て（Gemini への通信を差しかえる） ----------
+
+const GOOD_ANSWER = { candidates: [{ content: { parts: [{ text: JSON.stringify(ANSWER) }] } }] };
+const geminiEnv = Object.assign({ GEMINI_API_KEY: "k", GEMINI_MODEL: "main-model", GEMINI_FALLBACK_MODEL: "lite-model" }, env);
+
+// 順番に返す答え（[状態, 本文]）を決めて、呼ばれたモデルを記録する
+async function withGemini(answers, run) {
+    const realFetch = globalThis.fetch;
+    const calls = [];
+    globalThis.fetch = async (url) => {
+        calls.push(decodeURIComponent(String(url).split("/models/")[1].split(":")[0]));
+        const [status, body] = answers.shift();
+        return new Response(JSON.stringify(body), { status });
+    };
+    try {
+        await run(calls);
+    } finally {
+        globalThis.fetch = realFetch;
+    }
+}
+
+const busy = (status) => [status, { error: { code: status, message: "The model is overloaded." } }];
+
+test("503（混んでいる）は、同じモデルでもう1回頼む", async () => {
+    await withGemini([busy(503), [200, GOOD_ANSWER]], async (calls) => {
+        const { handle } = setup({ askGemini: defaultDeps.askGemini });
+        const response = await handle(request({ title: "作品" }), geminiEnv);
+        assert.equal(response.status, 200);
+        assert.deepEqual(calls, ["main-model", "main-model"]);
+    });
+});
+
+test("やり直しても混んでいたら、予備のモデルに頼む", async () => {
+    await withGemini([busy(503), busy(503), [200, GOOD_ANSWER]], async (calls) => {
+        const { handle } = setup({ askGemini: defaultDeps.askGemini });
+        const response = await handle(request({ title: "作品" }), geminiEnv);
+        assert.equal(response.status, 200);
+        assert.deepEqual(calls, ["main-model", "main-model", "lite-model"]);
+    });
+});
+
+test("429（そのモデルの上限）は、やり直さずに予備のモデルへ", async () => {
+    await withGemini([busy(429), [200, GOOD_ANSWER]], async (calls) => {
+        const { handle } = setup({ askGemini: defaultDeps.askGemini });
+        assert.equal((await handle(request({ title: "作品" }), geminiEnv)).status, 200);
+        assert.deepEqual(calls, ["main-model", "lite-model"]);
+    });
+});
+
+test("どのモデルも混んでいたら 503。理由を返し、今日の回数には数えない", async () => {
+    await withGemini([busy(503), busy(503), busy(503), busy(503)], async (calls) => {
+        const { handle, counts } = setup({ askGemini: defaultDeps.askGemini });
+        const response = await handle(request({ title: "作品" }), geminiEnv);
+        assert.equal(response.status, 503);
+        const body = await response.json();
+        assert.equal(body.error, "busy");
+        assert.equal(body.detail, "Gemini 503（lite-model）: The model is overloaded.");
+        assert.equal(counts.get("uid1"), 0);
+        assert.equal(calls.length, 4);
+    });
 });

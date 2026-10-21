@@ -61,4 +61,5 @@ npm test                 # 通信しないテスト
 | `ALLOWED_ORIGINS` | 呼び出してよいサイト（カンマ区切り） |
 | `DAILY_LIMIT` | 1人1日に作れる回数 |
 | `GEMINI_MODEL` | 使う Gemini のモデル |
+| `GEMINI_FALLBACK_MODEL` | 混んでいる時に代わりに使うモデル（503 は同じモデルで1回やり直してから、429 はすぐ切り替える） |
 | `FIREBASE_PROJECT_ID` | ログインの証明と聖地の読み込みに使う Firebase のプロジェクト |
