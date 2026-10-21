@@ -38,11 +38,13 @@ const ERRORS = {
 };
 
 // detail：失敗の理由（調べる人向け。アプリは F12 のコンソールに出す。キーなどの秘密は入れない）
+// refund：利用者のせいではない失敗（Gemini が断った・届かなかった）なので、今日の回数に数えない
 export class PlanError extends Error {
-    constructor(code, detail) {
+    constructor(code, detail, refund = false) {
         super(code);
         this.code = code;
         this.detail = detail || "";
+        this.refund = refund;
     }
 }
 
@@ -121,7 +123,7 @@ async function askGemini(title, spots, env) {
         } catch (error) {
             // JSON でなければそのまま
         }
-        throw new PlanError("failed", "Gemini " + response.status + ": " + String(reason).slice(0, 300));
+        throw new PlanError("failed", "Gemini " + response.status + ": " + String(reason).slice(0, 300), true);
     }
 
     const body = await response.json();
@@ -141,7 +143,10 @@ const usage = {
         return Number(await env.USAGE.get(uid + ":" + japanDate(now))) || 0;
     },
     async add(uid, env, now, current) {
-        await env.USAGE.put(uid + ":" + japanDate(now), String(current + 1), { expirationTtl: 2 * 24 * 60 * 60 });
+        await usage.set(uid, env, now, current + 1);
+    },
+    async set(uid, env, now, value) {
+        await env.USAGE.put(uid + ":" + japanDate(now), String(value), { expirationTtl: 2 * 24 * 60 * 60 });
     }
 };
 
@@ -210,7 +215,17 @@ export function createHandler(deps = defaultDeps) {
             // AI に頼む前に数える（失敗が続いても、無料枠を使い切られないように）
             await deps.usage.add(uid, env, now, used);
 
-            const answer = await deps.askGemini(title, spots, env);
+            let answer;
+            try {
+                answer = await deps.askGemini(title, spots, env);
+            } catch (error) {
+                // Gemini が断った・届かなかった時は、数えた分を戻す
+                // （「混み合っています」と、答えはあったが使えなかった時は数えたまま）
+                if (!(error instanceof PlanError) || error.refund) {
+                    await deps.usage.set(uid, env, now, used);
+                }
+                throw error;
+            }
             const plan = finalizePlan(answer, spots);
             if (!plan) {
                 console.error("使えるプランになりませんでした", JSON.stringify(answer).slice(0, 2000));
