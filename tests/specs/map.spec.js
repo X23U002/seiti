@@ -1,5 +1,5 @@
 // 地図画面：ピン・詳細・強調表示・おすすめルート・読み込みの予備
-import { test, expect, seed, withSpots, spotNamed, SPOTS, SEARCH_PLACE } from "../helpers.js";
+import { test, expect, seed, withSpots, spotNamed, SPOTS } from "../helpers.js";
 
 const pins = (page) => page.locator(".mapboxgl-marker[data-spot-id]");
 
@@ -7,7 +7,7 @@ test("聖地のピンと検索バーが出て、聖地の一覧を端末に残�
     await seed(page);
     await page.goto("html/map.html");
     await expect(pins(page)).toHaveCount(SPOTS.length);
-    await expect(page.locator("#search-box")).toBeVisible();
+    await expect(page.locator(".mapboxgl-ctrl-geocoder")).toHaveCount(1);
     const cached = await page.evaluate(() => JSON.parse(localStorage.getItem("seitiSpotCache") || "[]").length);
     expect(cached).toBe(SPOTS.length);
 });
@@ -50,20 +50,21 @@ test("?course= でおすすめルートが順番どおりにルート案内へ�
     }
 });
 
-test("検索：登録済みの聖地を先に出し、選ぶとその聖地の詳細が開く", async ({ page }) => {
+test("検索：登録済みの聖地を候補に出し、選ぶと詳細が開く。そのあと「近くの聖地」で移れる", async ({ page }) => {
     const bridge = spotNamed("宇治橋");
     await seed(page);
     await page.goto("html/map.html");
     await expect(pins(page)).toHaveCount(SPOTS.length);
 
-    await page.fill("#search-box", "宇治橋");
-    const options = page.locator("#search-suggestions .search-suggestion");
-    await expect(options.first()).toContainText("登録済みの聖地");
+    const input = page.locator(".mapboxgl-ctrl-geocoder--input");
+    await input.click();
+    await input.pressSequentially("宇治橋", { delay: 20 });
+    // 日本語の入力ではキーの合図が出ないので、最後にキーを1つ押して検索を始めさせる
+    await input.press("End");
+    const options = page.locator(".mapboxgl-ctrl-geocoder .suggestions li");
     await expect(options.first()).toContainText("宇治橋");
-    await expect(options.last()).toContainText(SEARCH_PLACE.name);
 
     await options.first().click();
-    await expect(page.locator("#search-suggestions")).toBeHidden();
     await expect(page.locator(`.mapboxgl-marker[data-spot-id="${bridge.id}"]`)).toHaveClass(/is-selected/);
     await expect(page.locator(".popup-meta")).toBeVisible();
 
@@ -73,25 +74,6 @@ test("検索：登録済みの聖地を先に出し、選ぶとその聖地の�
     await nearby.click();
     await expect(page.locator(`.mapboxgl-marker[data-spot-id="${targetId}"]`)).toHaveClass(/is-selected/);
     await expect(page.locator(".popup-spot")).toContainText(SPOTS.find((spot) => spot.id === targetId).spot_name);
-});
-
-test("検索：聖地以外の場所を選ぶと仮のピンを置き、地図を押すと消える", async ({ page }) => {
-    await seed(page);
-    await page.goto("html/map.html");
-    await expect(pins(page)).toHaveCount(SPOTS.length);
-
-    await page.fill("#search-box", "京都駅");
-    await page.locator("#search-suggestions .search-suggestion", { hasText: SEARCH_PLACE.name }).click();
-
-    // 聖地のピン（data-spot-id あり）とは別の、仮のピンが1つ置かれて、そこへ移動する
-    const temporary = page.locator(".mapboxgl-marker:not([data-spot-id])");
-    await expect(temporary).toHaveCount(1);
-    await expect.poll(() => page.evaluate(() => window.__map.getCenter().toArray().map((v) => v.toFixed(3))), { timeout: 10_000 })
-        .toEqual([SEARCH_PLACE.lng.toFixed(3), SEARCH_PLACE.lat.toFixed(3)]);
-
-    await page.mouse.click(195, 500);
-    await expect(temporary).toHaveCount(0);
-    await expect(page.locator("#search-box")).toHaveValue("");
 });
 
 test("ルート案内の区間ごとに、徒歩の目安と「電車で」（Googleマップの乗換案内）が出る", async ({ page }) => {

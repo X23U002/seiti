@@ -1347,15 +1347,53 @@ body {
     pointer-events: none;
 }
 
-/* ---------- ズームアウト時のまとめピン（件数表示） ---------- */
-/* ※ 現在地の点（.mapboxgl-user-location）と誤差の円（-accuracy-circle）は対象外 */
-.mapboxgl-marker:not([data-spot-id]):not(.mapboxgl-user-location):not(.mapboxgl-user-location-accuracy-circle):not(:has(svg)) {
-    width: 34px !important;
-    height: 34px !important;
-    background-color: #0b3c5d !important;
-    border: 3px solid white !important;
-    box-shadow: 0 0 0 4px rgba(11, 60, 93, .25), 0 3px 8px rgba(0, 0, 0, .3);
+/* ---------- ズームアウト時のまとめピン ----------
+   外側の輪：作品の色（作品ごとの件数の割合）　真ん中：件数
+   大きさは件数に合わせて Script.js で決める（32〜52px） */
+.spot-cluster {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px #fff, 0 3px 8px rgba(0, 0, 0, .35);
+    cursor: pointer;
+    transition: box-shadow .15s ease;
+}
+
+.spot-cluster-count {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: calc(100% - 12px);
+    height: calc(100% - 12px);
+    border-radius: 50%;
+    background: #fff;
+    color: #0b3c5d;
     font-size: 14px;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.spot-cluster:hover,
+.spot-cluster:focus-visible {
+    box-shadow: 0 0 0 3px #0b3c5d, 0 4px 10px rgba(0, 0, 0, .4);
+    outline: none;
+}
+
+/* 1か所だけの所：作品の色の小さな点 */
+.spot-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, .4);
+    cursor: pointer;
+}
+
+.spot-dot:hover,
+.spot-dot:focus-visible {
+    box-shadow: 0 0 0 3px #0b3c5d, 0 2px 6px rgba(0, 0, 0, .45);
+    outline: none;
 }
 
 /* ---------- ポップアップ共通 ---------- */
@@ -2369,6 +2407,57 @@ body {
     margin-left: 0;
 }
 
+/* ---------- ルートの区間（徒歩の目安・電車で行くボタン） ---------- */
+.route-leg {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 0 4px 30px;      /* つまみの幅だけ右へ寄せて、項目の間の「つなぎ」に見せる */
+    font-size: 12px;
+    color: #6b7b8c;
+}
+
+.route-leg-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.route-leg-transit {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border: 1px solid #b8cad8;
+    border-radius: 999px;
+    background: #fff;
+    color: #0b3c5d;
+    font-size: 12px;
+    font-weight: bold;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.route-leg-transit:hover,
+.route-leg-transit:focus-visible {
+    background: #e6f0f6;
+}
+
+/* 遠い区間は電車をすすめる */
+.route-leg-transit.is-recommended {
+    border-color: #0b3c5d;
+    background: #0b3c5d;
+    color: #fff;
+}
+
+.route-leg-transit.is-recommended:hover,
+.route-leg-transit.is-recommended:focus-visible {
+    background: #145a87;
+}
+
+/* 並べ替え中は区間を隠す（離すと描き直す） */
+#routeList.is-dragging .route-leg {
+    display: none;
+}
+
 /* ドラッグ中の項目 */
 .routeItem.dragging {
     border-radius: 8px;
@@ -2543,4 +2632,279 @@ body {
     .stamp-celebration .confetti {
         display: none;
     }
+}
+
+/* =========================================================
+   おすすめ聖地巡礼ルート
+========================================================= */
+
+/* 下から出るシート（作品で絞り込みと同じ形） */
+#course-modal {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    width: 100%;
+    max-width: 640px;
+    height: 80%;
+    max-height: 620px;
+    padding: 16px 20px calc(20px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    border-radius: 20px 20px 0 0;
+    background: #ffffff;
+    box-shadow: 0 -4px 15px rgba(0, 0, 0, .2);
+    z-index: 9999;
+    overflow-y: auto;
+}
+
+#course-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .35);
+    z-index: 9998;
+}
+
+#course-modal[style*="block"] + #course-backdrop {
+    display: block;
+}
+
+.course-empty {
+    padding: 24px 0;
+    color: #6b7b8c;
+    text-align: center;
+}
+
+/* 作品名の見出し */
+.course-work {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 18px 0 8px;
+    font-size: 15px;
+    color: #0b3c5d;
+}
+
+.course-work-dot {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.course-card {
+    margin-bottom: 12px;
+    padding: 14px 16px;
+    border: 1px solid #e3e8ec;
+    border-radius: 14px;
+    background: #fff;
+}
+
+.course-card h4 {
+    margin: 0 0 4px;
+    font-size: 16px;
+    color: #2c3e50;
+}
+
+.course-meta {
+    margin: 0;
+    font-size: 12px;
+    font-weight: bold;
+    color: #0b3c5d;
+}
+
+.course-description {
+    margin: 8px 0 0;
+    font-size: 14px;
+    line-height: 1.7;
+    color: #2c3e50;
+    white-space: pre-wrap;
+}
+
+/* 回る順（番号付き） */
+.course-stops {
+    margin: 10px 0 12px;
+    padding: 0;
+    list-style: none;
+    counter-reset: course-stop;
+}
+
+.course-stops li {
+    position: relative;
+    padding: 3px 0 3px 30px;
+    font-size: 14px;
+    color: #2c3e50;
+    counter-increment: course-stop;
+}
+
+.course-stops li::before {
+    content: counter(course-stop);
+    position: absolute;
+    left: 0;
+    top: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #0b3c5d;
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+    line-height: 20px;
+    text-align: center;
+}
+
+.course-card .course-start {
+    width: 100%;
+    min-height: 44px;
+    border-radius: 10px;
+    background: #0b3c5d;
+    color: #fff;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.course-card .course-start:hover {
+    background: #14537f;
+    transform: none;
+}
+
+/* 聖地の詳細の「この聖地を通るおすすめルート」 */
+.popup-courses {
+    margin-top: 12px;
+}
+
+.popup-courses[hidden] {
+    display: none;
+}
+
+.popup-course {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    margin-top: 6px;
+    padding: 10px 12px;
+    border: 1px solid #dcdde1;
+    border-radius: 10px;
+    background: #fff;
+    color: #2c3e50;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.popup-course:hover {
+    border-color: #0b3c5d;
+    background: #e6f0f6;
+    transform: none;
+}
+
+.popup-course-name {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.popup-course-meta {
+    font-size: 12px;
+    color: #6b7b8c;
+}
+
+/* =========================================================
+   詳細を開いているピンを目立たせる
+   （まわりにピンが多くても、どのピンを見ているか分かるように）
+========================================================= */
+/* ほかのピンより手前に出す */
+.mapboxgl-marker.is-selected {
+    z-index: 10;
+}
+
+/* ピンを大きく・影を付ける（ピンの先を基準に大きくする）
+   Mapbox の標準のピン（高さ41px）は、上から 34.5px の所が地図上の位置（ピンの先）。
+   下端（影の部分）を基準にすると、大きくした時にピンの先が上にずれるため、ピンの先を基準にする */
+.mapboxgl-marker.is-selected svg {
+    transform: scale(1.45);
+    transform-origin: 50% 34.5px;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .45));
+    transition: transform .2s ease;
+}
+
+/* ピンの先に広がる輪（地面に置いた目印のように）
+   輪の真ん中がピンの先（上から 34.5px）に来るようにする。
+   枠線の太さで大きさがずれないよう、枠線込みの大きさにする */
+.mapboxgl-marker.is-selected::before {
+    content: "";
+    position: absolute;
+    box-sizing: border-box;
+    left: 50%;
+    top: 28.5px;
+    width: 30px;
+    height: 12px;
+    margin-left: -15px;
+    border: 3px solid #0b3c5d;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, .9);
+    pointer-events: none;
+    animation: selected-pin-pulse 1.6s ease-out infinite;
+}
+
+@keyframes selected-pin-pulse {
+    from { transform: scale(.6); opacity: .95; }
+    to { transform: scale(2.2); opacity: 0; }
+}
+
+/* 詳細を開いている間は、ほかのピンを薄くする */
+#map.has-selected .mapboxgl-marker[data-spot-id]:not(.is-selected) {
+    opacity: .45 !important;
+}
+
+/* 動きを減らす設定の人には、輪を広げず止めて表示する */
+@media (prefers-reduced-motion: reduce) {
+    .mapboxgl-marker.is-selected::before {
+        animation: none;
+        transform: scale(1.2);
+        opacity: .9;
+    }
+
+    .mapboxgl-marker.is-selected svg {
+        transition: none;
+    }
+}
+
+/* 聖地の詳細のおすすめルート：ルート名と「この聖地を通る」の印、回る順 */
+.popup-course-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.popup-course-badge {
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: #fff4e0;
+    color: #b36b00;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+.popup-course-stops {
+    font-size: 12px;
+    line-height: 1.6;
+    color: #6b7b8c;
+}
+
+.popup-course-stops b {
+    color: #0b3c5d;
+}
+
+/* 作品名の札は、押すと作品ページへ */
+a.popup-title {
+    color: #fff;
+    text-decoration: none;
+}
+
+a.popup-title:hover,
+a.popup-title:focus-visible {
+    text-decoration: underline;
 }
