@@ -20,7 +20,8 @@ function setup(overrides = {}) {
         askGemini: async () => { calls.gemini++; return ANSWER; },
         usage: {
             count: async (uid) => counts.get(uid) || 0,
-            add: async (uid, _env, _now, current) => { counts.set(uid, current + 1); }
+            add: async (uid, _env, _now, current) => { counts.set(uid, current + 1); },
+            set: async (uid, _env, _now, value) => { counts.set(uid, value); }
         },
         now: () => 0
     }, overrides);
@@ -108,10 +109,12 @@ test("Gemini が断った時は、その理由を detail に入れて返す", as
     globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: 404, message: "models/xxx is not found" } }), { status: 404 });
     try {
         const { defaultDeps } = await import("../src/index.js");
-        const { handle } = setup({ askGemini: defaultDeps.askGemini });
+        const { handle, counts } = setup({ askGemini: defaultDeps.askGemini });
         const response = await handle(request({ title: "作品" }), Object.assign({ GEMINI_API_KEY: "k" }, env));
         assert.equal(response.status, 502);
         assert.equal((await response.json()).detail, "Gemini 404: models/xxx is not found");
+        // こちらの設定の問題なので、今日の回数には数えない
+        assert.equal(counts.get("uid1"), 0);
     } finally {
         globalThis.fetch = realFetch;
     }
@@ -129,4 +132,11 @@ test("Gemini の答えが読めない時も、理由を detail に入れて返�
     } finally {
         globalThis.fetch = realFetch;
     }
+});
+
+test("Gemini に届かなかった時（通信の失敗）も、今日の回数に数えない", async () => {
+    const { handle, counts } = setup({ askGemini: async () => { throw new TypeError("fetch failed"); } });
+    const response = await handle(request({ title: "作品" }), env);
+    assert.equal(response.status, 502);
+    assert.equal(counts.get("uid1"), 0);
 });
