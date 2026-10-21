@@ -72,7 +72,48 @@ mapboxgl.accessToken =
 
 let is3D = false;
 let spotMarkers = [];
+
+// 外部検索で選択した場所を示すマーカー
+let searchResultMarker = null;
+
 let spots = [];
+
+// ==========================================
+// 外部検索マーカーの削除と検索欄の初期化
+// ==========================================
+function removeSearchResultMarker() {
+    if (searchResultMarker) {
+        searchResultMarker.remove();
+        searchResultMarker = null;
+    }
+
+    // 検索欄を初期化
+    const searchInput = document.querySelector(
+        "#search-container input"
+    );
+
+    if (searchInput) {
+        searchInput.value = "";
+    }
+
+    // 検索候補・検索結果も閉じる
+    const searchContainer = document.getElementById(
+        "search-container"
+    );
+
+    if (searchContainer) {
+        const results = searchContainer.querySelector(
+            ".site-search__results"
+        );
+
+        if (results) {
+            results.hidden = true;
+            results.innerHTML = "";
+        }
+
+        searchInput?.setAttribute("aria-expanded", "false");
+    }
+}
 
 // stampsyori.jsからスポット一覧を参照できるようにする
 window.spots = spots;
@@ -1975,19 +2016,24 @@ map.on(
 );
 
 
-// =========================================================
-// 地図をクリックしたらグループポップアップを閉じる
-// =========================================================
+
+// ==========================================
+// 地図をクリックしたときの処理
+// ==========================================
 map.on(
     "click",
     function (event) {
-        if (
-            !event.originalEvent
-                .target
-                .closest(
-                    ".mapboxgl-marker"
-                )
-        ) {
+        const target = event.originalEvent?.target;
+
+        // 検索バー内のクリックでは何もしない
+        if (target?.closest("#search-container")) {
+            return;
+        }
+
+        // マーカー以外の地図部分をクリックしたら削除
+        if (!target?.closest(".mapboxgl-marker")) {
+            removeSearchResultMarker();
+
             if (hoverPopup) {
                 hoverPopup.remove();
                 hoverPopup = null;
@@ -2095,176 +2141,354 @@ function searchCustomSpots(query) {
 // =========================================================
 // 検索ボックス
 // =========================================================
-function initializeSearchBox() {
-    const container =
-        document.getElementById(
-            "search-container"
-        );
 
-    if (!container) {
-        return;
+function initializeSearchBox() {
+    const container = document.getElementById("search-container");
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="search-box-wrapper">
+            <input
+                id="search-box"
+                type="search"
+                placeholder="場所・住所・駅名・スポットを検索"
+                autocomplete="off"
+                aria-label="場所・住所・駅名・スポットを検索"
+                aria-autocomplete="list"
+                aria-controls="search-suggestions"
+            >
+            <div id="search-suggestions" role="listbox" hidden></div>
+        </div>
+    `;
+
+    const input = container.querySelector("#search-box");
+    const suggestions = container.querySelector("#search-suggestions");
+
+    let debounceTimer = null;
+    let activeRequest = null;
+    let sessionToken = createSearchSessionToken();
+    let currentResults = [];
+    let highlightedIndex = -1;
+
+    function createSearchSessionToken() {
+        if (window.crypto && typeof window.crypto.randomUUID === "function") {
+            return window.crypto.randomUUID();
+        }
+
+        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+            const r = Math.random() * 16 | 0;
+            return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16);
+        });
     }
 
-    container.innerHTML = "";
+    function hideSuggestions() {
+        suggestions.hidden = true;
+        suggestions.innerHTML = "";
+        currentResults = [];
+        highlightedIndex = -1;
+        input.setAttribute("aria-expanded", "false");
+    }
 
-    const geocoder =
-        new MapboxGeocoder({
-            accessToken:
-                mapboxgl.accessToken,
+    function getCurrentProximity() {
+        const center = map.getCenter();
+        return `${center.lng},${center.lat}`;
+    }
 
-            mapboxgl:
-                mapboxgl,
+    function renderSuggestions(results) {
+        currentResults = results;
+        highlightedIndex = -1;
+        suggestions.innerHTML = "";
 
-            marker:
-                true,
+        if (results.length === 0) {
+            hideSuggestions();
+            return;
+        }
 
-            placeholder:
-                "場所・住所・駅名・スポットを検索",
+        results.forEach(function (item, index) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "search-suggestion";
+            button.setAttribute("role", "option");
+            button.setAttribute("aria-selected", "false");
+            button.dataset.index = String(index);
 
-            localGeocoder:
-                searchCustomSpots,
-            localGeocoderOnly:
-                false,
-            // 住所・地名の検索は日本国内・日本語に絞り、
-            // 今見ている場所の近くを優先する
-            countries:
-                "jp",
-            language:
-                "ja",
-            // 候補の最大件数（聖地が多い作品でも多めに出るように。指定できる最大は10）
-            limit:
-                10,
-            proximity: {
-                longitude: map.getCenter().lng,
-                latitude: map.getCenter().lat
+            const title = document.createElement("span");
+            title.className = "search-suggestion-title";
+            title.textContent = item.label;
+
+            button.appendChild(title);
+
+            if (item.subtitle) {
+                const subtitle = document.createElement("span");
+                subtitle.className = "search-suggestion-subtitle";
+                subtitle.textContent = item.subtitle;
+                button.appendChild(subtitle);
             }
+
+            button.addEventListener("mousedown", function (event) {
+                // input の blur より先に選択できるようにする
+                event.preventDefault();
+            });
+
+            button.addEventListener("click", function () {
+                selectSuggestion(item);
+            });
+
+            suggestions.appendChild(button);
         });
 
-    // 地図を動かしたら「近く」の基準も更新する
-    map.on(
-        "moveend",
-        function () {
-            const center =
-                map.getCenter();
-            geocoder.setProximity({
-                longitude: center.lng,
-                latitude: center.lat
+        suggestions.hidden = false;
+        input.setAttribute("aria-expanded", "true");
+    }
+
+    function moveHighlight(direction) {
+        const buttons = Array.from(
+            suggestions.querySelectorAll(".search-suggestion")
+        );
+
+        if (buttons.length === 0) return;
+
+        highlightedIndex =
+            (highlightedIndex + direction + buttons.length) % buttons.length;
+
+        buttons.forEach(function (button, index) {
+            const active = index === highlightedIndex;
+            button.classList.toggle("is-active", active);
+            button.setAttribute("aria-selected", String(active));
+        });
+
+        buttons[highlightedIndex].scrollIntoView({
+            block: "nearest"
+        });
+    }
+
+    async function searchPlaces(query) {
+        if (activeRequest) {
+            activeRequest.abort();
+        }
+
+        activeRequest = new AbortController();
+        const requestSignal = activeRequest.signal;
+
+        const localResults = searchCustomSpots(query).map(function (feature) {
+            const spot = spots.find(function (item) {
+                return String(item.id) === String(feature.properties.id);
             });
-        }
-    );
 
-    // 聖地が1件も見つからない時は知らせる（入力が止まってから1回だけ）
-    let noSpotTimer = null;
-    geocoder.on(
-        "results",
-        function (event) {
-            clearTimeout(noSpotTimer);
-            const input =
-                container.querySelector("input");
-            const query =
-                input ? input.value.trim() : "";
-            if (
-                normalizeText(query).length < 2 ||
-                searchCustomSpots(query).length > 0
-            ) {
-                return;
+            return {
+                kind: "custom",
+                id: feature.properties.id,
+                label: feature.place_name,
+                subtitle: "登録済みの聖地",
+                feature: feature,
+                spot: spot
+            };
+        });
+
+        const params = new URLSearchParams({
+            q: query,
+            access_token: mapboxgl.accessToken,
+            session_token: sessionToken,
+            language: "ja",
+            country: "JP",
+            proximity: getCurrentProximity(),
+            limit: "10",
+            types: "poi,address,street,place,locality,neighborhood"
+        });
+
+        try {
+            const response = await fetch(
+                `https://api.mapbox.com/search/searchbox/v1/suggest?${params}`,
+                { signal: requestSignal }
+            );
+
+            if (!response.ok) {
+                throw new Error(`Search Box API error: ${response.status}`);
             }
-            noSpotTimer =
-                setTimeout(
-                    function () {
-                        if (typeof window.showToast === "function") {
-                            window.showToast(
-                                `「${query}」に該当する聖地はありません（住所・地名の候補を表示しています）`,
-                                "error"
-                            );
-                        }
-                    },
-                    800
-                );
+
+            const data = await response.json();
+
+            const externalResults = (data.suggestions || []).map(function (item) {
+                return {
+                    kind: "mapbox",
+                    mapboxId: item.mapbox_id,
+                    label: item.name || item.full_address || "名称不明",
+                    subtitle: item.full_address || item.place_formatted || ""
+                };
+            });
+
+            // 登録済みの聖地を先に表示し、外部の住所・施設候補も続けて表示
+            renderSuggestions(localResults.concat(externalResults));
+        } catch (error) {
+            if (error.name === "AbortError") return;
+
+            console.error("場所の検索に失敗しました:", error);
+
+            // APIが失敗しても、登録済みの聖地は検索できるようにする
+            renderSuggestions(localResults);
+
+            if (localResults.length === 0 && typeof window.showToast === "function") {
+                window.showToast("場所を検索できませんでした。通信状態を確認してください。", "error");
+            }
         }
-    );
+    }
 
-    container.appendChild(
-        geocoder.onAdd(map)
-    );
+    async function selectSuggestion(item) {
+        hideSuggestions();
+        input.value = item.label;
 
+        if (item.kind === "custom") {
+            const selectedSpot = item.spot || spots.find(function (spot) {
+                return String(spot.id) === String(item.id);
+            });
 
-    geocoder.on(
-        "result",
-        function (event) {
-            const feature =
-                event.result;
+            if (!selectedSpot || !selectedSpot.coord) return;
 
-            if (
-                feature.properties &&
-                feature.properties
-                    .isCustomSpot
-            ) {
-                const selectedSpot =
-                    spots.find(
-                        function (spot) {
-                            return (
-                                spot.id ===
-                                feature
-                                    .properties
-                                    .id
-                            );
-                        }
-                    );
+            currentSpots = [selectedSpot];
+            drawMarkers(currentSpots);
 
-                if (selectedSpot) {
-                    currentSpots = [
-                        selectedSpot
-                    ];
+            map.flyTo({
+                center: [
+                    Number(selectedSpot.coord.longitude),
+                    Number(selectedSpot.coord.latitude)
+                ],
+                zoom: Math.max(map.getZoom(), 15)
+            });
 
-                    drawMarkers(
-                        currentSpots
-                    );
+            map.once("idle", function () {
+                const marker = spotMarkers.find(function (candidate) {
+                    return candidate.getElement().dataset.spotId === String(selectedSpot.id);
+                });
 
-                    if (
-                        geocoder.mapMarker
-                    ) {
-                        geocoder
-                            .mapMarker
-                            .remove();
-                    }
-
-                    // 地図の移動（ズーム）が終わるとピンが描き直されて
-                    // 先に開いた吹き出しが消えるため、移動と描画が終わってから開く
-                    setTimeout(
-                        function () {
-                            map.once(
-                                "idle",
-                                function () {
-                                    if (
-                                        spotMarkers
-                                            .length > 0 &&
-                                        spotMarkers[0].getPopup() &&
-                                        !spotMarkers[0].getPopup().isOpen()
-                                    ) {
-                                        spotMarkers[0]
-                                            .togglePopup();
-                                    }
-                                }
-                            );
-                        },
-                        100
-                    );
+                if (marker && marker.getPopup() && !marker.getPopup().isOpen()) {
+                    marker.togglePopup();
                 }
-            } else {
-                applyActiveFilter();
+            });
+
+            return;
+        }
+
+        const params = new URLSearchParams({
+            access_token: mapboxgl.accessToken,
+            session_token: sessionToken
+        });
+
+        try {
+            const response = await fetch(
+                `https://api.mapbox.com/search/searchbox/v1/retrieve/${encodeURIComponent(item.mapboxId)}?${params}`
+            );
+
+            if (!response.ok) {
+                throw new Error(`Search Box retrieve error: ${response.status}`);
             }
+
+            const data = await response.json();
+            const feature = data.features && data.features[0];
+            const coordinates = feature && feature.geometry && feature.geometry.coordinates;
+
+            if (!coordinates || coordinates.length < 2) {
+                throw new Error("検索結果に座標がありません。");
+            }
+
+            map.stop();
+
+            // 前回の検索マーカーだけを削除
+            // 検索欄と検索候補は初期化しない
+            if (searchResultMarker) {
+                searchResultMarker.remove();
+                searchResultMarker = null;
+            }
+
+            // 検索場所を示すマーカーを設置
+            searchResultMarker = new mapboxgl.Marker({
+                color: "#e53935"
+            })
+                .setLngLat([
+                    Number(coordinates[0]),
+                    Number(coordinates[1])
+                ])
+                .addTo(map);
+
+            // 検索場所へ移動
+            map.flyTo({
+                center: [
+                    Number(coordinates[0]),
+                    Number(coordinates[1])
+                ],
+                zoom: 15,
+                duration: 1000
+            });
+
+
+        } catch (error) {
+            console.error("選択した場所を取得できませんでした:", error);
+
+            if (typeof window.showToast === "function") {
+                window.showToast("選択した場所へ移動できませんでした。", "error");
+            }
+        } finally {
+            // 1回の検索セッションを終え、新しいセッションを開始
+            sessionToken = createSearchSessionToken();
         }
-    );
+    }
 
+    input.addEventListener("input", function () {
+        clearTimeout(debounceTimer);
 
-    geocoder.on(
-        "clear",
-        function () {
+        const query = input.value.trim();
+
+        if (query.length < 2) {
+            if (activeRequest) activeRequest.abort();
+            hideSuggestions();
+            return;
+        }
+
+        debounceTimer = setTimeout(function () {
+            searchPlaces(query);
+        }, 250);
+    });
+
+    input.addEventListener("keydown", function (event) {
+        if (event.key === "ArrowDown") {
+            event.preventDefault();
+            moveHighlight(1);
+        } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            moveHighlight(-1);
+        } else if (event.key === "Enter") {
+            if (highlightedIndex >= 0 && currentResults[highlightedIndex]) {
+                event.preventDefault();
+                selectSuggestion(currentResults[highlightedIndex]);
+            }
+        } else if (event.key === "Escape") {
+            hideSuggestions();
+        }
+    });
+
+    input.addEventListener("focus", function () {
+        if (currentResults.length > 0) {
+            suggestions.hidden = false;
+            input.setAttribute("aria-expanded", "true");
+        }
+    });
+
+    document.addEventListener("click", function (event) {
+        if (!container.contains(event.target)) {
+            hideSuggestions();
+        }
+    });
+
+    // 検索欄を消した時は、通常のスポット表示に戻す
+    input.addEventListener("search", function () {
+        if (!input.value.trim()) {
+            if (activeRequest) activeRequest.abort();
+            hideSuggestions();
             applyActiveFilter();
+            sessionToken = createSearchSessionToken();
         }
-    );
+    });
 }
+
 
 
 // =========================================================
@@ -3079,6 +3303,14 @@ function updateRouteList() {
 
     selectedSpots.forEach(
         function (spot, index) {
+            // 前の聖地（1か所目は現在地）からの行き方
+            routeList.appendChild(
+                createRouteLeg(
+                    selectedSpots[index - 1] || null,
+                    spot
+                )
+            );
+
             const routeItem =
                 document.createElement(
                     "div"
@@ -3203,6 +3435,110 @@ function updateRouteList() {
 }
 
 
+// =========================================================
+// ルートの区間（前の聖地 → この聖地）
+// 徒歩の目安と、電車・バスで行く時の「Googleマップで乗換案内」ボタン
+// （Googleマップは電車のモードだと経由地を使えないので、区間ごとに開く）
+// =========================================================
+
+// これより遠い区間は、電車で行くのをすすめる
+const TRANSIT_SUGGEST_METERS = 2000;
+
+// 道は直線より長いので 1.3 倍、歩く速さは分速 80m として目安を出す
+function estimateWalk(meters) {
+    const walkMeters = meters * 1.3;
+    return {
+        distanceText: walkMeters < 1000
+            ? "約" + Math.round(walkMeters / 10) * 10 + "m"
+            : "約" + (walkMeters / 1000).toFixed(1) + "km",
+        minutes: Math.max(1, Math.round(walkMeters / 80))
+    };
+}
+
+// Googleマップの乗換案内のURL（from が無ければ現在地から）
+function buildTransitUrl(from, to) {
+    let url =
+        "https://www.google.com/maps/dir/?api=1" +
+        `&destination=${encodeURIComponent(`${to.latitude},${to.longitude}`)}`;
+
+    if (from) {
+        url += `&origin=${encodeURIComponent(`${from.latitude},${from.longitude}`)}`;
+    }
+
+    return url + "&travelmode=transit";
+}
+
+function createRouteLeg(from, to) {
+    const leg =
+        document.createElement(
+            "div"
+        );
+
+    leg.className =
+        "route-leg";
+
+    const info =
+        document.createElement(
+            "span"
+        );
+
+    info.className =
+        "route-leg-info";
+
+    let isFar = false;
+
+    if (from) {
+        const meters =
+            getDistanceMeters(from, to);
+        const walk =
+            estimateWalk(meters);
+
+        isFar =
+            meters >= TRANSIT_SUGGEST_METERS;
+
+        info.textContent =
+            `徒歩 ${walk.distanceText}・${walk.minutes}分` +
+            (isFar ? "（電車がおすすめ）" : "");
+    } else {
+        info.textContent =
+            "現在地から";
+    }
+
+    const transit =
+        document.createElement(
+            "a"
+        );
+
+    transit.className =
+        "route-leg-transit" +
+        (isFar ? " is-recommended" : "");
+
+    transit.href =
+        buildTransitUrl(from, to);
+
+    transit.target =
+        "_blank";
+
+    transit.rel =
+        "noopener";
+
+    transit.textContent =
+        "🚃 電車で";
+
+    transit.setAttribute(
+        "aria-label",
+        `「${to.name}」まで${from ? `「${from.name}」から` : "現在地から"}電車・バスで行く（Googleマップの乗換案内を開く）`
+    );
+
+    leg.append(
+        info,
+        transit
+    );
+
+    return leg;
+}
+
+
 // ▲▼ボタンを作る（端の項目では押せないようにする）
 function createRouteMoveButton(label, ariaLabel, fromIndex, toIndex) {
     const button =
@@ -3299,6 +3635,11 @@ function startRouteDrag(event) {
         "dragging"
     );
 
+    // 並べ替え中は区間の表示を隠す（離すと描き直す）
+    routeList.classList.add(
+        "is-dragging"
+    );
+
     function onMove(moveEvent) {
         const siblings =
             Array.from(
@@ -3364,6 +3705,10 @@ function startRouteDrag(event) {
 
         item.classList.remove(
             "dragging"
+        );
+
+        routeList.classList.remove(
+            "is-dragging"
         );
 
         if (toIndex === fromIndex) {

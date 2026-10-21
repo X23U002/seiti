@@ -671,88 +671,17 @@ button:active {
 /* =====================================
    Mapbox 検索バーの見た目調整
 ===================================== */
-.mapboxgl-ctrl-geocoder {
-    width: 100% !important;
-    max-width: 100% !important;
-    background-color: white !important;
-    border-radius: 25px !important;
-    box-shadow: 0 3px 10px rgba(0, 0, 0, .22) !important;
-}
 
-.mapboxgl-ctrl-geocoder--input {
-    height: 46px !important;
-    font-size: 16px !important;
-    padding-left: 40px !important;
-    /* 左の虫眼鏡アイコンと被らないように余白を作る */
-}
 
-/* 検索バーをクリックした時の点線（フォーカス枠）を消す */
-.mapboxgl-ctrl-geocoder--input:focus {
-    outline: none !important;
-    box-shadow: none !important;
-}
-
-/* 念のため、親要素（枠全体）の点線も無効化する */
-.mapboxgl-ctrl-geocoder:focus,
-.mapboxgl-ctrl-geocoder:focus-within {
-    outline: none !important;
-}
 
 /* =====================================
    Mapbox検索バー位置補正
 ===================================== */
 
-#search-container {
-
-    position: absolute;
-
-    top: 18px;
-
-    left: 75px;
-
-    right: 75px;
-
-    height: 46px;
-
-    z-index: 200;
-
-}
-
-.mapboxgl-ctrl-geocoder {
-
-    margin: 0 !important;
-
-    width: 100% !important;
-
-    max-width: none !important;
-
-    min-width: 0 !important;
-
-    height: 46px;
-
-}
-
-.mapboxgl-ctrl-geocoder--input {
-
-    height: 46px !important;
-
-}
 
 /* =====================================
    検索バーの虫眼鏡位置調整
 ===================================== */
-
-.mapboxgl-ctrl-geocoder--icon-search {
-
-    top: 13px !important;
-
-    left: 14px !important;
-
-    width: 20px;
-
-    height: 20px;
-
-}
 
 /* =====================================
    スポットポップアップ
@@ -960,17 +889,6 @@ button:active {
    検索候補を最前面に表示
 ===================================== */
 
-.mapboxgl-ctrl-geocoder {
-
-    z-index: 1000 !important;
-
-}
-
-.mapboxgl-ctrl-geocoder .suggestions {
-
-    z-index: 1001 !important;
-
-}
 
 /* =====================================
    経路案内パネル
@@ -2407,6 +2325,57 @@ body {
     margin-left: 0;
 }
 
+/* ---------- ルートの区間（徒歩の目安・電車で行くボタン） ---------- */
+.route-leg {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 0 4px 30px;      /* つまみの幅だけ右へ寄せて、項目の間の「つなぎ」に見せる */
+    font-size: 12px;
+    color: #6b7b8c;
+}
+
+.route-leg-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.route-leg-transit {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border: 1px solid #b8cad8;
+    border-radius: 999px;
+    background: #fff;
+    color: #0b3c5d;
+    font-size: 12px;
+    font-weight: bold;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.route-leg-transit:hover,
+.route-leg-transit:focus-visible {
+    background: #e6f0f6;
+}
+
+/* 遠い区間は電車をすすめる */
+.route-leg-transit.is-recommended {
+    border-color: #0b3c5d;
+    background: #0b3c5d;
+    color: #fff;
+}
+
+.route-leg-transit.is-recommended:hover,
+.route-leg-transit.is-recommended:focus-visible {
+    background: #145a87;
+}
+
+/* 並べ替え中は区間を隠す（離すと描き直す） */
+#routeList.is-dragging .route-leg {
+    display: none;
+}
+
 /* ドラッグ中の項目 */
 .routeItem.dragging {
     border-radius: 8px;
@@ -2856,4 +2825,92 @@ a.popup-title {
 a.popup-title:hover,
 a.popup-title:focus-visible {
     text-decoration: underline;
+}
+
+#search-container {
+    position: absolute;
+    top: 15px;
+    left: 75px;
+    right: 75px;
+    z-index: 200;
+}
+
+#search-box {
+    width: 100%;
+    height: 46px;
+    border: none;
+    border-radius: 25px;
+    padding-left: 18px;
+    font-size: 16px;
+    background: white;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, .22);
+}
+
+#search-box:focus {
+    outline: none;
+}
+
+
+.search-box-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+
+#search-suggestions {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    max-height: min(60vh, 420px);
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    z-index: 300;
+}
+
+#search-suggestions[hidden] {
+    display: none;
+}
+
+.search-suggestion {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    width: 100%;
+    padding: 12px 16px;
+    border: 0;
+    border-bottom: 1px solid #eee;
+    background: #fff;
+    color: #222;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+}
+
+.search-suggestion:first-child {
+    border-radius: 14px 14px 0 0;
+}
+
+.search-suggestion:last-child {
+    border-bottom: 0;
+    border-radius: 0 0 14px 14px;
+}
+
+.search-suggestion:hover,
+.search-suggestion.is-active {
+    background: #f1f5f9;
+}
+
+.search-suggestion-title {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.search-suggestion-subtitle {
+    font-size: 12px;
+    color: #666;
+    line-height: 1.4;
 }

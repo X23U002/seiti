@@ -7,7 +7,6 @@
     "test": "playwright test"
   },
   "devDependencies": {
-    "@mapbox/mapbox-gl-geocoder": "5.0.0",
     "@playwright/test": "1.56.1",
     "mapbox-gl": "3.12.0"
   }
