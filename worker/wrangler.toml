@@ -13,9 +13,9 @@ DAILY_LIMIT = "5"
 # 使う Gemini のモデル（AI Studio で使えるモデル名に合わせる）
 GEMINI_MODEL = "gemini-flash-latest"
 
-# 1人1日の回数を数える場所（Cloudflare の画面で作った KV の ID を入れる）
+# 1人1日の回数を数える場所（Cloudflare の画面で作った KV「seiti-ai-usage」）
 [[kv_namespaces]]
 binding = "USAGE"
-id = "ここに KV の ID を入れる"
+id = "b259b7091ecc49bd9076dba87068a8bf"
 
 # GEMINI_API_KEY はここに書かない（npx wrangler secret put GEMINI_API_KEY で登録する）
