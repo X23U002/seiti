@@ -9,7 +9,7 @@ import { getSpotImageSrc } from "./spot-image.js?v=9f48db08";
 import { courseDistance, formatCourseLength } from "./course.js?v=5729311e";
 import { loadCourses, loadMyStampCounts, loadSpots, readCachedSpots } from "./public-data.js?v=c815b81a";
 import { getCurrentUser } from "./firebase-db.js?v=917161b9";
-import { isAiPlanAvailable, readSavedPlan, requestAiPlan, savePlan } from "./ai-plan.js?v=00778e17";
+import { isAiPlanAvailable, readSavedPlan, requestAiPlan, savePlan } from "./ai-plan.js?v=f1670a90";
 
 const title = new URLSearchParams(location.search).get("title") || "";
 

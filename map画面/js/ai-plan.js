@@ -30,6 +30,16 @@ export async function requestAiPlan(title) {
     const user = await getCurrentUser();
     if (!user) throw planError("not-logged-in", "ログインすると使えます。");
 
+    // ログインの証明（1時間で切れるので、切れていれば Google から取り直す）
+    let token;
+    try {
+        token = await user.getIdToken();
+    } catch (error) {
+        console.warn("AI プラン：ログインの証明を取れませんでした:", error);
+        throw planError("auth",
+            "ログインの確認ができませんでした。広告ブロックなどの拡張機能を切って、ページを読み込み直してください。");
+    }
+
     const controller = new AbortController();
     const timer = setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
 
@@ -39,12 +49,13 @@ export async function requestAiPlan(title) {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": "Bearer " + await user.getIdToken()
+                "Authorization": "Bearer " + token
             },
             body: JSON.stringify({ title: title }),
             signal: controller.signal
         });
     } catch (error) {
+        console.warn("AI プラン：中継サーバーと通信できませんでした:", error);
         throw planError("network", "通信できませんでした。通信状況を確認して、もう一度お試しください。");
     } finally {
         clearTimeout(timer);

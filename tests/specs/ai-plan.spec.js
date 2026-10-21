@@ -102,3 +102,12 @@ test("回数の上限など、サーバーの断りの文をそのまま出す",
     await expect(page.locator("#ai-plan-result")).toBeHidden();
     await expect(page.locator("#ai-plan-btn")).toBeEnabled();
 });
+
+test("ログインの証明を取り直せない時（広告ブロックなど）は、サーバーに送らずに分かる文を出す", async ({ page }) => {
+    const requests = await fakeServer(page, () => [200, { plan: PLAN, remaining: 4 }]);
+    await seed(page, Object.assign({ local: { mockTokenFail: "1" } }, loggedIn));
+    await openWork(page);
+    await page.click("#ai-plan-btn");
+    await expect(page.locator("#ai-plan-status")).toContainText("ログインの確認ができませんでした");
+    expect(requests).toHaveLength(0);
+});

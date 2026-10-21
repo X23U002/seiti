@@ -11,7 +11,15 @@ const auth = {
         const state = read();
         if (!state.current) return null;
         const email = Object.keys(state.users).find((key) => state.users[key].uid === state.current);
-        return { uid: state.current, email, getIdToken: async () => "test-token" };
+        return {
+            uid: state.current,
+            email,
+            // localStorage「mockTokenFail」があると、証明の取り直しに失敗する（広告ブロックで Google の通信が止められた時の再現）
+            getIdToken: async () => {
+                if (localStorage.getItem("mockTokenFail")) throw authError("auth/network-request-failed");
+                return "test-token";
+            }
+        };
     },
     async authStateReady() {}
 };
