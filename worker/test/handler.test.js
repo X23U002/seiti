@@ -85,7 +85,9 @@ test("作品の指定が無い・聖地が無い時", async () => {
 
 test("AI の答えが使えない時は 502、AI が混んでいる時は 503（どちらも回数は数える）", async () => {
     const bad = setup({ askGemini: async () => ({ stops: [{ spot_id: "zzz" }] }) });
-    assert.equal((await bad.handle(request({ title: "作品" }), env)).status, 502);
+    const badResponse = await bad.handle(request({ title: "作品" }), env);
+    assert.equal(badResponse.status, 502);
+    assert.match((await badResponse.json()).detail, /2か所以上/);
     assert.equal(bad.counts.get("uid1"), 1);
 
     const busy = setup({ askGemini: async () => { throw new PlanError("busy"); } });
@@ -99,4 +101,32 @@ test("/plan 以外・POST 以外は 404", async () => {
     const { handle } = setup();
     assert.equal((await handle(request({ title: "作品" }, { path: "/other" }), env)).status, 404);
     assert.equal((await handle(request(null, { method: "GET" }), env)).status, 404);
+});
+
+test("Gemini が断った時は、その理由を detail に入れて返す", async () => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: 404, message: "models/xxx is not found" } }), { status: 404 });
+    try {
+        const { defaultDeps } = await import("../src/index.js");
+        const { handle } = setup({ askGemini: defaultDeps.askGemini });
+        const response = await handle(request({ title: "作品" }), Object.assign({ GEMINI_API_KEY: "k" }, env));
+        assert.equal(response.status, 502);
+        assert.equal((await response.json()).detail, "Gemini 404: models/xxx is not found");
+    } finally {
+        globalThis.fetch = realFetch;
+    }
+});
+
+test("Gemini の答えが読めない時も、理由を detail に入れて返す", async () => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({ candidates: [{ finishReason: "MAX_TOKENS", content: { parts: [{ text: "{\"plan" }] } }] }), { status: 200 });
+    try {
+        const { defaultDeps } = await import("../src/index.js");
+        const { handle } = setup({ askGemini: defaultDeps.askGemini });
+        const response = await handle(request({ title: "作品" }), Object.assign({ GEMINI_API_KEY: "k" }, env));
+        assert.equal(response.status, 502);
+        assert.match((await response.json()).detail, /MAX_TOKENS/);
+    } finally {
+        globalThis.fetch = realFetch;
+    }
 });

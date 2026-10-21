@@ -7,6 +7,10 @@ compatibility_date = "2026-10-01"
 workers_dev = true
 preview_urls = false
 
+# ログを Cloudflare に残す（ダッシュボードの Observability で見られる）
+[observability]
+enabled = true
+
 [vars]
 FIREBASE_PROJECT_ID = "sisukai-121cf"
 # 呼び出してよいサイト（カンマ区切り）

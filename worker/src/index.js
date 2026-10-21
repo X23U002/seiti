@@ -37,10 +37,12 @@ const ERRORS = {
     "failed": [502, "プランを作れませんでした。もう一度お試しください。"]
 };
 
+// detail：失敗の理由（調べる人向け。アプリは F12 のコンソールに出す。キーなどの秘密は入れない）
 export class PlanError extends Error {
-    constructor(code) {
+    constructor(code, detail) {
         super(code);
         this.code = code;
+        this.detail = detail || "";
     }
 }
 
@@ -107,12 +109,30 @@ async function askGemini(title, spots, env) {
             })
         }
     );
-    if (response.status === 429 || response.status === 503) throw new PlanError("busy");
-    if (!response.ok) {
-        console.error("Gemini", response.status, await response.text());
-        throw new PlanError("failed");
+    if (response.status === 429 || response.status === 503) {
+        throw new PlanError("busy", "Gemini " + response.status);
     }
-    return parseGeminiResponse(await response.json());
+    if (!response.ok) {
+        const text = await response.text();
+        console.error("Gemini", response.status, text);
+        let reason = text;
+        try {
+            reason = JSON.parse(text).error.message || text;
+        } catch (error) {
+            // JSON でなければそのまま
+        }
+        throw new PlanError("failed", "Gemini " + response.status + ": " + String(reason).slice(0, 300));
+    }
+
+    const body = await response.json();
+    const answer = parseGeminiResponse(body);
+    if (!answer) {
+        console.error("Gemini の答えを読めませんでした", JSON.stringify(body).slice(0, 2000));
+        const reason = (body.promptFeedback && body.promptFeedback.blockReason) ||
+            (body.candidates && body.candidates[0] && body.candidates[0].finishReason) || "形が違う";
+        throw new PlanError("failed", "Gemini の答えを JSON として読めませんでした（" + reason + "）");
+    }
+    return answer;
 }
 
 // 1人1日の回数（KV の「uid:日付」に数を入れる）
@@ -150,9 +170,9 @@ function json(body, status, headers) {
     });
 }
 
-function errorResponse(code, headers) {
+function errorResponse(code, headers, detail) {
     const [status, message] = ERRORS[code] || ERRORS.failed;
-    return json({ error: code, message }, status, headers);
+    return json(Object.assign({ error: code, message }, detail ? { detail } : {}), status, headers);
 }
 
 export function createHandler(deps = defaultDeps) {
@@ -190,13 +210,19 @@ export function createHandler(deps = defaultDeps) {
             // AI に頼む前に数える（失敗が続いても、無料枠を使い切られないように）
             await deps.usage.add(uid, env, now, used);
 
-            const plan = finalizePlan(await deps.askGemini(title, spots, env), spots);
-            if (!plan) throw new PlanError("failed");
+            const answer = await deps.askGemini(title, spots, env);
+            const plan = finalizePlan(answer, spots);
+            if (!plan) {
+                console.error("使えるプランになりませんでした", JSON.stringify(answer).slice(0, 2000));
+                throw new PlanError("failed", "Gemini の答えに、一覧にある聖地が2か所以上入っていませんでした");
+            }
 
             return json({ plan, remaining: Math.max(0, limit - used - 1) }, 200, cors);
         } catch (error) {
             if (!(error instanceof PlanError)) console.error(error);
-            return errorResponse(error instanceof PlanError ? error.code : "failed", cors);
+            return error instanceof PlanError
+                ? errorResponse(error.code, cors, error.detail)
+                : errorResponse("failed", cors, "サーバーの中で失敗しました");
         }
     };
 }

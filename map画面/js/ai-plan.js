@@ -52,6 +52,8 @@ export async function requestAiPlan(title) {
 
     const body = await response.json().catch(function () { return {}; });
     if (!response.ok || !body.plan) {
+        // 失敗の理由（調べる人向け）は F12 のコンソールに出す
+        if (body.detail) console.warn("AI プランを作れなかった理由:", body.detail);
         throw planError(body.error || "failed", body.message || "プランを作れませんでした。もう一度お試しください。");
     }
     return body;
