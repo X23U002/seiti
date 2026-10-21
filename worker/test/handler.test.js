@@ -1,7 +1,7 @@
 // 受け付け（サイトの確認・ログイン・回数制限・エラー）のテスト。通信する部品は差しかえる
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PlanError, RETRY_WAIT, createHandler, defaultDeps } from "../src/index.js";
+import { RETRY_WAIT, createHandler, defaultDeps } from "../src/index.js";
 
 RETRY_WAIT.ms = 0;
 
