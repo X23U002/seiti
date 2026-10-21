@@ -20,7 +20,12 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js"></script>
 
     <!-- Mapbox Geocoder -->
+    <link
+        href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css"
+        rel="stylesheet"
+    >
 
+    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
 
     <!-- three.js（現在地の3Dキャラクター表示に使う） -->
     <script type="importmap">
@@ -35,11 +40,11 @@
     <!-- 自作CSS -->
     <link
         rel="stylesheet"
-        href="../css/style.css?v=a194f9ab"
+        href="../css/style.css?v=5"
     >
 
     <!-- スタンプのランク（回数で枠の色が変わる） -->
-    <link rel="stylesheet" href="../css/stamp-rank.css?v=63a337bd">
+    <link rel="stylesheet" href="../css/stamp-rank.css">
 
     <style>
         .popup-img {
@@ -76,14 +81,6 @@
         </div>
 
         <ul>
-            <li>
-                <a href="#" onclick="openCourses(); return false;"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16"/></svg>おすすめルート</a>
-            </li>
-
-            <li>
-                <a href="works.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16M3 9h5M3 14h5"/></svg>作品一覧</a>
-            </li>
-
             <li>
                 <a href="mypage.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>マイページ</a>
             </li>
@@ -223,40 +220,6 @@
     ></div>
 
 
-    <!-- おすすめ聖地巡礼ルート（下から出るシート） -->
-    <div
-        id="course-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="course-heading"
-    >
-
-        <div class="filter-header">
-
-            <h2 id="course-heading">おすすめルート</h2>
-
-            <button
-                type="button"
-                onclick="closeCourses()"
-                aria-label="閉じる"
-            >
-                ✕
-            </button>
-
-        </div>
-
-        <p class="filter-note">選ぶと、そのルートがルート案内に入ります。距離と時間は直線距離からの目安です。</p>
-
-        <div id="course-list"></div>
-
-    </div>
-
-    <div
-        id="course-backdrop"
-        onclick="closeCourses()"
-    ></div>
-
-
     <!-- 現在地 -->
     <button
         id="location-btn"
@@ -326,7 +289,7 @@
                 id="open-google-route"
                 type="button"
             >
-                Googleマップで徒歩案内
+                Googleマップで案内
             </button>
 
             <!-- ログイン中は、マイページから開けるように保存できる -->
@@ -358,12 +321,12 @@
          type="module"は付けない
     ====================================================== -->
     <!-- 画面下の通知メッセージ（stampsyori.js・Script.jsから使う） -->
-    <script src="../js/toast.js?v=720dc155"></script>
+    <script src="../js/toast.js"></script>
 
     <!-- スタンプのランク（回数で枠の色が変わる） -->
-    <script src="../js/stamp-rank.js?v=5854d0d9"></script>
+    <script src="../js/stamp-rank.js"></script>
 
-    <script src="../js/stampsyori.js?v=ff39bec0"></script>
+    <script src="../js/stampsyori.js?v=6"></script>
 
 
     <!-- =====================================================
@@ -372,7 +335,7 @@
     ====================================================== -->
     <script
         type="module"
-        src="../js/Script.js?v=7bd84967"
+        src="../js/Script.js?v=10"
     ></script>
 
 
@@ -393,10 +356,6 @@
 
             if (document.getElementById("filter-modal").style.display === "block") {
                 window.closeFilter();
-            }
-
-            if (document.getElementById("course-modal").style.display === "block") {
-                window.closeCourses();
             }
         });
     </script>
