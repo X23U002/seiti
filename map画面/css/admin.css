@@ -354,6 +354,14 @@
 }
 
 /* ---------- 登録済みの聖地（新しく登録・編集） ---------- */
+/* 聖地の一括編集ページへのリンク */
+.spot-table-link {
+    display: block;
+    margin-bottom: 12px;
+    text-align: center;
+    text-decoration: none;
+}
+
 #spot-new {
     margin-bottom: 12px;
 }

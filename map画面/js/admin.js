@@ -20,6 +20,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 import { db, getCurrentUser } from "./firebase-db.js?v=917161b9";
+import { encodeGeohash } from "./geohash.js?v=fe42fce1";
 import { getTitleColor } from "./title-colors.js?v=5c634da9";
 import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=feb7ee57";
 import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=9f48db08";
@@ -444,36 +445,6 @@ async function rejectRequest(item, button) {
 }
 
 // ---------- 申請を確認して地図に追加する ----------
-// 緯度経度から geohash（8文字）を作る（既にある聖地と同じ精度）
-function encodeGeohash(latitude, longitude, precision) {
-    const base32 = "0123456789bcdefghjkmnpqrstuvwxyz";
-    let latRange = [-90, 90];
-    let lngRange = [-180, 180];
-    let hash = "";
-    let bit = 0;
-    let ch = 0;
-    let even = true;
-
-    while (hash.length < precision) {
-        const range = even ? lngRange : latRange;
-        const value = even ? longitude : latitude;
-        const mid = (range[0] + range[1]) / 2;
-        if (value >= mid) {
-            ch = (ch << 1) | 1;
-            range[0] = mid;
-        } else {
-            ch = ch << 1;
-            range[1] = mid;
-        }
-        even = !even;
-        if (++bit === 5) {
-            hash += base32[ch];
-            bit = 0;
-            ch = 0;
-        }
-    }
-    return hash;
-}
 
 function setApprovePosition(lngLat, fly) {
     if (!approveMarker) {
