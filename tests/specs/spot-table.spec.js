@@ -12,7 +12,13 @@ async function openTable(page) {
     await expect(page.locator("#table-main")).toBeVisible();
 }
 
-const rowOf = (page, id) => page.locator("#spot-rows tr", { has: page.locator(".row-id", { hasText: new RegExp("^" + id + "$") }) });
+// ID で探して、その聖地の行を返す
+async function rowOf(page, id) {
+    await page.fill("#filter-text", id);
+    const row = page.locator("#spot-rows tr").first();
+    await expect(row.locator('[data-field="id"]')).toHaveValue(id);
+    return row;
+}
 
 test("管理者でない人には表を出さない", async ({ page }) => {
     await seed(page, { user: "uid2", data: adminData() });
@@ -26,8 +32,7 @@ test("表で書きかえて保存すると、変えた項目だけが保存さ�
     await openTable(page);
     await expect(page.locator("#table-status")).toContainText("全" + SPOTS.length + "件");
 
-    await page.fill("#filter-text", "宇治橋");
-    const row = rowOf(page, bridge.id);
+    const row = await rowOf(page, bridge.id);
     await row.locator('[data-field="spot_info"]').fill("新しい説明");
     await expect(row).toHaveClass(/is-changed/);
     await expect(page.locator("#save-all")).toHaveText("保存する（1件）");
@@ -104,4 +109,73 @@ test("CSV を書き出すと、全部の聖地が見出し付きで入る", asyn
     const text = (await (await download.createReadStream()).toArray()).join("");
     expect(text.startsWith("﻿ID,作品名,スポット名,説明,緯度,経度")).toBe(true);
     expect(text).toContain(spotNamed("宇治橋").spot_name);
+});
+
+test("登録済みの聖地の緯度・経度を直すと、場所と geo_hash が保存される", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    await openTable(page);
+    const row = await rowOf(page, bridge.id);
+    await row.locator('[data-field="latitude"]').fill("34.9");
+    await row.locator('[data-field="longitude"]').fill("135.81");
+    await expect(row).toHaveClass(/is-changed/);
+    await page.click("#save-all");
+    await expect(page.locator("#toast")).toContainText("1件の聖地を保存しました");
+
+    const saved = (await readStore(page)).spot[bridge.id];
+    expect(saved.coord).toEqual({ latitude: 34.9, longitude: 135.81 });
+    expect(saved.geo_hash).not.toBe(bridge.geo_hash);
+    expect(saved.spot_name).toBe(bridge.spot_name);
+});
+
+test("ID を変えると、新しい ID で作り直して古い聖地を消し、おすすめルートの ID も付け替える", async ({ page }) => {
+    const [station, bridge] = ["京阪宇治駅", "宇治橋"].map(spotNamed);
+    const data = adminData();
+    data.course = { c1: { title_name: bridge.title_name, course_name: "テスト", description: "", spot_ids: [station.id, bridge.id], updated_at: { __ts: 1 } } };
+    await seed(page, { user: "uid1", data });
+    await page.goto("html/spot-table.html");
+    await expect(page.locator("#table-main")).toBeVisible();
+
+    const row = await rowOf(page, bridge.id);
+    await row.locator('[data-field="id"]').fill("s0799");
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.click("#save-all");
+    await expect(page.locator("#toast")).toContainText("おすすめルート 1件の ID も付け替えました");
+
+    const store = await readStore(page);
+    expect(store.spot[bridge.id]).toBeUndefined();
+    expect(store.spot.s0799).toMatchObject({ spot_name: bridge.spot_name, spot_info: bridge.spot_info, coord: bridge.coord });
+    expect(store.course.c1.spot_ids).toEqual([station.id, "s0799"]);
+});
+
+test("ほかの聖地が使っている ID や、形の違う ID には変えられない", async ({ page }) => {
+    const [station, bridge] = ["京阪宇治駅", "宇治橋"].map(spotNamed);
+    await openTable(page);
+    const row = await rowOf(page, bridge.id);
+    await row.locator('[data-field="id"]').fill(station.id);
+    await page.click("#save-all");
+    await expect(row.locator(".row-error")).toContainText("ほかの聖地で使っています");
+
+    await row.locator('[data-field="id"]').fill("ア イ");
+    await page.click("#save-all");
+    await expect(row.locator(".row-error")).toContainText("半角の英数字");
+    expect((await readStore(page)).spot[bridge.id]).toBeDefined();
+});
+
+test("新しい行に ID を入れると、その ID で登録される（空なら自動）", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    await openTable(page);
+    await page.click("#add-row");
+    const row = page.locator("#spot-rows tr.is-new");
+    await expect(row.locator('[data-field="id"]')).toHaveAttribute("placeholder", "自動");
+    await row.locator('[data-field="id"]').fill("s0799");
+    await row.locator('[data-field="title_name"]').fill(bridge.title_name);
+    await row.locator('[data-field="spot_name"]').fill("ID を決めた聖地");
+    await row.locator('[data-field="spot_info"]').fill("説明");
+    await row.locator('[data-field="latitude"]').fill("34.89");
+    await row.locator('[data-field="longitude"]').fill("135.80");
+    await page.click("#save-all");
+    await expect(page.locator("#toast")).toContainText("1件の聖地を保存しました");
+
+    expect((await readStore(page)).spot.s0799).toMatchObject({ spot_name: "ID を決めた聖地", title_name: bridge.title_name });
+    await expect(page.locator("#spot-rows tr", { has: page.locator('[data-field="spot_name"]') }).first()).toBeVisible();
 });

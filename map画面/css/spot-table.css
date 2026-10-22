@@ -162,7 +162,7 @@
     box-shadow: var(--focus-ring);
 }
 
-.col-id { width: 90px; }
+.col-id { width: 110px; }
 .col-title { width: 180px; }
 .col-name { width: 200px; }
 .col-place { width: 170px; }
@@ -178,9 +178,8 @@
     color: var(--color-text-sub);
 }
 
-.row-place {
-    font-size: 12px;
-    color: var(--color-text-sub);
+.table-warning {
+    color: var(--color-danger);
 }
 
 /* 変えた行・新しい行・直すところがある行 */

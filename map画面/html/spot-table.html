@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex">
     <title>聖地の一括編集 - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
-    <link rel="stylesheet" href="../css/spot-table.css?v=d3a1be3c">
+    <link rel="stylesheet" href="../css/spot-table.css?v=06e492fa">
 </head>
 <body>
 
@@ -27,7 +27,8 @@
         <div id="table-main" hidden>
             <section class="card table-help">
                 <p>表の中を直接書きかえて、最後に「保存」を押すと、まとめて保存されます。変えた行は色が付きます。</p>
-                <p>CSV で書き出して Excel やスプレッドシートで直し、読み込むこともできます（読み込んだだけでは保存されません）。新しい聖地は「ID」を空にした行で足せます。新しい聖地には地図の場所（緯度・経度）が必要です。</p>
+                <p>CSV で書き出して Excel やスプレッドシートで直し、読み込むこともできます（読み込んだだけでは保存されません）。新しい聖地は「ID」を空にした行で足せます（ID は自動で付きます）。新しい聖地には地図の場所（緯度・経度）が必要です。</p>
+                <p class="table-warning">ID を変えると、利用者のスタンプ・お気に入り・保存したルートは古い ID のまま残り、表示されなくなります（おすすめルートは自動で付け替えます）。必要な時だけ変えてください。</p>
             </section>
 
             <div class="table-toolbar">
@@ -59,7 +60,7 @@
                             <th scope="col" class="col-title">作品名</th>
                             <th scope="col" class="col-name">スポット名</th>
                             <th scope="col" class="col-info">説明</th>
-                            <th scope="col" class="col-place">緯度・経度（新しい聖地だけ）</th>
+                            <th scope="col" class="col-place">緯度・経度</th>
                             <th scope="col" class="col-action"><span class="visually-hidden">取り消し</span></th>
                         </tr>
                     </thead>
@@ -76,6 +77,6 @@
 
     <script src="../js/common.js?v=d714509d"></script>
     <script src="../js/toast.js?v=720dc155"></script>
-    <script type="module" src="../js/spot-table.js?v=2dd8f31e"></script>
+    <script type="module" src="../js/spot-table.js?v=11d6ae84"></script>
 </body>
 </html>
