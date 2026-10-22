@@ -264,6 +264,21 @@
     color: var(--color-text-sub);
 }
 
+/* 説明文から読み取れた期・話を、まとめて保存 */
+.episode-bulk {
+    margin: 0 0 14px;
+}
+
+.episode-bulk .btn {
+    width: 100%;
+}
+
+.episode-bulk-note {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: var(--color-text-sub);
+}
+
 .episode-filter {
     display: flex;
     align-items: center;
@@ -339,6 +354,14 @@
 }
 
 /* ---------- 登録済みの聖地（新しく登録・編集） ---------- */
+/* 聖地の一括編集ページへのリンク */
+.spot-table-link {
+    display: block;
+    margin-bottom: 12px;
+    text-align: center;
+    text-decoration: none;
+}
+
 #spot-new {
     margin-bottom: 12px;
 }
