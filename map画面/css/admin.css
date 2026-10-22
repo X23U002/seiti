@@ -264,6 +264,21 @@
     color: var(--color-text-sub);
 }
 
+/* 説明文から読み取れた期・話を、まとめて保存 */
+.episode-bulk {
+    margin: 0 0 14px;
+}
+
+.episode-bulk .btn {
+    width: 100%;
+}
+
+.episode-bulk-note {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: var(--color-text-sub);
+}
+
 .episode-filter {
     display: flex;
     align-items: center;

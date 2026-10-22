@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex">
     <title>管理ページ - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
-    <link rel="stylesheet" href="../css/admin.css?v=c58b12db">
+    <link rel="stylesheet" href="../css/admin.css?v=1c130746">
 
     <!-- 位置の確認・調整に使う地図 -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
@@ -80,6 +80,10 @@
                     地図の詳細に「1期 EP12」のように表示されます。まだ入力していない聖地には、説明文から読み取った値を<span class="guess-mark">推測</span>として入れています。
                     確認して「保存」を押してください。分からない・劇場版などは空欄のままで大丈夫です（説明文から表示します）。
                 </p>
+                <div class="episode-bulk">
+                    <button type="button" class="btn btn-secondary" id="episode-bulk">説明文から読み取れた分を、全作品まとめて保存</button>
+                    <p class="episode-bulk-note" id="episode-bulk-note"></p>
+                </div>
                 <label class="episode-filter">
                     作品
                     <select id="episode-title"></select>
@@ -257,6 +261,6 @@
 
     <script src="../js/common.js?v=d714509d"></script>
     <script src="../js/toast.js?v=720dc155"></script>
-    <script type="module" src="../js/admin.js?v=dc45af83"></script>
+    <script type="module" src="../js/admin.js?v=e291974b"></script>
 </body>
 </html>

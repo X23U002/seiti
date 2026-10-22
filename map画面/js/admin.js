@@ -980,6 +980,7 @@ function updateEpisodeSaveButton() {
 
 function renderEpisodes() {
     renderEpisodeTitles();
+    updateEpisodeBulk();
 
     const title = document.getElementById("episode-title").value;
     shownEpisodeTitle = title;
@@ -1110,6 +1111,72 @@ document.getElementById("episode-save").addEventListener("click", async function
             "error"
         );
         updateEpisodeSaveButton();
+    }
+});
+
+// まだ期・話を入れていない聖地のうち、説明文から読み取れたもの
+function findEpisodeGuesses() {
+    return spots
+        .filter(function (spot) { return !("season" in spot.data || "episode" in spot.data); })
+        .map(function (spot) {
+            const guess = parseEpisode(spot.data.spot_info);
+            return { spot: spot, value: { season: guess.season, episode: guess.episode } };
+        })
+        .filter(function (item) { return item.value.season > 0 || item.value.episode > 0; });
+}
+
+function updateEpisodeBulk() {
+    const button = document.getElementById("episode-bulk");
+    const note = document.getElementById("episode-bulk-note");
+    const unsaved = spots.filter(function (spot) { return !("season" in spot.data || "episode" in spot.data); }).length;
+    const guesses = findEpisodeGuesses().length;
+    button.disabled = guesses === 0;
+    note.textContent = unsaved === 0
+        ? "すべての聖地に期・話が入っています。"
+        : "まだ入れていない聖地 " + unsaved + "件のうち、" + guesses + "件は説明文から読み取れます" +
+            (unsaved > guesses ? "（残り " + (unsaved - guesses) + "件は、作品ごとに手で入れてください）" : "") + "。";
+}
+
+// 説明文から読み取れた期・話を、全作品まとめて保存する（読み取れない聖地はそのまま）
+document.getElementById("episode-bulk").addEventListener("click", async function () {
+    const button = this;
+    const guesses = findEpisodeGuesses();
+    if (guesses.length === 0) return;
+
+    const sample = guesses.slice(0, 10).map(function (item) {
+        return "・" + (item.spot.data.spot_name || item.spot.id) + "：" +
+            (getSpotEpisodeLabel(item.value) || "");
+    }).join("\n");
+    if (!window.confirm(
+        "説明文から読み取った期・話を、" + guesses.length + "件の聖地に保存します。\n\n" +
+        sample + (guesses.length > 10 ? "\n…ほか" + (guesses.length - 10) + "件" : "") +
+        "\n\n保存したあとも、作品ごとに直せます。保存しますか？"
+    )) return;
+
+    button.disabled = true;
+    try {
+        // 1回にまとめて書けるのは500件まで
+        for (let i = 0; i < guesses.length; i += 400) {
+            const batch = writeBatch(db);
+            guesses.slice(i, i + 400).forEach(function (item) {
+                batch.update(doc(db, "spot", item.spot.id), item.value);
+            });
+            await batch.commit();
+            guesses.slice(i, i + 400).forEach(function (item) { Object.assign(item.spot.data, item.value); });
+        }
+        notify(guesses.length + "件の聖地に期・話を保存しました");
+        renderEpisodes();
+        renderSpots();
+    } catch (error) {
+        console.error(error);
+        notify(
+            error && error.code === "permission-denied"
+                ? "保存する権限がありません。Firestore のルールに season・episode を追加してください"
+                : "保存できませんでした。通信状況を確認してください",
+            "error"
+        );
+    } finally {
+        updateEpisodeBulk();
     }
 });
 
