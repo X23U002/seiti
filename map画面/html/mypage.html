@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>マイページ - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
-    <link rel="stylesheet" href="../css/stamp-rank.css?v=63a337bd">
+    <link rel="stylesheet" href="../css/stamp-rank.css?v=966a0ec6">
     <link rel="stylesheet" href="../css/mypage.css?v=c6b5dfba">
 </head>
 <body>
@@ -163,11 +163,11 @@
     </div>
 
     <script src="../js/common.js?v=d714509d"></script>
-    <script src="../js/stamp-rank.js?v=5854d0d9"></script>
-    <script src="../js/mypage.js?v=1e24e91c"></script>
+    <script src="../js/stamp-rank.js?v=43b8cb36"></script>
+    <script src="../js/mypage.js?v=a58d6f35"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
-        import { loadStampBook } from "../js/stamp-db.js?v=fb2d2a17";
+        import { loadStampBook } from "../js/stamp-db.js?v=af011576";
 
         loadStampBook().then(function (book) {
             renderRecord(book.stamps || [], book.stamps === null ? "guest" : "ready", book.summary);
