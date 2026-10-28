@@ -51,6 +51,20 @@
     to { --rank-angle: 360deg; }
 }
 
+/* 聖地の画像を入れたスタンプ（画像は丸く切り抜き、枠はそのまま） */
+.has-image {
+    overflow: hidden;
+    padding: 0 !important;
+}
+
+.has-image .stamp-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
 /* ランク名の札 */
 .rank-pill {
     display: inline-block;

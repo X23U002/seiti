@@ -25,7 +25,7 @@ function formatDate(time) {
 }
 
 // 聖地の一覧（DBの spot から作る）
-// { total, titles: { 作品名: { count, color } }, spots: [{ id, name, title, info }] }
+// { total, titles: { 作品名: { count, color } }, spots: [{ id, name, title, info, image }] }
 function buildSpotSummary(spotSnapshot) {
     const summary = { total: 0, titles: {}, spots: [] };
 
@@ -43,6 +43,7 @@ function buildSpotSummary(spotSnapshot) {
             name: data.spot_name || "無題のスポット",
             title: title,
             info: data.spot_info || "",
+            image: data.image_url || "",
             season: data.season || 0,
             episode: data.episode || 0
         });
@@ -64,7 +65,7 @@ function buildSpotSummary(spotSnapshot) {
 
 // スタンプ帳・マイページで使うデータをまとめて読む
 // stamps：獲得したスタンプ（スポットごとに1件、初めて取った順）。未ログインなら null
-//   { id, name, anime, scene, date, stampedAt, count }
+//   { id, name, anime, scene, image（聖地の画像）, date, stampedAt, count }
 // summary：聖地の一覧（地図を開いていなくても分かる）
 export async function loadStampBook() {
     const userId = await getLoginUserId();
@@ -121,6 +122,7 @@ export async function loadStampBook() {
                 name: spot.spot_name || "無題のスポット",
                 anime: getTitleName(spot),
                 scene: spot.spot_info || "",
+                image: spot.image_url || "",
                 season: spot.season || 0,
                 episode: spot.episode || 0,
                 date: formatDate(bySpot[spotId].first),
