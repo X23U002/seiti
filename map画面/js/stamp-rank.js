@@ -27,9 +27,10 @@
     };
 
     // 聖地の画像の URL（spot-image.js の getSpotImageSrc と同じ。html/ の中のページから見た場所）
-    // 画像が無ければ空文字
+    // 画像が無ければ空文字。アニメの場面の画像（images/spots/anime/）は著作権上使わない
     function stampImageSrc(imageUrl) {
         if (!imageUrl || imageUrl === "no_image" || imageUrl === "not_image") return "";
+        if (/(^|\/)images\/spots\/anime\//.test(String(imageUrl))) return "";
         if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
         return "../" + encodeURI(String(imageUrl).replace(/^\/+/, ""));
     }

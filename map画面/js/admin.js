@@ -23,7 +23,7 @@ import { db, getCurrentUser } from "./firebase-db.js?v=917161b9";
 import { encodeGeohash } from "./geohash.js?v=fe42fce1";
 import { getTitleColor } from "./title-colors.js?v=5c634da9";
 import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=feb7ee57";
-import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=9f48db08";
+import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=59165daf";
 import {
     COURSE_COLLECTION,
     COURSE_MAX_SPOTS,
