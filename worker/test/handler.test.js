@@ -1,7 +1,7 @@
 // 受け付け（サイトの確認・ログイン・回数制限・エラー）のテスト。通信する部品は差しかえる
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RETRY_WAIT, createHandler, defaultDeps } from "../src/index.js";
+import { GEMINI_TIME_LIMIT, RETRY_WAIT, createHandler, defaultDeps } from "../src/index.js";
 
 RETRY_WAIT.ms = 0;
 
@@ -197,6 +197,49 @@ test("どのモデルも混んでいたら 503。理由を返し、今日の回�
         assert.equal(counts.get("uid1"), 0);
         assert.equal(calls.length, 4);
     });
+});
+
+// 答えない Gemini（待つ時間が切れると止まる）
+function silentGemini(calls) {
+    return async (url, init) => {
+        calls.push(decodeURIComponent(String(url).split("/models/")[1].split(":")[0]));
+        return new Promise((_resolve, reject) => {
+            init.signal.addEventListener("abort", () => reject(init.signal.reason));
+        });
+    };
+}
+
+test("最初のモデルが遅い時は、予備のモデルに切りかえる。どれも遅ければ 503 で回数に数えない", async () => {
+    const saved = Object.assign({}, GEMINI_TIME_LIMIT);
+    Object.assign(GEMINI_TIME_LIMIT, { total: 300, first: 50, min: 10 });
+    const realFetch = globalThis.fetch;
+    // Node の AbortSignal.timeout はそれだけではテストを待たせないので、待つ間だけ動かしておく
+    const keepAlive = setInterval(() => {}, 10);
+    try {
+        // 最初のモデルは答えず、予備のモデルが答える
+        let calls = [];
+        const slow = silentGemini(calls);
+        globalThis.fetch = async (url, init) => String(url).includes("lite-model")
+            ? (calls.push("lite-model"), new Response(JSON.stringify(GOOD_ANSWER), { status: 200 }))
+            : slow(url, init);
+        let { handle } = setup({ askGemini: defaultDeps.askGemini });
+        assert.equal((await handle(request({ title: "作品" }), geminiEnv)).status, 200);
+        assert.deepEqual(calls, ["main-model", "lite-model"]);
+
+        // どちらも答えない
+        calls = [];
+        globalThis.fetch = silentGemini(calls);
+        const second = setup({ askGemini: defaultDeps.askGemini });
+        const response = await second.handle(request({ title: "作品" }), geminiEnv);
+        assert.equal(response.status, 503);
+        assert.match((await response.json()).detail, /時間切れ（lite-model/);
+        assert.equal(second.counts.get("uid1"), 0);
+        assert.deepEqual(calls, ["main-model", "lite-model"]);
+    } finally {
+        clearInterval(keepAlive);
+        globalThis.fetch = realFetch;
+        Object.assign(GEMINI_TIME_LIMIT, saved);
+    }
 });
 
 test("条件（使える時間・出発地・希望）を AI に渡す", async () => {

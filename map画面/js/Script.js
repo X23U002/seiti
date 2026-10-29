@@ -3917,13 +3917,14 @@ async function generateMapboxRoute() {
 
         const url =
             "https://api.mapbox.com/directions/v5/mapbox/walking/" +
-    coordinates +
-    "?geometries=geojson" +
-    "&overview=full" +
-    "&steps=false" +
-    "&exclude=ferry" +
-    "&access_token=" +
-    encodeURIComponent(mapboxgl.accessToken);
+            coordinates +
+            "?geometries=geojson" +
+            "&overview=full" +
+            // 区間ごとに線を分けて色を変えるため、区間の中の道のり（steps）も受け取る
+            // （船の区間かどうかも steps で分かる）
+            "&steps=true" +
+            "&access_token=" +
+            encodeURIComponent(mapboxgl.accessToken);
 
         // 徒歩でも、川や海の近くでは渡し船の航路を使うことがあるので、船を除いて頼む
         // （船を使わないと行けない区間があって断られた時は、除かずに頼み直す）
