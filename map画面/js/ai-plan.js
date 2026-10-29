@@ -1,6 +1,6 @@
 // ==========================================
-// AI のおすすめ巡礼プラン（作品ページで使う）
-// 中継サーバー（worker/ の Cloudflare Workers）に作品名を送ると、
+// AI の巡礼プラン（作品ページの「マイプラン」と、管理ページのおすすめルートの下書きで使う）
+// 中継サーバー（worker/ の Cloudflare Workers）に作品名と条件を送ると、
 // AI（Gemini）が選んだ聖地・滞在時間・見どころが返ってくる
 // ログインが必要（1人1日の回数はサーバーで数える）
 // ==========================================
@@ -25,8 +25,9 @@ function planError(code, message) {
     return Object.assign(new Error(message), { code });
 }
 
+// options：{ duration: "short" | "half" | "day", start: 出発地, wishes: 希望 }（どれも無くてよい）
 // { plan: { title, summary, walk_meters, total_minutes, stops: [{ id, name, season, episode, stay_minutes, comment }] }, remaining }
-export async function requestAiPlan(title) {
+export async function requestAiPlan(title, options) {
     const user = await getCurrentUser();
     if (!user) throw planError("not-logged-in", "ログインすると使えます。");
 
@@ -51,7 +52,7 @@ export async function requestAiPlan(title) {
                 "Content-Type": "application/json",
                 "Authorization": "Bearer " + token
             },
-            body: JSON.stringify({ title: title }),
+            body: JSON.stringify(Object.assign({ title: title }, options || {})),
             signal: controller.signal
         });
     } catch (error) {

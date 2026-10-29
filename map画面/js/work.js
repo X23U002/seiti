@@ -9,7 +9,7 @@ import { getSpotImageSrc } from "./spot-image.js?v=59165daf";
 import { courseDistance, formatCourseLength } from "./course.js?v=5729311e";
 import { loadCourses, loadMyStampCounts, loadSpots, readCachedSpots } from "./public-data.js?v=c815b81a";
 import { getCurrentUser } from "./firebase-db.js?v=917161b9";
-import { isAiPlanAvailable, readSavedPlan, requestAiPlan, savePlan } from "./ai-plan.js?v=f1670a90";
+import { isAiPlanAvailable, readSavedPlan, requestAiPlan, savePlan } from "./ai-plan.js?v=7ad470a0";
 
 const title = new URLSearchParams(location.search).get("title") || "";
 
@@ -157,7 +157,7 @@ function renderAiPlan(plan) {
         "AI が作った目安です。電車の乗換は、地図のルート案内の「🚃 電車で」から確かめてください。"));
 
     result.hidden = false;
-    document.getElementById("ai-plan-btn").textContent = "別のプランを作ってもらう";
+    document.getElementById("ai-plan-btn").textContent = "別のマイプランを作ってもらう";
 }
 
 let aiSectionReady = false;
@@ -166,6 +166,7 @@ async function setupAiSection() {
     if (aiSectionReady || !isAiPlanAvailable()) return;
     aiSectionReady = true;
 
+    const form = document.getElementById("ai-plan-form");
     const button = document.getElementById("ai-plan-btn");
     const status = document.getElementById("ai-plan-status");
     document.getElementById("ai-section").hidden = false;
@@ -178,13 +179,18 @@ async function setupAiSection() {
         status.textContent = "ログインすると使えます（1日の回数に限りがあります）。";
         return;
     }
-    button.hidden = false;
+    form.hidden = false;
 
-    button.addEventListener("click", async function () {
+    form.addEventListener("submit", async function (event) {
+        event.preventDefault();
         button.disabled = true;
         status.textContent = "AI がプランを考えています…（数十秒かかることがあります）";
         try {
-            const { plan, remaining } = await requestAiPlan(title);
+            const { plan, remaining } = await requestAiPlan(title, {
+                duration: document.getElementById("ai-duration").value,
+                start: document.getElementById("ai-start").value.trim(),
+                wishes: document.getElementById("ai-wishes").value.trim()
+            });
             savePlan(title, plan);
             renderAiPlan(plan);
             status.textContent = "プランができました。今日はあと " + remaining + " 回作れます。";

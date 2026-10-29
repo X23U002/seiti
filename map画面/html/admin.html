@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex">
     <title>管理ページ - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
-    <link rel="stylesheet" href="../css/admin.css?v=5ffe4616">
+    <link rel="stylesheet" href="../css/admin.css?v=2e75e41f">
 
     <!-- 位置の確認・調整に使う地図 -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
@@ -192,6 +192,11 @@
                     <select id="cs-title" class="course-select"></select>
                 </div>
 
+                <div class="course-ai" id="cs-ai-box" hidden>
+                    <button type="button" class="btn btn-secondary" id="cs-ai">AI で下書きを作る</button>
+                    <p class="form-hint" id="cs-ai-status" aria-live="polite"></p>
+                </div>
+
                 <div class="form-group">
                     <label for="cs-name">ルート名<span class="required">必須</span></label>
                     <input type="text" id="cs-name" maxlength="50" placeholder="(例) 宇治をめぐる1期ルート">
@@ -262,6 +267,6 @@
 
     <script src="../js/common.js?v=d714509d"></script>
     <script src="../js/toast.js?v=720dc155"></script>
-    <script type="module" src="../js/admin.js?v=4c75bfb5"></script>
+    <script type="module" src="../js/admin.js?v=bb0cff91"></script>
 </body>
 </html>

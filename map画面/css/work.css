@@ -203,6 +203,38 @@
     text-decoration: none;
 }
 
+/* マイプランの条件 */
+.ai-plan-form {
+    display: grid;
+    gap: 10px;
+}
+
+.ai-plan-field {
+    display: grid;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--color-text-sub);
+}
+
+.ai-plan-field select,
+.ai-plan-field input,
+.ai-plan-field textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-weight: normal;
+    font-size: 15px;
+}
+
+.ai-plan-field textarea {
+    resize: vertical;
+}
+
 /* .btn の display より hidden を優先する */
 .ai-plan [hidden] {
     display: none;
