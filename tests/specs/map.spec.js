@@ -76,6 +76,24 @@ test("検索：登録済みの聖地を候補に出し、選ぶと詳細が開�
     await expect(page.locator(".popup-spot")).toContainText(SPOTS.find((spot) => spot.id === targetId).spot_name);
 });
 
+test("ピンに触る前にメニューの「おすすめルート」を開いても、読み込めたらルートが出る", async ({ page }) => {
+    const order = ["京阪宇治駅", "宇治橋"].map(spotNamed);
+    // Firestore が遅い（8秒待ってから Web API で読む）時の再現
+    await seed(page, {
+        local: { mockFsHang: "1" },
+        data: withSpots({
+            course: { c1: { title_name: order[0].title_name, course_name: "すぐ開くルート", description: "", spot_ids: order.map((s) => s.id), updated_at: { __ts: 1 } } }
+        })
+    });
+    await page.goto("html/map.html");
+    await page.evaluate(() => window.openCourses());
+    const list = page.locator("#course-list");
+    await expect(list).toContainText("読み込んでいます");
+    await expect(list.locator(".course-card")).toContainText("すぐ開くルート", { timeout: 30_000 });
+    await list.locator(".course-start").click();
+    await expect(page.locator(".routeItem")).toHaveCount(2);
+});
+
 test("ルート案内の区間ごとに、徒歩の目安と「電車で」（Googleマップの乗換案内）が出る", async ({ page }) => {
     const [station, bridge, nagoya] = ["京阪宇治駅", "宇治橋", "名古屋国際会議場（センチュリーホール）"].map(spotNamed);
     await seed(page, {

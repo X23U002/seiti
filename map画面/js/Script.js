@@ -217,6 +217,11 @@ function setSpots(list) {
     // stampsyori.jsへ最新のスポット一覧を渡す
     window.spots = spots;
 
+    // おすすめルートの一覧を開いていれば、新しい聖地で作り直す
+    if (isCourseListOpen()) {
+        renderCourseList();
+    }
+
     if (
         typeof window.refreshStampUI ===
         "function"
@@ -387,6 +392,7 @@ function openRouteFromUrl() {
 // そのままルート案内に入る
 // =========================================================
 let courses = [];
+let coursesLoaded = false;
 
 // 聖地と同じく、Firestore で読めなければ Web API から読む（public-data.js）
 async function loadCourses() {
@@ -395,6 +401,12 @@ async function loadCourses() {
     } catch (error) {
         console.warn("おすすめルートを読み込めませんでした:", error);
         courses = [];
+    }
+    coursesLoaded = true;
+
+    // 読み込み中に一覧を開いていれば、出し直す
+    if (isCourseListOpen()) {
+        renderCourseList();
     }
 
     // 開いている詳細があれば、この聖地を通るルートを出し直す
@@ -406,6 +418,10 @@ async function loadCourses() {
             }
         );
 }
+
+// 地図の準備や最新の聖地を待たずに読み始める
+// （前回の聖地でピンがすぐ出るので、ピンに触る前にメニューから開かれても出せるように）
+const coursesReady = loadCourses();
 
 function findSpot(spotId) {
     return spots.find(
@@ -528,6 +544,11 @@ window.openCourses =
             .focus();
     };
 
+function isCourseListOpen() {
+    const modal = document.getElementById("course-modal");
+    return Boolean(modal) && modal.style.display === "block";
+}
+
 window.closeCourses =
     function () {
         document
@@ -547,11 +568,15 @@ function renderCourseList() {
 
     list.innerHTML = "";
 
-    if (courses.length === 0) {
+    const showMessage = function (text) {
         const empty = document.createElement("p");
         empty.className = "course-empty";
-        empty.textContent = "まだおすすめルートはありません。";
+        empty.textContent = text;
         list.appendChild(empty);
+    };
+
+    if (!coursesLoaded) {
+        showMessage("おすすめルートを読み込んでいます…");
         return;
     }
 
@@ -624,6 +649,13 @@ function renderCourseList() {
             list.appendChild(card);
         }
     );
+
+    // ルートが無い・聖地をまだ読み込めていない
+    if (!list.querySelector(".course-card")) {
+        showMessage(spots.length === 0
+            ? "聖地を読み込んでいます…"
+            : "まだおすすめルートはありません。");
+    }
 }
 
 // ---------- 聖地の詳細の「おすすめルート」 ----------
@@ -2370,7 +2402,7 @@ map.on(
 
         // おすすめルートを読み込む（待たずに進める）。
         // 作品ページの「このルートで巡る」（map.html?course=ID）から来た時は、読み込めたらそのルートを始める
-        loadCourses().then(
+        coursesReady.then(
             function () {
                 const courseId =
                     new URLSearchParams(location.search).get("course");
