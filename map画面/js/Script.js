@@ -3226,15 +3226,28 @@ function updateRouteList() {
 // これより遠い区間は、電車で行くのをすすめる
 const TRANSIT_SUGGEST_METERS = 2000;
 
-// 道は直線より長いので 1.3 倍、歩く速さは分速 80m として目安を出す
-function estimateWalk(meters) {
-    const walkMeters = meters * 1.3;
+// 「地図上にルートを生成」で Mapbox から返ってきた、区間ごとの実際の道のりと時間
+// キーは「前の聖地のID>次の聖地のID」、値は { distance: メートル, duration: 秒 }
+// （ルートを解除したら消す。並べ替えて区間が変わったら、その区間は目安に戻る）
+const mapboxRouteLegs = new Map();
+
+function routeLegKey(from, to) {
+    return String(from.id) + ">" + String(to.id);
+}
+
+function formatWalk(walkMeters, minutes) {
     return {
         distanceText: walkMeters < 1000
             ? "約" + Math.round(walkMeters / 10) * 10 + "m"
             : "約" + (walkMeters / 1000).toFixed(1) + "km",
-        minutes: Math.max(1, Math.round(walkMeters / 80))
+        minutes: Math.max(1, Math.round(minutes))
     };
+}
+
+// 道は直線より長いので 1.3 倍、歩く速さは分速 80m として目安を出す
+function estimateWalk(meters) {
+    const walkMeters = meters * 1.3;
+    return formatWalk(walkMeters, walkMeters / 80);
 }
 
 // Googleマップの乗換案内のURL（from が無ければ現在地から）
@@ -3272,15 +3285,26 @@ function createRouteLeg(from, to) {
     if (from) {
         const meters =
             getDistanceMeters(from, to);
+
+        // ルートを生成してあれば、その実際の道のりと時間（画面下に出る合計と同じ）。
+        // 無ければ直線から出した目安
+        const actual =
+            mapboxRouteLegs.get(routeLegKey(from, to));
         const walk =
-            estimateWalk(meters);
+            actual
+                ? formatWalk(actual.distance, actual.duration / 60)
+                : estimateWalk(meters);
 
         isFar =
             meters >= TRANSIT_SUGGEST_METERS;
 
+        const notes = [];
+        if (!actual) notes.push("目安");
+        if (isFar) notes.push("電車がおすすめ");
+
         info.textContent =
             `徒歩 ${walk.distanceText}・${walk.minutes}分` +
-            (isFar ? "（電車がおすすめ）" : "");
+            (notes.length > 0 ? "（" + notes.join("・") + "）" : "");
     } else {
         info.textContent =
             "現在地から";
@@ -3674,6 +3698,8 @@ function updateMapboxRouteButtons() {
 function unsetMapboxRoute(showMessage = true) {
     isMapboxRouteActive = false;
     mapboxRouteSpotIds.clear();
+    mapboxRouteLegs.clear();
+    updateRouteList();
 
     clearMapboxRoute();
     applyMapboxRouteSpotVisibility();
@@ -3859,6 +3885,20 @@ async function generateMapboxRoute() {
             maxZoom: 16,
             duration: 800
         });
+
+        // 区間ごとの道のりと時間を、ルート案内の区間の表示に使う
+        mapboxRouteLegs.clear();
+        (route.legs || []).forEach(function (leg, index) {
+            const from = routeSpots[index];
+            const to = routeSpots[index + 1];
+            if (from && to) {
+                mapboxRouteLegs.set(routeLegKey(from, to), {
+                    distance: leg.distance,
+                    duration: leg.duration
+                });
+            }
+        });
+        updateRouteList();
 
         const distanceKm = (route.distance / 1000).toFixed(1);
         const minutes = Math.round(route.duration / 60);
