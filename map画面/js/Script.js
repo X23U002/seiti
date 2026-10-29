@@ -3000,6 +3000,10 @@ window.removeSpotFromRoute =
                 index,
                 1
             );
+            // ルート表示中なら、個別削除時もMapboxのルートを解除
+            if (isMapboxRouteActive) {
+                unsetMapboxRoute(false);
+            }
 
             updateRouteList();
             syncRouteButtons();
@@ -3025,6 +3029,8 @@ window.removeSpotFromRoute =
 // =========================================================
 window.clearSelectedSpots =
     function () {
+        unsetMapboxRoute(false);
+
         selectedSpots.length = 0;
 
         updateRouteList();
@@ -3611,6 +3617,287 @@ window.openGoogleMapsRoute = function () {
     // =====================================================
     window.open(url, "_blank");
 };
+
+// =========================================================
+// Mapboxでルートを生成して地図上に表示
+// ルート案内のスポットを上から順に通る
+// =========================================================
+
+const MAPBOX_ROUTE_SOURCE_ID = "selected-spots-route";
+const MAPBOX_ROUTE_LAYER_ID = "selected-spots-route-line";
+
+// ルート表示状態
+let isMapboxRouteActive = false;
+let mapboxRouteSpotIds = new Set();
+
+// ルート表示中は、ルートに含まれるスポットだけを表示
+function applyMapboxRouteSpotVisibility() {
+    const filteredSpots = filterSpots();
+
+    currentSpots = isMapboxRouteActive
+        ? filteredSpots.filter(function (spot) {
+            return mapboxRouteSpotIds.has(String(spot.id));
+        })
+        : filteredSpots;
+
+    drawMarkers(currentSpots);
+}
+
+// ルート生成・解除ボタンの表示を更新
+function updateMapboxRouteButtons() {
+    const generateButton = document.getElementById(
+        "generate-mapbox-route"
+    );
+
+    const clearButton = document.getElementById(
+        "clear-mapbox-route"
+    );
+
+    if (generateButton) {
+        generateButton.textContent = isMapboxRouteActive
+            ? "ルートを解除"
+            : "地図上にルートを生成";
+
+        generateButton.disabled = false;
+        generateButton.setAttribute(
+            "aria-pressed",
+            String(isMapboxRouteActive)
+        );
+    }
+
+    if (clearButton) {
+        clearButton.hidden = !isMapboxRouteActive;
+    }
+}
+
+// Mapboxルートを解除
+function unsetMapboxRoute(showMessage = true) {
+    isMapboxRouteActive = false;
+    mapboxRouteSpotIds.clear();
+
+    clearMapboxRoute();
+    applyMapboxRouteSpotVisibility();
+    updateMapboxRouteButtons();
+
+    if (showMessage) {
+        window.showToast("ルートを解除しました");
+    }
+}
+
+// ルートの線を地図に登録
+function setupMapboxRouteLayer() {
+    if (!map.isStyleLoaded()) {
+        return;
+    }
+
+    // すでに存在する場合は重複登録しない
+    if (!map.getSource(MAPBOX_ROUTE_SOURCE_ID)) {
+        map.addSource(MAPBOX_ROUTE_SOURCE_ID, {
+            type: "geojson",
+            data: {
+                type: "Feature",
+                properties: {},
+                geometry: {
+                    type: "LineString",
+                    coordinates: []
+                }
+            }
+        });
+    }
+
+    if (!map.getLayer(MAPBOX_ROUTE_LAYER_ID)) {
+        map.addLayer({
+            id: MAPBOX_ROUTE_LAYER_ID,
+            type: "line",
+            source: MAPBOX_ROUTE_SOURCE_ID,
+            layout: {
+                "line-join": "round",
+                "line-cap": "round"
+            },
+            paint: {
+                "line-color": "#1976D2",
+                "line-width": 5,
+                "line-opacity": 0.9
+            }
+        });
+    }
+}
+
+// 生成済みルートを消す
+function clearMapboxRoute() {
+    const source = map.getSource(MAPBOX_ROUTE_SOURCE_ID);
+
+    if (source) {
+        source.setData({
+            type: "Feature",
+            properties: {},
+            geometry: {
+                type: "LineString",
+                coordinates: []
+            }
+        });
+    }
+}
+
+// Mapbox Directions APIでルートを生成
+async function generateMapboxRoute() {
+    const button = document.getElementById(
+        "generate-mapbox-route"
+    );
+
+    if (selectedSpots.length < 2) {
+        window.showToast(
+            "ルート生成には2か所以上のスポットが必要です",
+            "error"
+        );
+        return;
+    }
+
+    // 座標が有効なスポットだけを使う
+    const routeSpots = selectedSpots.filter(function (spot) {
+        return (
+            Number.isFinite(Number(spot.longitude)) &&
+            Number.isFinite(Number(spot.latitude)) &&
+            Number(spot.longitude) >= -180 &&
+            Number(spot.longitude) <= 180 &&
+            Number(spot.latitude) >= -90 &&
+            Number(spot.latitude) <= 90
+        );
+    });
+
+    if (routeSpots.length !== selectedSpots.length) {
+        window.showToast(
+            "座標が正しくないスポットがあります",
+            "error"
+        );
+        return;
+    }
+
+    const originalText = button.textContent;
+
+    button.disabled = true;
+    button.textContent = "ルート生成中…";
+
+    try {
+        // 地図のスタイル読み込みが終わるまで待つ
+        if (!map.isStyleLoaded()) {
+            await new Promise(function (resolve) {
+                map.once("idle", resolve);
+            });
+        }
+
+        setupMapboxRouteLayer();
+
+        // ルート案内リストの順番をそのまま使用
+        // Mapboxの座標形式は「経度,緯度」
+        const coordinates = routeSpots.map(function (spot) {
+            return `${spot.longitude},${spot.latitude}`;
+        }).join(";");
+
+        const url =
+            "https://api.mapbox.com/directions/v5/mapbox/walking/" +
+            coordinates +
+            "?geometries=geojson" +
+            "&overview=full" +
+            "&steps=false" +
+            "&access_token=" +
+            encodeURIComponent(mapboxgl.accessToken);
+
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            throw new Error(
+                `Directions API エラー: ${response.status}`
+            );
+        }
+
+        const data = await response.json();
+
+        if (
+            data.code !== "Ok" ||
+            !data.routes ||
+            data.routes.length === 0
+        ) {
+            throw new Error(
+                data.message || "ルートが見つかりませんでした"
+            );
+        }
+
+        const route = data.routes[0];
+
+        // 道路に沿った経路を地図上の線として表示
+        const source = map.getSource(MAPBOX_ROUTE_SOURCE_ID);
+
+        source.setData({
+            type: "Feature",
+            properties: {
+                distance: route.distance,
+                duration: route.duration
+            },
+            geometry: route.geometry
+        });
+
+        isMapboxRouteActive = true;
+        mapboxRouteSpotIds = new Set(
+            routeSpots.map(function (spot) {
+                return String(spot.id);
+            })
+        );
+
+        applyMapboxRouteSpotVisibility();
+        updateMapboxRouteButtons();
+
+        // 全スポットが画面に収まるよう地図を調整
+        const bounds = new mapboxgl.LngLatBounds();
+
+        route.geometry.coordinates.forEach(function (coord) {
+            bounds.extend(coord);
+        });
+
+        map.fitBounds(bounds, {
+            padding: 90,
+            maxZoom: 16,
+            duration: 800
+        });
+
+        const distanceKm = (route.distance / 1000).toFixed(1);
+        const minutes = Math.round(route.duration / 60);
+
+        window.showToast(
+            `ルートを生成しました（約${distanceKm}km・徒歩約${minutes}分）`
+        );
+
+    } catch (error) {
+        console.error("ルート生成に失敗しました:", error);
+
+        window.showToast(
+            "ルートを生成できませんでした。通信状態やスポットの座標を確認してください",
+            "error"
+        );
+
+    } finally {
+        button.disabled = false;
+        updateMapboxRouteButtons();
+    }
+}
+
+// ルート生成・解除ボタンのクリック処理
+document
+    .getElementById("generate-mapbox-route")
+    ?.addEventListener("click", function () {
+        if (isMapboxRouteActive) {
+            unsetMapboxRoute();
+        } else {
+            generateMapboxRoute();
+        }
+    });
+
+
+
+// 地図のスタイルが切り替わった場合にも線を再登録する
+map.on("style.load", function () {
+    setupMapboxRouteLayer();
+});
 
 // =========================================================
 // HTML読み込み後に経路ボタンを接続
