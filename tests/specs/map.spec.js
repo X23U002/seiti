@@ -216,6 +216,56 @@ test("地図上にルートを生成する時は船を除いて頼み、断ら�
     expect(urls).toEqual(["ferry", null]);
 });
 
+test("地図上にルートを出している時に順番を入れ替えると、新しい順番でルートを作り直す。古い答えでは描かない", async ({ page }) => {
+    const order = ["京阪宇治駅", "宇治橋", "大吉山展望台"].map(spotNamed);
+    await seed(page, {
+        data: withSpots({
+            course: { c1: { title_name: order[0].title_name, course_name: "入れ替え", description: "", spot_ids: order.map((s) => s.id), updated_at: { __ts: 1 } } }
+        })
+    });
+    const at = (s) => s.coord.longitude.toFixed(5);
+    const requests = [];
+    const pending = [];
+    await page.route(/\/directions\/v5\/mapbox\/walking\//, (route) => {
+        const coords = decodeURIComponent(new URL(route.request().url()).pathname.split("/walking/")[1]).split(";");
+        requests.push(coords.map((c) => Number(c.split(",")[0]).toFixed(5)));
+        const answer = () => route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+                code: "Ok",
+                routes: [{
+                    distance: 1000 * requests.length,
+                    duration: 600,
+                    legs: coords.slice(1).map((c, i) => ({ distance: 500, duration: 300, steps: [{ geometry: { type: "LineString", coordinates: [coords[i], c].map((x) => x.split(",").map(Number)) } }] })),
+                    geometry: { type: "LineString", coordinates: coords.map((x) => x.split(",").map(Number)) }
+                }]
+            })
+        });
+        // 2回目（入れ替え1回目）の答えは遅らせる
+        if (requests.length === 2) pending.push(answer); else return answer();
+    });
+    await page.goto("html/map.html?course=c1");
+    await page.click("#generate-mapbox-route");
+    await expect(page.locator("#toast")).toContainText("ルートを生成しました");
+
+    // 1番目を下へ（宇治橋, 京阪宇治駅, 大吉山）→ もう一度下へ（宇治橋, 大吉山, 京阪宇治駅）
+    await page.locator('#routeList .routeItem[data-index="0"] .route-move button').nth(1).click();
+    await expect.poll(() => requests.length).toBe(2);
+    await page.locator('#routeList .routeItem[data-index="1"] .route-move button').nth(1).click();
+    await expect.poll(() => requests.length).toBe(3);
+    expect(requests[1]).toEqual([order[1], order[0], order[2]].map(at));
+    expect(requests[2]).toEqual([order[1], order[2], order[0]].map(at));
+
+    // 新しい順番の線が出たあとで、古い答えが届いても描き直さない
+    await expect(page.locator("#toast")).toContainText("約3.0km");
+    await pending[0]();
+    await page.waitForTimeout(300);
+    const last = await page.evaluate(() => window.__map.getSource("selected-spots-route")._data.features.at(-1).geometry.coordinates.at(-1)[0]);
+    expect(last.toFixed(5)).toBe(at(order[0]));
+    await expect(page.locator("#toast")).toContainText("約3.0km");
+});
+
 test("徒歩で1時間以上かかる区間は「○時間○分」で出す", async ({ page }) => {
     const [station, nagoya] = ["京阪宇治駅", "名古屋国際会議場（センチュリーホール）"].map(spotNamed);
     await seed(page, {

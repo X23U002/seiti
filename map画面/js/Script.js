@@ -3761,6 +3761,8 @@ function createRouteArrowImage() {
 // ルート表示状態
 let isMapboxRouteActive = false;
 let mapboxRouteSpotIds = new Set();
+// 何回目のルート生成か（順番を続けて入れ替えた時、古い答えで線を描かないため）
+let mapboxRouteRequest = 0;
 
 // ルート表示中は、ルートに含まれるスポットだけを表示
 function applyMapboxRouteSpotVisibility() {
@@ -3906,6 +3908,8 @@ async function generateMapboxRoute() {
         return;
     }
 
+    const request = ++mapboxRouteRequest;
+
     // 座標が有効なスポットだけを使う
     const routeSpots = selectedSpots.filter(function (spot) {
         return (
@@ -3972,6 +3976,11 @@ async function generateMapboxRoute() {
         }
 
         const data = await response.json();
+
+        // 待っている間に、もっと新しい順番で頼み直していれば、この答えは使わない
+        if (request !== mapboxRouteRequest) {
+            return;
+        }
 
         if (
             data.code !== "Ok" ||
@@ -4072,8 +4081,11 @@ async function generateMapboxRoute() {
         );
 
     } finally {
-        button.disabled = false;
-        updateMapboxRouteButtons();
+        // 新しい頼み直しを待っている間は、ボタンをそのままにする
+        if (request === mapboxRouteRequest) {
+            button.disabled = false;
+            updateMapboxRouteButtons();
+        }
     }
 }
 
