@@ -2908,3 +2908,69 @@ a.popup-title:hover,
 a.popup-title:focus-visible {
     text-decoration: underline;
 }
+
+
+
+/* ==========================================
+   Mapboxルート生成ボタン
+========================================== */
+
+#generate-mapbox-route {
+    display: block;
+    width: 100%;
+    min-height: 46px;
+    margin: 0 0 8px;
+    padding: 12px;
+
+    border: none;
+    border-radius: 8px;
+
+    background: #f39c12;
+    color: #ffffff;
+
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 1.5;
+
+    cursor: pointer;
+    box-shadow: 0 3px 8px rgba(243, 156, 18, 0.25);
+
+    transition:
+        background-color 0.2s ease,
+        opacity 0.2s ease,
+        transform 0.2s ease;
+}
+
+/* マウスを乗せたとき */
+#generate-mapbox-route:hover:not(:disabled) {
+    background: #e08e0b;
+    transform: none;
+}
+
+/* 押したとき */
+#generate-mapbox-route:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+/* 生成中など、操作できないとき */
+#generate-mapbox-route:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+/* キーボード操作時 */
+#generate-mapbox-route:focus-visible {
+    outline: 3px solid rgba(243, 156, 18, 0.45);
+    outline-offset: 2px;
+}
+
+/* Googleマップ・保存ボタンとの間隔 */
+#open-google-route {
+    margin-top: 0;
+}
+
+#save-route {
+    margin-top: 8px;
+}
