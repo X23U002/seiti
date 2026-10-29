@@ -1347,6 +1347,29 @@ body {
     pointer-events: none;
 }
 
+/* 地図上にルートを生成している間の、回る順番の番号（左上。右上は ✓） */
+.mapboxgl-marker .route-order-badge {
+    position: absolute;
+    top: -6px;
+    left: -8px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 4px;
+    border-radius: 10px;
+    border: 2px solid #fff;
+    background: #0b3c5d;
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+    line-height: 1;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+    pointer-events: none;
+}
+
 /* ---------- ズームアウト時のまとめピン ----------
    外側の輪：作品の色（作品ごとの件数の割合）　真ん中：件数
    大きさは件数に合わせて Script.js で決める（32〜52px） */
@@ -2453,6 +2476,13 @@ body {
 .route-leg-transit.is-recommended:hover,
 .route-leg-transit.is-recommended:focus-visible {
     background: #145a87;
+}
+
+/* 地図上にルートを生成した区間は、地図の線と同じ色の印を左に付ける */
+.route-leg.has-route-color {
+    margin-left: 26px;
+    padding-left: 8px;
+    border-left: 4px solid var(--leg-color);
 }
 
 /* 並べ替え中は区間を隠す（離すと描き直す） */

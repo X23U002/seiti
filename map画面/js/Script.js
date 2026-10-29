@@ -1944,6 +1944,30 @@ function drawMarkers(list) {
             );
         }
     );
+
+    showRouteOrderOnMarkers();
+}
+
+// 地図上にルートを生成している間は、ルートの聖地のピンに回る順番の番号を出す
+function showRouteOrderOnMarkers() {
+    if (!isMapboxRouteActive) return;
+
+    const orderById = new Map();
+    selectedSpots.forEach(function (spot, index) {
+        if (!orderById.has(String(spot.id))) orderById.set(String(spot.id), index + 1);
+    });
+
+    spotMarkers.forEach(function (marker) {
+        const element = marker.getElement();
+        const order = orderById.get(element.dataset.spotId);
+        if (!order || element.querySelector(".route-order-badge")) return;
+
+        const badge = document.createElement("span");
+        badge.className = "route-order-badge";
+        badge.textContent = String(order);
+        badge.setAttribute("aria-hidden", "true");
+        element.appendChild(badge);
+    });
 }
 
 
@@ -3231,8 +3255,23 @@ const TRANSIT_SUGGEST_METERS = 2000;
 // （ルートを解除したら消す。並べ替えて区間が変わったら、その区間は目安に戻る）
 const mapboxRouteLegs = new Map();
 
+// 生成したルートの区間ごとの色（1→2、2→3…の順に使い、足りなければくり返す）
+const ROUTE_LEG_COLORS = ["#1e88e5", "#43a047", "#fb8c00", "#8e24aa", "#e53935", "#00897b", "#6d4c41", "#3949ab"];
+
+function routeLegColor(index) {
+    return ROUTE_LEG_COLORS[index % ROUTE_LEG_COLORS.length];
+}
+
 function routeLegKey(from, to) {
     return String(from.id) + ">" + String(to.id);
+}
+
+// 「57分」「1時間」「27時間48分」（1時間以上は時間と分で出す）
+function formatMinutes(minutes) {
+    const total = Math.max(1, Math.round(minutes));
+    if (total < 60) return total + "分";
+    const rest = total % 60;
+    return Math.floor(total / 60) + "時間" + (rest ? rest + "分" : "");
 }
 
 function formatWalk(walkMeters, minutes) {
@@ -3240,7 +3279,7 @@ function formatWalk(walkMeters, minutes) {
         distanceText: walkMeters < 1000
             ? "約" + Math.round(walkMeters / 10) * 10 + "m"
             : "約" + (walkMeters / 1000).toFixed(1) + "km",
-        minutes: Math.max(1, Math.round(minutes))
+        timeText: formatMinutes(minutes)
     };
 }
 
@@ -3298,12 +3337,17 @@ function createRouteLeg(from, to) {
         isFar =
             meters >= TRANSIT_SUGGEST_METERS;
 
+        if (actual) {
+            leg.classList.add("has-route-color");
+            leg.style.setProperty("--leg-color", actual.color);
+        }
+
         const notes = [];
         if (!actual) notes.push("目安");
         if (isFar) notes.push("電車がおすすめ");
 
         info.textContent =
-            `徒歩 ${walk.distanceText}・${walk.minutes}分` +
+            `徒歩 ${walk.distanceText}・${walk.timeText}` +
             (notes.length > 0 ? "（" + notes.join("・") + "）" : "");
     } else {
         info.textContent =
@@ -3649,6 +3693,31 @@ window.openGoogleMapsRoute = function () {
 
 const MAPBOX_ROUTE_SOURCE_ID = "selected-spots-route";
 const MAPBOX_ROUTE_LAYER_ID = "selected-spots-route-line";
+const MAPBOX_ROUTE_ARROW_LAYER_ID = "selected-spots-route-arrow";
+const MAPBOX_ROUTE_ARROW_IMAGE = "selected-spots-route-arrow";
+
+// 進む向きの矢印（右向きの「›」。白い矢印に濃い縁取り）
+function createRouteArrowImage() {
+    const size = 32;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext("2d");
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    const draw = function (color, width) {
+        context.strokeStyle = color;
+        context.lineWidth = width;
+        context.beginPath();
+        context.moveTo(10, 7);
+        context.lineTo(22, 16);
+        context.lineTo(10, 25);
+        context.stroke();
+    };
+    draw("rgba(0, 0, 0, .55)", 8);
+    draw("#ffffff", 4);
+    return context.getImageData(0, 0, size, size);
+}
 
 // ルート表示状態
 let isMapboxRouteActive = false;
@@ -3721,14 +3790,15 @@ function setupMapboxRouteLayer() {
         map.addSource(MAPBOX_ROUTE_SOURCE_ID, {
             type: "geojson",
             data: {
-                type: "Feature",
-                properties: {},
-                geometry: {
-                    type: "LineString",
-                    coordinates: []
-                }
+                type: "FeatureCollection",
+                features: []
             }
         });
+    }
+
+    // 進む向きの矢印の画像
+    if (!map.hasImage(MAPBOX_ROUTE_ARROW_IMAGE)) {
+        map.addImage(MAPBOX_ROUTE_ARROW_IMAGE, createRouteArrowImage());
     }
 
     if (!map.getLayer(MAPBOX_ROUTE_LAYER_ID)) {
@@ -3741,9 +3811,31 @@ function setupMapboxRouteLayer() {
                 "line-cap": "round"
             },
             paint: {
-                "line-color": "#1976D2",
+                // 区間ごとの色（1→2、2→3…）
+                "line-color": ["coalesce", ["get", "color"], "#1976D2"],
                 "line-width": 5,
-                "line-opacity": 0.9
+                "line-opacity": 0.9,
+                // 進む向きの右側に少しずらす（行きと帰りで同じ道を通っても重ならない）
+                "line-offset": 3
+            }
+        });
+    }
+
+    if (!map.getLayer(MAPBOX_ROUTE_ARROW_LAYER_ID)) {
+        map.addLayer({
+            id: MAPBOX_ROUTE_ARROW_LAYER_ID,
+            type: "symbol",
+            source: MAPBOX_ROUTE_SOURCE_ID,
+            layout: {
+                "symbol-placement": "line",
+                "symbol-spacing": 70,
+                "icon-image": MAPBOX_ROUTE_ARROW_IMAGE,
+                "icon-size": 0.5,
+                "icon-allow-overlap": true,
+                "icon-ignore-placement": true,
+                "icon-rotation-alignment": "map",
+                // 線と同じだけ右にずらす（矢印の画像の「下」が進む向きの右）
+                "icon-offset": [0, 6]
             }
         });
     }
@@ -3755,12 +3847,8 @@ function clearMapboxRoute() {
 
     if (source) {
         source.setData({
-            type: "Feature",
-            properties: {},
-            geometry: {
-                type: "LineString",
-                coordinates: []
-            }
+            type: "FeatureCollection",
+            features: []
         });
     }
 }
@@ -3825,7 +3913,8 @@ async function generateMapboxRoute() {
             coordinates +
             "?geometries=geojson" +
             "&overview=full" +
-            "&steps=false" +
+            // 区間ごとに線を分けて色を変えるため、区間の中の道のり（steps）も受け取る
+            "&steps=true" +
             "&access_token=" +
             encodeURIComponent(mapboxgl.accessToken);
 
@@ -3851,16 +3940,32 @@ async function generateMapboxRoute() {
 
         const route = data.routes[0];
 
-        // 道路に沿った経路を地図上の線として表示
+        // 道路に沿った経路を、区間ごとに色を変えて地図上の線として表示
+        const legFeatures = (route.legs || []).map(function (leg, index) {
+            const coordinates = [];
+            (leg.steps || []).forEach(function (step) {
+                ((step.geometry && step.geometry.coordinates) || []).forEach(function (coord) {
+                    const last = coordinates[coordinates.length - 1];
+                    if (!last || last[0] !== coord[0] || last[1] !== coord[1]) coordinates.push(coord);
+                });
+            });
+            return {
+                type: "Feature",
+                properties: { index: index, color: routeLegColor(index) },
+                geometry: { type: "LineString", coordinates: coordinates }
+            };
+        }).filter(function (feature) {
+            return feature.geometry.coordinates.length >= 2;
+        });
+
         const source = map.getSource(MAPBOX_ROUTE_SOURCE_ID);
 
         source.setData({
-            type: "Feature",
-            properties: {
-                distance: route.distance,
-                duration: route.duration
-            },
-            geometry: route.geometry
+            type: "FeatureCollection",
+            // 区間に分けられなかった時は、全体を1本の線で出す
+            features: legFeatures.length > 0
+                ? legFeatures
+                : [{ type: "Feature", properties: { index: 0 }, geometry: route.geometry }]
         });
 
         isMapboxRouteActive = true;
@@ -3894,17 +3999,17 @@ async function generateMapboxRoute() {
             if (from && to) {
                 mapboxRouteLegs.set(routeLegKey(from, to), {
                     distance: leg.distance,
-                    duration: leg.duration
+                    duration: leg.duration,
+                    color: routeLegColor(index)
                 });
             }
         });
         updateRouteList();
 
         const distanceKm = (route.distance / 1000).toFixed(1);
-        const minutes = Math.round(route.duration / 60);
 
         window.showToast(
-            `ルートを生成しました（約${distanceKm}km・徒歩約${minutes}分）`
+            `ルートを生成しました（約${distanceKm}km・徒歩約${formatMinutes(route.duration / 60)}）`
         );
 
     } catch (error) {

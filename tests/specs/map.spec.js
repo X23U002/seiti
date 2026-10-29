@@ -129,7 +129,11 @@ test("地図上にルートを生成すると、区間の時間も実際の道�
             routes: [{
                 distance: 1700,
                 duration: 1230,
-                legs: [{ distance: 450, duration: 330 }, { distance: 1250, duration: 900 }],
+                legs: [0, 1].map((i) => ({
+                    distance: [450, 1250][i],
+                    duration: [330, 900][i],
+                    steps: [{ geometry: { type: "LineString", coordinates: [order[i], order[i + 1]].map((s) => [s.coord.longitude, s.coord.latitude]) } }]
+                })),
                 geometry: { type: "LineString", coordinates: order.map((s) => [s.coord.longitude, s.coord.latitude]) }
             }]
         })
@@ -145,8 +149,48 @@ test("地図上にルートを生成すると、区間の時間も実際の道�
     await expect(legs.nth(2)).toHaveText(/^徒歩 約1\.3km・15分/);
     await expect(legs.nth(1)).not.toContainText("目安");
 
+    // 区間ごとに色を変えた線（地図の線とルート案内の印が同じ色）と、ピンの回る順番の番号
+    const features = await page.evaluate(() => window.__map.getSource("selected-spots-route")._data.features);
+    expect(features.map((feature) => feature.properties.color)).toEqual(["#1e88e5", "#43a047"]);
+    await expect(legs.nth(1)).toHaveClass(/has-route-color/);
+    expect(await legs.nth(1).evaluate((el) => el.style.getPropertyValue("--leg-color"))).toBe("#1e88e5");
+    for (let i = 0; i < order.length; i++) {
+        await expect(page.locator(`.mapboxgl-marker[data-spot-id="${order[i].id}"] .route-order-badge`)).toHaveText(String(i + 1));
+    }
+
     await page.click("#generate-mapbox-route");
     await expect(legs.nth(1)).toContainText("（目安）");
+    await expect(page.locator(".route-order-badge")).toHaveCount(0);
+});
+
+test("徒歩で1時間以上かかる区間は「○時間○分」で出す", async ({ page }) => {
+    const [station, nagoya] = ["京阪宇治駅", "名古屋国際会議場（センチュリーホール）"].map(spotNamed);
+    await seed(page, {
+        data: withSpots({
+            course: { c1: { title_name: station.title_name, course_name: "遠い", description: "", spot_ids: [station.id, nagoya.id], updated_at: { __ts: 1 } } }
+        })
+    });
+    await page.route(/\/directions\/v5\/mapbox\/walking\//, (route) => route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+            code: "Ok",
+            routes: [{
+                distance: 140000,
+                duration: 100080,
+                legs: [{ distance: 140000, duration: 100080 }],
+                geometry: { type: "LineString", coordinates: [station, nagoya].map((s) => [s.coord.longitude, s.coord.latitude]) }
+            }]
+        })
+    }));
+    await page.goto("html/map.html?course=c1");
+    const leg = page.locator("#routeList .route-leg").nth(1);
+    // 目安（直線から）も時間と分
+    await expect(leg).toHaveText(/^徒歩 約\d+\.\dkm・\d+時間(\d+分)?（目安・電車がおすすめ）/);
+
+    await page.click("#generate-mapbox-route");
+    await expect(page.locator("#toast")).toContainText("約140.0km・徒歩約27時間48分");
+    await expect(leg).toHaveText(/^徒歩 約140\.0km・27時間48分（電車がおすすめ）/);
 });
 
 test("スマホの幅で、見ているピンが詳細パネルの下に来ても、パネルの上に出ない", async ({ page }) => {
