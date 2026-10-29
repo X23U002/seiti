@@ -2271,7 +2271,8 @@ body {
 
     /* Mapboxのロゴより手前に出す */
     .mapboxgl-popup:has(.popup-card) {
-        z-index: 3;
+        /* 見ているピン（強調表示は z-index: 10）より前に出す */
+        z-index: 20;
     }
 
     .mapboxgl-popup:has(.popup-card) .mapboxgl-popup-tip {
@@ -2307,7 +2308,8 @@ body {
         width: 360px !important;
         max-width: calc(100vw - 32px) !important;
         transform: none !important;
-        z-index: 3;
+        /* 見ているピン（強調表示は z-index: 10）より前に出す */
+        z-index: 20;
         animation: panel-in .2s ease;
     }
 

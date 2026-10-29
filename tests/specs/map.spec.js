@@ -148,3 +148,27 @@ test("地図上にルートを生成すると、区間の時間も実際の道�
     await page.click("#generate-mapbox-route");
     await expect(legs.nth(1)).toContainText("（目安）");
 });
+
+test("スマホの幅で、見ているピンが詳細パネルの下に来ても、パネルの上に出ない", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    await seed(page);
+    await page.goto("html/map.html?spot=" + bridge.id);
+    await expect(page.locator(".popup-meta")).toBeVisible();
+    await page.waitForTimeout(1500);
+
+    // 地図を動かして、ピンをパネルの真ん中あたりへ持っていく
+    const pin = page.locator(`.mapboxgl-marker[data-spot-id="${bridge.id}"]`);
+    const panel = page.locator(".mapboxgl-popup:has(.popup-card)");
+    const pinBox = await pin.boundingBox();
+    const panelBox = await panel.boundingBox();
+    const targetY = panelBox.y + panelBox.height / 2;
+    await page.evaluate((dy) => window.__map.panBy([0, dy], { duration: 0 }), pinBox.y + pinBox.height / 2 - targetY);
+    await page.waitForTimeout(300);
+
+    const box = await pin.boundingBox();
+    const onTop = await page.evaluate(([x, y]) => {
+        const element = document.elementFromPoint(x, y);
+        return element && element.closest(".mapboxgl-popup") ? "panel" : element && element.closest(".mapboxgl-marker") ? "pin" : "other";
+    }, [box.x + box.width / 2, box.y + box.height / 2]);
+    expect(onTop).toBe("panel");
+});
