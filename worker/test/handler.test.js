@@ -198,3 +198,11 @@ test("どのモデルも混んでいたら 503。理由を返し、今日の回�
         assert.equal(calls.length, 4);
     });
 });
+
+test("条件（使える時間・出発地・希望）を AI に渡す", async () => {
+    let received = null;
+    const { handle } = setup({ askGemini: async (_title, _spots, _env, options) => { received = options; return ANSWER; } });
+    const response = await handle(request({ title: "作品", duration: "short", start: "宇治駅", wishes: "ベンチ" }), env);
+    assert.equal(response.status, 200);
+    assert.deepEqual(received, { duration: "short", start: "宇治駅", wishes: "ベンチ" });
+});

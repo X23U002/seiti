@@ -3918,7 +3918,12 @@ async function generateMapboxRoute() {
             "&access_token=" +
             encodeURIComponent(mapboxgl.accessToken);
 
-        const response = await fetch(url);
+        // 徒歩でも、川や海の近くでは渡し船の航路を使うことがあるので、船を除いて頼む
+        // （船を使わないと行けない区間があって断られた時は、除かずに頼み直す）
+        let response = await fetch(url + "&exclude=ferry");
+        if (response.status === 422) {
+            response = await fetch(url);
+        }
 
         if (!response.ok) {
             throw new Error(
@@ -3939,6 +3944,11 @@ async function generateMapboxRoute() {
         }
 
         const route = data.routes[0];
+
+        // それでも船の区間が残った時（橋やトンネルが無い）は、出来上がりの知らせに書き添える
+        const usesFerry = (route.legs || []).some(function (leg) {
+            return (leg.steps || []).some(function (step) { return step.mode === "ferry"; });
+        });
 
         // 道路に沿った経路を、区間ごとに色を変えて地図上の線として表示
         const legFeatures = (route.legs || []).map(function (leg, index) {
@@ -4009,7 +4019,8 @@ async function generateMapboxRoute() {
         const distanceKm = (route.distance / 1000).toFixed(1);
 
         window.showToast(
-            `ルートを生成しました（約${distanceKm}km・徒歩約${formatMinutes(route.duration / 60)}）`
+            `ルートを生成しました（約${distanceKm}km・徒歩約${formatMinutes(route.duration / 60)}）` +
+            (usesFerry ? "。歩いて渡れない所があるため、船の区間を含みます" : "")
         );
 
     } catch (error) {

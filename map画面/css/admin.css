@@ -354,6 +354,22 @@
 }
 
 /* ---------- 登録済みの聖地（新しく登録・編集） ---------- */
+/* おすすめルートの AI の下書き */
+.course-ai {
+    margin-bottom: 16px;
+    padding: 12px;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.course-ai .btn {
+    width: 100%;
+}
+
+.course-ai .form-hint {
+    margin: 6px 0 0;
+}
+
 /* 聖地の一括編集ページへのリンク */
 .spot-table-link {
     display: block;

@@ -2,7 +2,8 @@
 // AI のおすすめ巡礼プラン（Cloudflare Workers）
 // アプリ → このサーバー → Gemini API の中継。Gemini の API キーはここにだけ置く
 //
-// POST /plan  { "title": "作品名" }
+// POST /plan  { "title": "作品名", "duration": "short" | "half" | "day", "start": "出発地", "wishes": "希望" }
+//   （duration・start・wishes は無くてもよい。無ければ半日・なし）
 //   Authorization: Bearer <Firebase のログインの証明（ID トークン）>
 // → 200 { plan: { title, summary, walk_meters, total_minutes, stops: [...] }, remaining: 今日あと何回 }
 //
@@ -17,6 +18,7 @@ import {
     RESPONSE_SCHEMA,
     SYSTEM_PROMPT,
     buildUserPrompt,
+    readOptions,
     finalizePlan,
     japanDate,
     parseGeminiResponse
@@ -112,7 +114,7 @@ async function errorReason(response) {
     }
 }
 
-function callGemini(model, title, spots, env) {
+function callGemini(model, title, spots, env, options) {
     return fetch(
         "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent",
         {
@@ -120,7 +122,7 @@ function callGemini(model, title, spots, env) {
             headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
             body: JSON.stringify({
                 systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-                contents: [{ role: "user", parts: [{ text: buildUserPrompt(title, spots) }] }],
+                contents: [{ role: "user", parts: [{ text: buildUserPrompt(title, spots, options) }] }],
                 generationConfig: { responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA }
             })
         }
@@ -130,13 +132,13 @@ function callGemini(model, title, spots, env) {
 // 混んでいる時の手当て：
 // ・503（混んでいる）は少し待って、同じモデルでもう1回
 // ・429（そのモデルの無料枠の上限）や、やり直しても混んでいる時は、予備のモデル（GEMINI_FALLBACK_MODEL）へ
-async function askGemini(title, spots, env) {
+async function askGemini(title, spots, env, options) {
     const models = [...new Set([env.GEMINI_MODEL || "gemini-flash-latest", env.GEMINI_FALLBACK_MODEL].filter(Boolean))];
     let busyReason = "";
 
     for (const model of models) {
         for (let attempt = 0; attempt < 2; attempt++) {
-            const response = await callGemini(model, title, spots, env);
+            const response = await callGemini(model, title, spots, env, options);
 
             if (response.status === 429 || response.status === 503) {
                 busyReason = "Gemini " + response.status + "（" + model + "）: " + await errorReason(response);
@@ -239,6 +241,8 @@ export function createHandler(deps = defaultDeps) {
             const body = await request.json().catch(() => ({}));
             const title = typeof body.title === "string" ? body.title.trim() : "";
             if (!title || title.length > 100) throw new PlanError("bad-request");
+            // 使える時間・出発地・希望（無ければ半日・なし）
+            const options = readOptions(body);
 
             const limit = Number(env.DAILY_LIMIT) || 5;
             const now = deps.now();
@@ -253,7 +257,7 @@ export function createHandler(deps = defaultDeps) {
 
             let answer;
             try {
-                answer = await deps.askGemini(title, spots, env);
+                answer = await deps.askGemini(title, spots, env, options);
             } catch (error) {
                 // Gemini が断った・混んでいた・届かなかった時は、数えた分を戻す
                 // （答えはあったが使えなかった時は、無料枠を使っているので数えたまま）
@@ -262,7 +266,7 @@ export function createHandler(deps = defaultDeps) {
                 }
                 throw error;
             }
-            const plan = finalizePlan(answer, spots);
+            const plan = finalizePlan(answer, spots, options);
             if (!plan) {
                 console.error("使えるプランになりませんでした", JSON.stringify(answer).slice(0, 2000));
                 throw new PlanError("failed", "Gemini の答えに、一覧にある聖地が2か所以上入っていませんでした");

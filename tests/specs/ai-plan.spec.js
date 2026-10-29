@@ -1,5 +1,5 @@
-// 作品ページの「AI におまかせプラン」（中継サーバーの答えは差しかえる）
-import { test, expect, seed, withSpots, PROFILE, spotNamed } from "../helpers.js";
+// 作品ページの「AI でつくるマイプラン」と、管理ページの「AI で下書きを作る」（中継サーバーの答えは差しかえる）
+import { test, expect, seed, withSpots, readStore, PROFILE, spotNamed } from "../helpers.js";
 
 const EUPHO = "響け！ユーフォニアム";
 const ENDPOINT = "https://ai-plan.test/plan";
@@ -32,7 +32,7 @@ async function fakeServer(page, answer) {
 const loggedIn = { user: "uid2", data: withSpots({ user: { uid2: PROFILE("巡礼者", "p@x.jp") } }) };
 const openWork = (page) => page.goto("html/work.html?title=" + encodeURIComponent(EUPHO));
 
-test("ふだんは公開した中継サーバーに作品名を送る", async ({ page }) => {
+test("ふだんは公開した中継サーバーに作品名と条件を送る", async ({ page }) => {
     const sent = [];
     await page.route("https://seiti-ai-plan.x23u002.workers.dev/plan", async (route) => {
         sent.push(route.request().postDataJSON());
@@ -42,7 +42,7 @@ test("ふだんは公開した中継サーバーに作品名を送る", async ({
     await openWork(page);
     await page.click("#ai-plan-btn");
     await expect(page.locator("#ai-plan-result h3")).toHaveText(PLAN.title);
-    expect(sent).toEqual([{ title: EUPHO }]);
+    expect(sent).toEqual([{ title: EUPHO, duration: "half", start: "", wishes: "" }]);
 });
 
 test("未ログインだと、ログインへの案内を出す", async ({ page }) => {
@@ -51,7 +51,7 @@ test("未ログインだと、ログインへの案内を出す", async ({ page 
     await openWork(page);
     await expect(page.locator("#ai-section")).toBeVisible();
     await expect(page.locator("#ai-plan-login")).toBeVisible();
-    await expect(page.locator("#ai-plan-btn")).toBeHidden();
+    await expect(page.locator("#ai-plan-form")).toBeHidden();
 });
 
 test("ログイン中は、ログインへの案内を出さない", async ({ page }) => {
@@ -62,10 +62,13 @@ test("ログイン中は、ログインへの案内を出さない", async ({ pa
     await expect(page.locator("#ai-plan-login")).toBeHidden();
 });
 
-test("作品名とログインの証明を送り、プランを出して地図で開ける。開き直しても残る", async ({ page }) => {
+test("作品名・条件・ログインの証明を送り、プランを出して地図で開ける。開き直しても残る", async ({ page }) => {
     const requests = await fakeServer(page, () => [200, { plan: PLAN, remaining: 4 }]);
     await seed(page, loggedIn);
     await openWork(page);
+    await page.selectOption("#ai-duration", "short");
+    await page.fill("#ai-start", "  京阪宇治駅  ");
+    await page.fill("#ai-wishes", "1期の名場面中心で");
     await page.click("#ai-plan-btn");
 
     const result = page.locator("#ai-plan-result");
@@ -77,7 +80,10 @@ test("作品名とログインの証明を送り、プランを出して地図�
     await expect(result.locator(".ai-plan-stops > li").first()).toContainText("1期 EP1");
     await expect(result.locator(".ai-plan-stops > li").first()).toContainText("麗奈と再会した駅");
     await expect(page.locator("#ai-plan-status")).toContainText("あと 4 回");
-    expect(requests).toEqual([{ body: { title: EUPHO }, auth: "Bearer test-token" }]);
+    expect(requests).toEqual([{
+        body: { title: EUPHO, duration: "short", start: "京阪宇治駅", wishes: "1期の名場面中心で" },
+        auth: "Bearer test-token"
+    }]);
 
     // 地図で開く：保存したルートと同じ map.html?route=
     const href = await result.locator("a.btn-primary").getAttribute("href");
@@ -89,7 +95,7 @@ test("作品名とログインの証明を送り、プランを出して地図�
     // 作品ページを開き直すと、回数を使わずに前のプランが出る
     await openWork(page);
     await expect(page.locator("#ai-plan-result h3")).toHaveText(PLAN.title);
-    await expect(page.locator("#ai-plan-btn")).toHaveText("別のプランを作ってもらう");
+    await expect(page.locator("#ai-plan-btn")).toHaveText("別のマイプランを作ってもらう");
     expect(requests).toHaveLength(1);
 });
 
@@ -110,4 +116,64 @@ test("ログインの証明を取り直せない時（広告ブロックなど�
     await page.click("#ai-plan-btn");
     await expect(page.locator("#ai-plan-status")).toContainText("ログインの確認ができませんでした");
     expect(requests).toHaveLength(0);
+});
+
+// ---------- 管理ページ：おすすめルートの AI の下書き ----------
+
+const adminData = (course) => withSpots({
+    admin: { uid1: { name: "管理者" } },
+    user: { uid1: PROFILE("管理者", "a@x.jp") },
+    course: course || {}
+});
+
+async function openCourseEditor(page) {
+    await page.goto("html/admin.html");
+    await page.click("#tab-courses");
+    await page.click("#course-new");
+    await page.selectOption("#cs-title", EUPHO);
+}
+
+test("管理ページ：AI の下書きでルート名・紹介文・回る聖地が入り、直してから保存できる", async ({ page }) => {
+    const requests = await fakeServer(page, () => [200, { plan: PLAN, remaining: 3 }]);
+    await seed(page, { user: "uid1", data: adminData() });
+    await openCourseEditor(page);
+
+    await page.click("#cs-ai");
+    await expect(page.locator("#cs-ai-status")).toContainText("あと 3 回");
+    await expect(page.locator("#cs-name")).toHaveValue(PLAN.title);
+    await expect(page.locator("#cs-description")).toHaveValue(PLAN.summary);
+    await expect(page.locator("#cs-chosen > li")).toHaveCount(3);
+    await expect(page.locator("#cs-chosen > li").first()).toContainText(station.spot_name);
+    expect(requests).toEqual([{ body: { title: EUPHO, duration: "half" }, auth: "Bearer test-token" }]);
+
+    // 保存されるのは、管理者が直した内容
+    await page.fill("#cs-name", "宇治の名場面めぐり（改）");
+    await page.click("#cs-submit");
+    await expect(page.locator("#toast")).toContainText("保存");
+    const courses = Object.values((await readStore(page)).course);
+    expect(courses).toHaveLength(1);
+    expect(courses[0]).toMatchObject({
+        title_name: EUPHO,
+        course_name: "宇治の名場面めぐり（改）",
+        description: PLAN.summary,
+        spot_ids: [station.id, bridge.id, bench.id]
+    });
+});
+
+test("管理ページ：入力済みの内容は、確かめてから置きかえる。断りの文はそのまま出す", async ({ page }) => {
+    const requests = await fakeServer(page, () => [429, { error: "limit", message: "今日はこれ以上作れません。明日またお試しください。" }]);
+    await seed(page, { user: "uid1", data: adminData() });
+    await openCourseEditor(page);
+    await page.fill("#cs-name", "手で書いたルート");
+
+    page.once("dialog", (dialog) => dialog.dismiss());
+    await page.click("#cs-ai");
+    await expect(page.locator("#cs-name")).toHaveValue("手で書いたルート");
+    expect(requests).toHaveLength(0);
+
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.click("#cs-ai");
+    await expect(page.locator("#cs-ai-status")).toHaveText("今日はこれ以上作れません。明日またお試しください。");
+    await expect(page.locator("#cs-name")).toHaveValue("手で書いたルート");
+    await expect(page.locator("#cs-ai")).toBeEnabled();
 });

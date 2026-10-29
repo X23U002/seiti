@@ -163,6 +163,41 @@ test("地図上にルートを生成すると、区間の時間も実際の道�
     await expect(page.locator(".route-order-badge")).toHaveCount(0);
 });
 
+test("地図上にルートを生成する時は船を除いて頼み、断られたら除かずに頼み直す。船の区間が残れば知らせる", async ({ page }) => {
+    const [station, bridge] = ["京阪宇治駅", "宇治橋"].map(spotNamed);
+    await seed(page, {
+        data: withSpots({
+            course: { c1: { title_name: station.title_name, course_name: "川を渡る", description: "", spot_ids: [station.id, bridge.id], updated_at: { __ts: 1 } } }
+        })
+    });
+    const line = [station, bridge].map((s) => [s.coord.longitude, s.coord.latitude]);
+    const urls = [];
+    await page.route(/\/directions\/v5\/mapbox\/walking\//, (route) => {
+        const url = new URL(route.request().url());
+        urls.push(url.searchParams.get("exclude"));
+        if (url.searchParams.get("exclude") === "ferry") {
+            return route.fulfill({ status: 422, contentType: "application/json", body: JSON.stringify({ code: "InvalidInput", message: "no route" }) });
+        }
+        return route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+                code: "Ok",
+                routes: [{
+                    distance: 800,
+                    duration: 600,
+                    legs: [{ distance: 800, duration: 600, steps: [{ mode: "ferry", geometry: { type: "LineString", coordinates: line } }] }],
+                    geometry: { type: "LineString", coordinates: line }
+                }]
+            })
+        });
+    });
+    await page.goto("html/map.html?course=c1");
+    await page.click("#generate-mapbox-route");
+    await expect(page.locator("#toast")).toContainText("船の区間を含みます");
+    expect(urls).toEqual(["ferry", null]);
+});
+
 test("徒歩で1時間以上かかる区間は「○時間○分」で出す", async ({ page }) => {
     const [station, nagoya] = ["京阪宇治駅", "名古屋国際会議場（センチュリーホール）"].map(spotNamed);
     await seed(page, {

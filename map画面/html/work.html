@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>作品 - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
-    <link rel="stylesheet" href="../css/work.css?v=bdbefce4">
+    <link rel="stylesheet" href="../css/work.css?v=b04860a2">
 </head>
 <body>
 
@@ -36,22 +36,40 @@
                 </div>
             </section>
 
-            <!-- AI のおすすめプラン（中継サーバーを用意した時だけ出す） -->
-            <section class="work-section" id="ai-section" hidden>
-                <h2 class="work-section-title">AI におまかせプラン</h2>
-                <div class="card ai-plan">
-                    <p class="ai-plan-lead">この作品の聖地から、半日くらいで歩いて回れるプランを AI が作ります。</p>
-                    <button type="button" class="btn btn-primary" id="ai-plan-btn" hidden>AI にプランを作ってもらう</button>
-                    <a class="btn btn-secondary" id="ai-plan-login" href="login.html" hidden>ログインして使う</a>
-                    <p class="ai-plan-status" id="ai-plan-status" role="status" aria-live="polite"></p>
-                    <div class="ai-plan-result" id="ai-plan-result" hidden></div>
-                </div>
-            </section>
-
             <!-- おすすめルート -->
             <section class="work-section" id="route-section" hidden>
                 <h2 class="work-section-title">おすすめルート</h2>
                 <ul class="work-routes" id="work-routes"></ul>
+            </section>
+
+            <!-- AI でつくるマイプラン（条件を入れると、その人向けのプランを AI が作る） -->
+            <section class="work-section" id="ai-section" hidden>
+                <h2 class="work-section-title">AI でつくるマイプラン</h2>
+                <div class="card ai-plan">
+                    <p class="ai-plan-lead">使える時間や出発地、希望を入れると、あなた向けの巡礼プランを AI が作ります。運営が選んだルートは、上の「おすすめルート」にあります。</p>
+                    <form id="ai-plan-form" class="ai-plan-form" hidden>
+                        <label class="ai-plan-field">
+                            <span>使える時間</span>
+                            <select id="ai-duration">
+                                <option value="short">2時間くらい</option>
+                                <option value="half" selected>半日（3〜4時間）</option>
+                                <option value="day">1日（6〜8時間）</option>
+                            </select>
+                        </label>
+                        <label class="ai-plan-field">
+                            <span>出発地（任意）</span>
+                            <input type="text" id="ai-start" maxlength="40" placeholder="(例) 京阪宇治駅">
+                        </label>
+                        <label class="ai-plan-field">
+                            <span>希望（任意）</span>
+                            <textarea id="ai-wishes" maxlength="100" rows="2" placeholder="(例) ベンチは必ず行きたい・坂は少なめ"></textarea>
+                        </label>
+                        <button type="submit" class="btn btn-primary" id="ai-plan-btn">マイプランを作ってもらう</button>
+                    </form>
+                    <a class="btn btn-secondary" id="ai-plan-login" href="login.html" hidden>ログインして使う</a>
+                    <p class="ai-plan-status" id="ai-plan-status" role="status" aria-live="polite"></p>
+                    <div class="ai-plan-result" id="ai-plan-result" hidden></div>
+                </div>
             </section>
 
             <!-- 聖地一覧（何期の何話の順） -->
@@ -63,6 +81,6 @@
     </main>
 
     <script src="../js/common.js?v=d714509d"></script>
-    <script type="module" src="../js/work.js?v=639cbdd8"></script>
+    <script type="module" src="../js/work.js?v=b2f655e0"></script>
 </body>
 </html>

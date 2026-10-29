@@ -21,6 +21,7 @@ import {
 
 import { db, getCurrentUser } from "./firebase-db.js?v=917161b9";
 import { encodeGeohash } from "./geohash.js?v=fe42fce1";
+import { isAiPlanAvailable, requestAiPlan } from "./ai-plan.js?v=7ad470a0";
 import { getTitleColor } from "./title-colors.js?v=5c634da9";
 import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=feb7ee57";
 import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=59165daf";
@@ -1257,6 +1258,7 @@ function openCourseEditor(course) {
     document.getElementById("cs-description").value = data.description || "";
     courseSpotIds = (data.spot_ids || []).filter(function (id) { return findAdminSpot(id); });
     ["cs-name", "cs-spots"].forEach(function (id) { setFieldError(id, false); });
+    document.getElementById("cs-ai-status").textContent = AI_DRAFT_HINT;
 
     renderCourseEditor();
     document.getElementById("course-modal").style.display = "flex";
@@ -1368,6 +1370,43 @@ function renderCourseEditor() {
 }
 
 document.getElementById("cs-title").addEventListener("change", renderCourseEditor);
+
+// ---------- AI で下書きを作る（ルート名・紹介文・回る聖地を入れる。保存は確かめてから） ----------
+const AI_DRAFT_HINT = "選んだ作品の聖地から、AI がルート名・紹介文・回る聖地を考えます。内容を確かめて直してから保存してください。";
+
+document.getElementById("cs-ai-box").hidden = !isAiPlanAvailable();
+document.getElementById("cs-ai").addEventListener("click", async function () {
+    const button = this;
+    const status = document.getElementById("cs-ai-status");
+    const title = document.getElementById("cs-title").value;
+    if (!title) {
+        status.textContent = "先に作品を選んでください。";
+        return;
+    }
+
+    const filled = document.getElementById("cs-name").value.trim() ||
+        document.getElementById("cs-description").value.trim() || courseSpotIds.length > 0;
+    if (filled && !window.confirm("入力してある内容を、AI の下書きで置きかえますか？")) return;
+
+    button.disabled = true;
+    status.textContent = "AI が下書きを考えています…（数十秒かかることがあります）";
+    try {
+        const { plan, remaining } = await requestAiPlan(title, { duration: "half" });
+        document.getElementById("cs-name").value = Array.from(plan.title || "").slice(0, 50).join("");
+        document.getElementById("cs-description").value = plan.summary || "";
+        courseSpotIds = plan.stops
+            .map(function (stop) { return String(stop.id); })
+            .filter(function (id) { return findAdminSpot(id); });
+        setFieldError("cs-name", false);
+        setFieldError("cs-spots", false);
+        renderCourseEditor();
+        status.textContent = "AI の下書きを入れました（今日はあと " + remaining + " 回）。内容を確かめて直してから保存してください。";
+    } catch (error) {
+        status.textContent = error.message;
+    } finally {
+        button.disabled = false;
+    }
+});
 
 // 近い順に並べる（いちばん上の聖地から出発）
 document.getElementById("cs-sort").addEventListener("click", function () {
