@@ -3435,6 +3435,7 @@ function createRouteMoveButton(label, ariaLabel, fromIndex, toIndex) {
 
 // =========================================================
 // ルートの順番を入れ替える
+// 順番変更後、Mapboxのルートを再生成する
 // =========================================================
 window.moveRouteSpot =
     function (fromIndex, toIndex) {
@@ -3458,7 +3459,13 @@ window.moveRouteSpot =
             moved
         );
 
+        // ルート案内リストを更新
         updateRouteList();
+
+        // Mapboxのルート表示中なら、変更後の順番で再生成
+        if (isMapboxRouteActive) {
+            generateMapboxRoute();
+        }
     };
 
 
