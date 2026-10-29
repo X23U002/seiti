@@ -112,3 +112,39 @@ test("ルート案内の区間ごとに、徒歩の目安と「電車で」（Go
     expect(url.searchParams.get("origin")).toBe(at(bridge));
     expect(url.searchParams.get("destination")).toBe(at(nagoya));
 });
+
+test("地図上にルートを生成すると、区間の時間も実際の道のり（画面下の合計と同じ）になる。解除すると目安に戻る", async ({ page }) => {
+    const order = ["京阪宇治駅", "宇治橋", "大吉山展望台"].map((name) => spotNamed(name));
+    await seed(page, {
+        data: withSpots({
+            course: { c1: { title_name: order[0].title_name, course_name: "テストルート", description: "", spot_ids: order.map((s) => s.id), updated_at: { __ts: 1 } } }
+        })
+    });
+    // Mapbox の徒歩ルートの答え（区間ごとの道のりと時間）
+    await page.route(/\/directions\/v5\/mapbox\/walking\//, (route) => route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+            code: "Ok",
+            routes: [{
+                distance: 1700,
+                duration: 1230,
+                legs: [{ distance: 450, duration: 330 }, { distance: 1250, duration: 900 }],
+                geometry: { type: "LineString", coordinates: order.map((s) => [s.coord.longitude, s.coord.latitude]) }
+            }]
+        })
+    }));
+    await page.goto("html/map.html?course=c1");
+    const legs = page.locator("#routeList .route-leg");
+    await expect(legs).toHaveCount(3);
+    await expect(legs.nth(1)).toContainText("（目安）");
+
+    await page.click("#generate-mapbox-route");
+    await expect(page.locator("#toast")).toContainText("約1.7km・徒歩約21分");
+    await expect(legs.nth(1)).toHaveText(/^徒歩 約450m・6分/);
+    await expect(legs.nth(2)).toHaveText(/^徒歩 約1\.3km・15分/);
+    await expect(legs.nth(1)).not.toContainText("目安");
+
+    await page.click("#generate-mapbox-route");
+    await expect(legs.nth(1)).toContainText("（目安）");
+});
