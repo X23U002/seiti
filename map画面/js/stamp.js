@@ -35,7 +35,7 @@ function titleColor(title) {
     return (summary && summary.titles && summary.titles[title] && summary.titles[title].color) || "#0b3c5d";
 }
 
-// 表示するスタンプの一覧 { id, name, title, info, earned, date }
+// 表示するスタンプの一覧 { id, name, title, info, image, earned, date }
 let allStamps = [];
 let titles = [];
 
@@ -55,6 +55,7 @@ function buildStamps() {
                 name: spot.name,
                 title: spot.title,
                 info: (stamp && stamp.scene) || spot.info,
+                image: spot.image || (stamp && stamp.image) || "",
                 earned: Boolean(stamp),
                 date: stamp ? stamp.date : "",
                 count: stamp ? stamp.count || 1 : 0
@@ -68,6 +69,7 @@ function buildStamps() {
                 name: stamp.name,
                 title: stamp.anime,
                 info: stamp.scene,
+                image: stamp.image || "",
                 earned: true,
                 date: stamp.date,
                 count: stamp.count || 1
@@ -330,8 +332,8 @@ function createStampItem(stamp) {
     circle.setAttribute("aria-hidden", "true");
 
     if (stamp.earned) {
-        circle.textContent = "⛩️";
-        // 中は作品の色、枠は取った回数のランクの色
+        // 中はその聖地に登録した画像（無ければ ⛩️）、枠は取った回数のランクの色
+        setStampImage(circle, stamp.image);
         applyStampRank(circle, stamp.count, titleColor(stamp.title));
     } else {
         circle.textContent = "?";
@@ -352,7 +354,12 @@ function createStampItem(stamp) {
 // ---------- 詳細ポップアップ ----------
 function openStampModal(stamp) {
     const circle = document.getElementById("modal-circle");
-    circle.textContent = stamp.earned ? "⛩️" : "?";
+    if (stamp.earned) {
+        setStampImage(circle, stamp.image);
+    } else {
+        circle.classList.remove("has-image");
+        circle.textContent = "?";
+    }
     circle.classList.toggle("is-locked", !stamp.earned);
     applyStampRank(circle, stamp.earned ? stamp.count : 0, titleColor(stamp.title));
 

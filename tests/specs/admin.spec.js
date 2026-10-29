@@ -41,3 +41,30 @@ test("管理者でない人には管理ページの中身を出さない", async
     await page.goto("html/admin.html");
     await expect(page.locator("#admin-main")).toBeHidden();
 });
+
+test("説明文から読み取れた期・話を、全作品まとめて保存できる（読み取れない聖地・入力済みの聖地はそのまま）", async ({ page }) => {
+    const data = withSpots({
+        admin: { uid1: { name: "管理者" } },
+        user: { uid1: PROFILE("管理者", "a@x.jp") }
+    });
+    const ids = Object.keys(data.spot);
+    const [readable, unreadable, alreadySet] = ids;
+    data.spot[readable].spot_info = "1期3話。テストの場面。";
+    data.spot[unreadable].spot_info = "話数の書いていない説明。";
+    data.spot[alreadySet].spot_info = "2話。もう入れてある。";
+    Object.assign(data.spot[alreadySet], { season: 9, episode: 9 });
+
+    await seed(page, { user: "uid1", data });
+    page.on("dialog", (dialog) => dialog.accept());
+    await page.goto("html/admin.html");
+    await page.click("#tab-episodes");
+    await expect(page.locator("#episode-bulk-note")).toContainText("説明文から読み取れます");
+    await page.click("#episode-bulk");
+    await expect(page.locator("#toast")).toContainText("期・話を保存しました");
+
+    const store = await readStore(page);
+    expect([store.spot[readable].season, store.spot[readable].episode]).toEqual([1, 3]);
+    expect("season" in store.spot[unreadable]).toBe(false);
+    expect([store.spot[alreadySet].season, store.spot[alreadySet].episode]).toEqual([9, 9]);
+    await expect(page.locator("#episode-bulk")).toBeDisabled();
+});

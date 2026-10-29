@@ -1,0 +1,230 @@
+/* =========================================================
+   聖地の一括編集（表）
+========================================================= */
+.table-content {
+    max-width: 1200px;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.table-help p {
+    margin: 0 0 6px;
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.table-help p:last-child {
+    margin-bottom: 0;
+}
+
+.table-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 16px 0 8px;
+}
+
+.table-filter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.table-filter select {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.table-filter select,
+.table-filter input {
+    min-height: 40px;
+    padding: 6px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    font: inherit;
+}
+
+.table-search {
+    flex: 1 1 220px;
+}
+
+/* スマホでは、作品と検索を1行ずつ使う */
+@media (max-width: 600px) {
+    .table-filter {
+        flex: 1 1 100%;
+    }
+
+    .table-filter select {
+        flex: 1;
+    }
+}
+
+.table-search input {
+    width: 100%;
+}
+
+.table-toolbar .btn {
+    width: auto;
+    min-height: 40px;
+    padding: 8px 14px;
+    font-size: 14px;
+}
+
+/* ファイルを選ぶボタン（中の input は見えなくする） */
+.file-button {
+    position: relative;
+    cursor: pointer;
+}
+
+.file-button input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.file-button:focus-within {
+    box-shadow: var(--focus-ring);
+}
+
+.table-status {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: var(--color-text-sub);
+}
+
+/* 表は横にスクロール（ページ全体は横にずれない） */
+.table-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+}
+
+.spot-table {
+    width: 100%;
+    min-width: 900px;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.spot-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 8px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.spot-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+}
+
+.spot-table input,
+.spot-table textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    font: inherit;
+    color: var(--color-text);
+}
+
+.spot-table textarea {
+    resize: vertical;
+    line-height: 1.5;
+}
+
+.spot-table input:focus,
+.spot-table textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+}
+
+.col-id { width: 110px; }
+.col-title { width: 180px; }
+.col-name { width: 200px; }
+.col-place { width: 170px; }
+.col-action { width: 56px; }
+
+.col-place input + input {
+    margin-top: 4px;
+}
+
+.row-id {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 13px;
+    color: var(--color-text-sub);
+}
+
+.table-warning {
+    color: var(--color-danger);
+}
+
+/* 変えた行・新しい行・直すところがある行 */
+.spot-table tr.is-changed td {
+    background: #fff8e6;
+}
+
+.spot-table tr.is-new td {
+    background: #eaf7ee;
+}
+
+.spot-table tr.has-error td {
+    background: #fdecea;
+}
+
+.spot-table .is-changed-cell {
+    border-color: var(--color-accent);
+}
+
+.row-error {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--color-danger);
+}
+
+.btn-link {
+    padding: 4px;
+    border: none;
+    background: none;
+    color: var(--color-primary);
+    font: inherit;
+    font-size: 13px;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.table-empty {
+    padding: 24px 8px;
+    text-align: center;
+    color: var(--color-text-sub);
+}
+
+.table-save {
+    position: sticky;
+    bottom: 0;
+    padding: 12px 0;
+    background: linear-gradient(transparent, var(--color-bg) 30%);
+}

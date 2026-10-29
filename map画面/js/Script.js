@@ -27,7 +27,7 @@ import {
 } from "./map-text.js?v=2c4e86eb";
 
 // 聖地の画像（GitHub の map画面/images/spots/ に置いたもの）
-import { getSpotImageSrc } from "./spot-image.js?v=9f48db08";
+import { getSpotImageSrc } from "./spot-image.js?v=59165daf";
 
 // おすすめ聖地巡礼ルート
 import {

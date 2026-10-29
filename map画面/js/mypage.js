@@ -217,8 +217,8 @@ function renderRecord(stamps, state, spotSummary) {
             const badge = document.createElement("span");
             badge.className = "recent-badge";
             badge.setAttribute("aria-hidden", "true");
-            badge.textContent = "⛩️";
-            // 中は作品の色、枠は取った回数のランクの色
+            // 中はその聖地に登録した画像（無ければ ⛩️）、枠は取った回数のランクの色
+            setStampImage(badge, stamp.image);
             applyStampRank(
                 badge,
                 stamp.count || 1,

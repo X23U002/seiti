@@ -1183,11 +1183,21 @@ function showStampCelebration(
         }
     );
 
-    // 中は作品の色、枠は取った回数のランクの色
+    // 中はその聖地に登録した画像（無ければ ⛩️）、枠は取った回数のランクの色
     const stampElement =
         overlay.querySelector(
             ".stamp-celebration-stamp"
         );
+
+    if (
+        typeof window.setStampImage ===
+        "function"
+    ) {
+        window.setStampImage(
+            stampElement,
+            spot.image_url
+        );
+    }
 
     if (
         typeof window.applyStampRank ===
