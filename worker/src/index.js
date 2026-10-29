@@ -102,6 +102,11 @@ async function fetchSpots(title, env) {
 // 混んでいる（503）時に、やり直すまで待つ時間（テストでは 0 にする）
 export const RETRY_WAIT = { ms: 1500 };
 
+// Gemini を待つ時間（アプリは 60 秒で諦めるので、その前に答えを返す）
+// ・全体で total まで
+// ・予備のモデルがある時、最初のモデルは first まで（遅い時は、速い予備のモデルに切りかえる）
+export const GEMINI_TIME_LIMIT = { total: 45000, first: 28000, min: 3000 };
+
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Google のエラー文（取り出せなければ本文のまま）
@@ -114,7 +119,7 @@ async function errorReason(response) {
     }
 }
 
-function callGemini(model, title, spots, env, options) {
+function callGemini(model, title, spots, env, options, signal) {
     return fetch(
         "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent",
         {
@@ -124,7 +129,8 @@ function callGemini(model, title, spots, env, options) {
                 systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
                 contents: [{ role: "user", parts: [{ text: buildUserPrompt(title, spots, options) }] }],
                 generationConfig: { responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA }
-            })
+            }),
+            signal
         }
     );
 }
@@ -132,13 +138,27 @@ function callGemini(model, title, spots, env, options) {
 // 混んでいる時の手当て：
 // ・503（混んでいる）は少し待って、同じモデルでもう1回
 // ・429（そのモデルの無料枠の上限）や、やり直しても混んでいる時は、予備のモデル（GEMINI_FALLBACK_MODEL）へ
+// ・答えが遅い時（GEMINI_TIME_LIMIT）も、予備のモデルへ
 async function askGemini(title, spots, env, options) {
     const models = [...new Set([env.GEMINI_MODEL || "gemini-flash-latest", env.GEMINI_FALLBACK_MODEL].filter(Boolean))];
+    const deadline = Date.now() + GEMINI_TIME_LIMIT.total;
     let busyReason = "";
 
-    for (const model of models) {
+    for (const [index, model] of models.entries()) {
         for (let attempt = 0; attempt < 2; attempt++) {
-            const response = await callGemini(model, title, spots, env, options);
+            const left = deadline - Date.now();
+            if (left < GEMINI_TIME_LIMIT.min) throw new PlanError("busy", busyReason || "Gemini 時間切れ", true);
+            const limit = index < models.length - 1 ? Math.min(left, GEMINI_TIME_LIMIT.first) : left;
+
+            let response;
+            try {
+                response = await callGemini(model, title, spots, env, options, AbortSignal.timeout(limit));
+            } catch (error) {
+                if (error.name !== "TimeoutError") throw error;
+                busyReason = "Gemini 時間切れ（" + model + "・" + Math.round(limit / 1000) + "秒）";
+                console.warn(busyReason);
+                break;
+            }
 
             if (response.status === 429 || response.status === 503) {
                 busyReason = "Gemini " + response.status + "（" + model + "）: " + await errorReason(response);
