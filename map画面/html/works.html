@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>作品一覧 - 聖地巡礼NAVI</title>
-    <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
-    <link rel="stylesheet" href="../css/work.css?v=2c814440">
+    <link rel="stylesheet" href="../css/common.css?v=c79053d9">
+    <link rel="stylesheet" href="../css/work.css?v=f13315d6">
 </head>
 <body>
 
@@ -22,15 +22,18 @@
         </label>
 
         <!-- 読み込み中・読めなかった時 -->
-        <div class="card empty-state" id="works-notice">
-            <div class="empty-state-icon">⏳</div>
-            <p>読み込み中…</p>
+        <div class="card empty-state is-loading" id="works-notice" role="status" aria-label="読み込み中">
+            <!-- 読み込み中は、カードの形の影（スケルトン）をきらっと光らせる -->
+            <span class="skeleton-line is-title"></span>
+            <span class="skeleton-line"></span>
+            <span class="skeleton-line"></span>
+            <span class="skeleton-line is-short"></span>
         </div>
 
         <ul class="work-list" id="work-list" hidden></ul>
     </main>
 
-    <script src="../js/common.js?v=d714509d"></script>
-    <script type="module" src="../js/works.js?v=d2fba39a"></script>
+    <script src="../js/common.js?v=bdcf06ca"></script>
+    <script type="module" src="../js/works.js?v=ac209ae0"></script>
 </body>
 </html>

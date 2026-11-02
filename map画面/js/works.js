@@ -11,6 +11,9 @@ let stampCounts = null;  // スポットID → 回数（未ログインなら nu
 function showNotice(icon, text) {
     const notice = document.getElementById("works-notice");
     notice.innerHTML = "";
+    notice.classList.remove("is-loading");
+    notice.removeAttribute("role");
+    notice.removeAttribute("aria-label");
     const iconEl = document.createElement("div");
     iconEl.className = "empty-state-icon";
     iconEl.textContent = icon;

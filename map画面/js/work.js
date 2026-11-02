@@ -14,6 +14,9 @@ const title = new URLSearchParams(location.search).get("title") || "";
 function showNotice(icon, text, link) {
     const notice = document.getElementById("work-notice");
     notice.innerHTML = "";
+    notice.classList.remove("is-loading");
+    notice.removeAttribute("role");
+    notice.removeAttribute("aria-label");
     const iconEl = document.createElement("div");
     iconEl.className = "empty-state-icon";
     iconEl.textContent = icon;
@@ -78,8 +81,18 @@ function renderHero(spots, stampCounts) {
     const label = document.getElementById("work-progress-label");
     if (stampCounts) {
         const got = spots.filter(function (spot) { return stampCounts[spot.id]; }).length;
-        document.getElementById("work-progress-bar").style.width = Math.round(got / spots.length * 100) + "%";
-        label.textContent = "スタンプ " + got + " / " + spots.length + (got === spots.length ? "　コンプリート！" : "");
+        // バーは 0 から伸ばし、数はカウントアップする（work.css・common.js）
+        requestAnimationFrame(function () {
+            document.getElementById("work-progress-bar").style.width = Math.round(got / spots.length * 100) + "%";
+        });
+        if (!label.querySelector(".work-progress-got")) {
+            label.textContent = "スタンプ ";
+            const count = el("span", "work-progress-got", "0");
+            label.append(count, el("span", "work-progress-total"));
+        }
+        countUp(label.querySelector(".work-progress-got"), got);
+        label.querySelector(".work-progress-total").textContent =
+            " / " + spots.length + (got === spots.length ? "　コンプリート！" : "");
         progress.hidden = false;
         label.hidden = false;
     } else {

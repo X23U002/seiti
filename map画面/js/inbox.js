@@ -15,6 +15,9 @@ import { queryMine } from "./public-data.js?v=0ba43cde";
 function showNotice(icon, text, link) {
     const notice = document.getElementById("inbox-notice");
     notice.innerHTML = "";
+    notice.classList.remove("is-loading");
+    notice.removeAttribute("role");
+    notice.removeAttribute("aria-label");
     const iconEl = document.createElement("div");
     iconEl.className = "empty-state-icon";
     iconEl.textContent = icon;

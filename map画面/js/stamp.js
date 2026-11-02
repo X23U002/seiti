@@ -99,7 +99,8 @@ function renderOverall() {
     const got = allStamps.filter(function (s) { return s.earned; }).length;
     const total = hasSpotList ? allStamps.length : got;
 
-    document.getElementById("got-count").textContent = got;
+    // 数字はカウントアップして出す（common.js）
+    countUp(document.getElementById("got-count"), got);
     document.getElementById("total-count").textContent = hasSpotList ? total : "?";
 
     const bar = document.getElementById("overall-bar");

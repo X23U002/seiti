@@ -91,3 +91,36 @@ document.addEventListener("input", function (event) {
         event.target.setAttribute("aria-invalid", "false");
     }
 });
+
+// ------------------------------------------
+// 数字を 0（または今の数）から目標の数までカウントアップして出す
+// （スタンプの数・進み具合など。動きを減らす設定の人には、すぐ目標の数を出す）
+// ------------------------------------------
+function countUp(element, to, duration) {
+    if (!element) return;
+    const target = Number(to) || 0;
+    const from = Number(element.dataset.countValue || element.textContent) || 0;
+    element.dataset.countValue = String(target);
+
+    cancelAnimationFrame(Number(element.dataset.countFrame) || 0);
+
+    const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion || from === target) {
+        element.textContent = String(target);
+        return;
+    }
+
+    const time = duration || Math.min(1200, 400 + Math.abs(target - from) * 40);
+    const start = performance.now();
+    const frame = function (now) {
+        const progress = Math.min(1, (now - start) / time);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        element.textContent = String(Math.round(from + (target - from) * eased));
+        if (progress < 1) {
+            element.dataset.countFrame = String(requestAnimationFrame(frame));
+        }
+    };
+    element.dataset.countFrame = String(requestAnimationFrame(frame));
+}
+
+window.countUp = countUp;

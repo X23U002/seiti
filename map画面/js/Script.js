@@ -451,6 +451,20 @@ function getCourseSummary(course) {
     return courseSpots.length + "か所・" + formatCourseLength(courseDistance(courseSpots));
 }
 
+// 聖地の範囲へ地図を飛ばす時の動き（3D の時は、少し回り込みながら飛ぶ）
+// 動きを減らす設定の人には、すぐに切りかえる
+function getFlyOptions(options) {
+    if (prefersReducedMotion()) {
+        return Object.assign({}, options, { duration: 0 });
+    }
+
+    return Object.assign(
+        { duration: 1400, curve: 1.5, essential: true },
+        options,
+        is3D ? { bearing: map.getBearing() + 35, pitch: map.getPitch() } : {}
+    );
+}
+
 // ルート案内に入れたスポットが全部入るように地図を動かす
 function fitRouteBounds() {
     const bounds = new mapboxgl.LngLatBounds();
@@ -465,11 +479,10 @@ function fitRouteBounds() {
 
     map.fitBounds(
         bounds,
-        {
+        getFlyOptions({
             padding: 80,
-            maxZoom: 16,
-            duration: prefersReducedMotion() ? 0 : 800
-        }
+            maxZoom: 16
+        })
     );
 }
 
@@ -603,13 +616,11 @@ function isCourseListOpen() {
 
 window.closeCourses =
     function () {
-        document
-            .getElementById(
+        closeSheet(
+            document.getElementById(
                 "course-modal"
             )
-            .style
-            .display =
-                "none";
+        );
     };
 
 function renderCourseList() {
@@ -851,11 +862,10 @@ function openWorkFromUrl() {
     );
     map.fitBounds(
         bounds,
-        {
+        getFlyOptions({
             padding: 80,
-            maxZoom: 15,
-            duration: 0
-        }
+            maxZoom: 15
+        })
     );
 
     window.showToast(
@@ -1120,6 +1130,36 @@ async function loadFavoriteIds() {
     }
 }
 
+// お気に入りにした時、ハートがポンとはじけて、小さなハートが散る（style.css）
+function burstHeart(button) {
+    if (prefersReducedMotion()) {
+        return;
+    }
+
+    button.classList.remove("is-burst");
+    void button.offsetWidth;
+    button.classList.add("is-burst");
+
+    for (let i = 0; i < 6; i++) {
+        const heart = document.createElement("span");
+        heart.className = "heart-particle";
+        heart.setAttribute("aria-hidden", "true");
+        heart.textContent = "♥";
+        heart.style.setProperty("--heart-angle", (i * 60 - 150) + "deg");
+        button.appendChild(heart);
+    }
+
+    setTimeout(
+        function () {
+            button.classList.remove("is-burst");
+            button.querySelectorAll(".heart-particle").forEach(function (heart) {
+                heart.remove();
+            });
+        },
+        700
+    );
+}
+
 async function toggleFavorite(button) {
     const spotId = button.dataset.spotId;
 
@@ -1141,6 +1181,10 @@ async function toggleFavorite(button) {
     }
     syncFavoriteButtons();
     button.disabled = true;
+
+    if (on) {
+        burstHeart(button);
+    }
 
     try {
         await setFavorite(spotId, on);
@@ -3029,14 +3073,34 @@ window.openFilter =
 // =========================================================
 window.closeFilter =
     function () {
-        document
-            .getElementById(
+        closeSheet(
+            document.getElementById(
                 "filter-modal"
             )
-            .style
-            .display =
-                "none";
+        );
     };
+
+// 下から出るシート（絞り込み・おすすめルート）を、下へ引っ込めてから閉じる（style.css の is-closing）
+// 動きを減らす設定の人には、すぐ閉じる
+function closeSheet(sheet) {
+    if (!sheet || sheet.style.display === "none") {
+        return;
+    }
+
+    if (prefersReducedMotion()) {
+        sheet.style.display = "none";
+        return;
+    }
+
+    sheet.classList.add("is-closing");
+    setTimeout(
+        function () {
+            sheet.classList.remove("is-closing");
+            sheet.style.display = "none";
+        },
+        200
+    );
+}
 
 
 // =========================================================
@@ -3156,11 +3220,10 @@ function fitFilteredSpots() {
     );
     map.fitBounds(
         bounds,
-        {
+        getFlyOptions({
             padding: 80,
-            maxZoom: 15,
-            duration: prefersReducedMotion() ? 0 : 800
-        }
+            maxZoom: 15
+        })
     );
 }
 

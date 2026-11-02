@@ -519,6 +519,9 @@ function getStampState(
         return {
             disabled: false,
 
+            // 取れる距離に入った（ボタンを光らせる。style.css）
+            stage: "ready",
+
             label:
                 "🎫 スタンプを取得",
 
@@ -544,6 +547,14 @@ function getStampState(
 
     return {
         disabled: true,
+
+        // 近づくほどボタンの色を変える（あと200m以内・1km以内。style.css）
+        stage:
+            Number.isFinite(remainingDistance) && remainingDistance <= 200
+                ? "near"
+                : Number.isFinite(remainingDistance) && remainingDistance <= 1000
+                    ? "closer"
+                    : "",
 
         label:
             Number.isFinite(
@@ -636,6 +647,7 @@ function getStampPopupHTML(
                 class="stamp-button"
                 data-stamp-action="collect"
                 data-stamp-spot-id="${spotId}"
+                data-stamp-stage="${state.stage || ""}"
                 ${
                     state.disabled
                         ? "disabled"
@@ -1395,6 +1407,9 @@ function refreshStampUI() {
 
                 button.disabled =
                     state.disabled;
+
+                button.dataset.stampStage =
+                    state.stage || "";
 
                 button.textContent =
                     state.label;

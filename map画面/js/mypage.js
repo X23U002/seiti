@@ -107,22 +107,27 @@ function renderRecord(stamps, state, spotSummary) {
             .map(function (s) { return s.anime; })
             .filter(function (anime) { return isWorkTitle(anime); })
     );
-    document.getElementById("stamp-count").textContent = uniqueStamps.length;
-    document.getElementById("anime-count").textContent = animeNames.size;
+    // 数字はカウントアップして出す（common.js）
+    countUp(document.getElementById("stamp-count"), uniqueStamps.length);
+    countUp(document.getElementById("anime-count"), animeNames.size);
 
     if (summary && summary.total > 0) {
-        document.getElementById("progress-rate").textContent =
-            Math.round(uniqueStamps.length / summary.total * 100);
+        countUp(
+            document.getElementById("progress-rate"),
+            Math.round(uniqueStamps.length / summary.total * 100)
+        );
     }
 
     // その作品の聖地をすべて回った作品（作品ごとの聖地の件数が分かる時だけ数える）
     if (summary && summary.titles) {
-        document.getElementById("complete-count").textContent =
+        countUp(
+            document.getElementById("complete-count"),
             Object.keys(summary.titles).filter(function (title) {
                 const total = summary.titles[title].count;
                 const got = uniqueStamps.filter(function (s) { return s.anime === title; }).length;
                 return isWorkTitle(title) && total > 0 && got >= total;
-            }).length;
+            }).length
+        );
     }
 
     // --- 作品ごとの達成度 ---
