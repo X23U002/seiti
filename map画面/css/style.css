@@ -1667,6 +1667,19 @@ body {
     white-space: nowrap;
 }
 
+/* 押すと、その作品のその話で絞り込む */
+.popup-ep-filter {
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.popup-ep-filter:hover,
+.popup-ep-filter:focus-visible {
+    transform: none;
+    background: #0b3c5d;
+    color: white;
+}
+
 /* ---------- 近くの聖地 ---------- */
 .popup-nearby {
     margin-top: 12px;
@@ -2869,6 +2882,141 @@ body {
 .course-card .course-start:hover {
     background: #14537f;
     transform: none;
+}
+
+/* ---------- AI でつくるマイプラン（おすすめルートの画面の下） ---------- */
+.my-plan[hidden],
+.my-plan-jump[hidden],
+.my-plan-login[hidden],
+.my-plan-form[hidden],
+#my-plan-result[hidden] {
+    display: none;
+}
+
+.my-plan-jump {
+    display: block;
+    margin: 0 0 4px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #0b3c5d;
+}
+
+.my-plan {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px dashed #c9d3dc;
+    scroll-margin-top: 16px;
+}
+
+.my-plan h3 {
+    margin: 0 0 6px;
+    font-size: 17px;
+    color: #0b3c5d;
+}
+
+.my-plan-lead {
+    margin: 0 0 12px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #2c3e50;
+}
+
+.my-plan-form {
+    display: grid;
+    gap: 10px;
+}
+
+.my-plan-field {
+    display: grid;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: bold;
+    color: #6b7b8c;
+}
+
+.my-plan-field select,
+.my-plan-field input,
+.my-plan-field textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #c9d3dc;
+    border-radius: 8px;
+    background: #fff;
+    color: #2c3e50;
+    font: inherit;
+    font-size: 16px;
+    font-weight: normal;
+}
+
+.my-plan-field textarea {
+    resize: vertical;
+}
+
+.my-plan-submit,
+.my-plan-login {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    border-radius: 10px;
+    background: #0b3c5d;
+    color: #fff;
+    font-size: 15px;
+    font-weight: bold;
+    line-height: 44px;
+    text-align: center;
+    text-decoration: none;
+}
+
+.my-plan-submit {
+    line-height: normal;
+}
+
+.my-plan-submit:hover {
+    background: #14537f;
+    transform: none;
+}
+
+.my-plan-submit:disabled {
+    background: #8a9aa8;
+    cursor: wait;
+}
+
+.my-plan-status {
+    margin: 10px 0;
+    font-size: 13px;
+    color: #6b7b8c;
+}
+
+.my-plan-status:empty {
+    display: none;
+}
+
+.my-plan-stop-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+}
+
+.my-plan-stop-name {
+    font-weight: bold;
+}
+
+.my-plan-stay {
+    font-size: 12px;
+    color: #6b7b8c;
+}
+
+.my-plan-comment {
+    margin: 2px 0 6px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.my-plan-note {
+    margin: 10px 0 0;
+    font-size: 12px;
+    color: #6b7b8c;
 }
 
 /* 聖地の詳細の「この聖地を通るおすすめルート」 */

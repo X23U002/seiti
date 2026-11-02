@@ -36,6 +36,9 @@ import {
     formatCourseLength
 } from "./course.js?v=5729311e";
 
+// AI でつくるマイプラン（おすすめルートの画面の下）
+import { refreshMyPlan, setupMyPlan } from "./my-plan.js?v=dfdb3f4b";
+
 // 聖地・おすすめルートの読み込み（他の画面と共通。通信が止められた時の予備の読み方あり）
 import {
     loadCourses as fetchCourseList,
@@ -482,9 +485,14 @@ function startCourse(courseId) {
         return;
     }
 
+    startRouteFromSpotIds(course.spot_ids, course.course_name);
+}
+
+// 聖地の並び（おすすめルート・AI のマイプラン）でルート案内を始める
+function startRouteFromSpotIds(spotIds, routeName) {
     window.clearSelectedSpots();
 
-    course.spot_ids.forEach(
+    spotIds.forEach(
         function (spotId) {
             window.addSpotToRouteById(
                 spotId,
@@ -518,8 +526,51 @@ function startCourse(courseId) {
     fitRouteBounds();
 
     window.showToast(
-        `「${course.course_name}」（${selectedSpots.length}か所）をルート案内に入れました`
+        `「${routeName}」（${selectedSpots.length}か所）をルート案内に入れました`
     );
+}
+
+// マイプランで選べる作品（聖地が2か所以上ある作品。絞り込み中の作品を先に）
+function getMyPlanTitles() {
+    const counts = {};
+    spots.forEach(
+        function (spot) {
+            const title = getTitleName(spot);
+            counts[title] = (counts[title] || 0) + 1;
+        }
+    );
+    return Object.keys(counts)
+        .filter(
+            function (title) {
+                return counts[title] >= 2 && title !== "その他";
+            }
+        )
+        .sort(
+            function (a, b) {
+                return Number(activeFilter.titles.includes(b)) - Number(activeFilter.titles.includes(a)) ||
+                    a.localeCompare(b, "ja");
+            }
+        );
+}
+
+// 地図の準備ができてから（絞り込みの状態を使うので）
+function startMyPlan() {
+    setupMyPlan({
+        getTitles: getMyPlanTitles,
+        getDefaultTitle: function () {
+            return activeFilter.titles[0] || "";
+        },
+        startPlan: function (plan) {
+            startRouteFromSpotIds(
+                plan.stops.map(
+                    function (stop) {
+                        return stop.id;
+                    }
+                ),
+                plan.title
+            );
+        }
+    });
 }
 
 // ---------- メニューの「おすすめルート」 ----------
@@ -530,6 +581,7 @@ window.openCourses =
         }
 
         renderCourseList();
+        refreshMyPlan();
 
         document
             .getElementById(
@@ -894,13 +946,21 @@ function goToSpot(spotId) {
 }
 
 
-function getEpisodeBadgeHTML(spot) {
+// asButton：押すと、その作品のその話で地図を絞り込む（聖地の詳細の札）
+function getEpisodeBadgeHTML(spot, asButton) {
     const label =
         getSpotEpisodeLabel(spot);
 
-    return label
-        ? `<span class="popup-ep">${escapeHTML(label)}</span>`
-        : "";
+    if (!label) {
+        return "";
+    }
+
+    if (asButton) {
+        return `<button type="button" class="popup-ep popup-ep-filter" data-spot-id="${escapeHTML(String(spot.id))}"
+            title="「${escapeHTML(getTitleName(spot))}」の${escapeHTML(label)}の聖地で絞り込む">${escapeHTML(label)}</button>`;
+    }
+
+    return `<span class="popup-ep">${escapeHTML(label)}</span>`;
 }
 
 
@@ -1844,7 +1904,7 @@ function drawMarkers(list) {
                         >
                             ${escapeHTML(titleName)}
                         </a>
-                        ${getEpisodeBadgeHTML(data)}
+                        ${getEpisodeBadgeHTML(data, true)}
                         <div class="popup-actions">
                             <button
                                 type="button"
@@ -2400,6 +2460,9 @@ map.on(
 
         // ログインしていればお気に入りを読み込む（待たずに進める）
         loadFavoriteIds();
+
+        // AI でつくるマイプラン（おすすめルートの画面の下）
+        startMyPlan();
 
         // おすすめルートを読み込む（待たずに進める）。
         // 作品ページの「このルートで巡る」（map.html?course=ID）から来た時は、読み込めたらそのルートを始める
@@ -3050,25 +3113,58 @@ window.applyFilter =
 
         applyActiveFilter();
         window.closeFilter();
-
-        // 絞り込んだ聖地が全部見えるように地図を動かす
-        if (currentSpots.length > 0 && currentSpots !== spots) {
-            const bounds = new mapboxgl.LngLatBounds();
-            currentSpots.forEach(
-                function (spot) {
-                    bounds.extend([Number(spot.coord.longitude), Number(spot.coord.latitude)]);
-                }
-            );
-            map.fitBounds(
-                bounds,
-                {
-                    padding: 80,
-                    maxZoom: 15,
-                    duration: prefersReducedMotion() ? 0 : 800
-                }
-            );
-        }
+        fitFilteredSpots();
     };
+
+// 絞り込んだ聖地が全部見えるように地図を動かす
+function fitFilteredSpots() {
+    if (currentSpots.length === 0 || currentSpots === spots) {
+        return;
+    }
+
+    const bounds = new mapboxgl.LngLatBounds();
+    currentSpots.forEach(
+        function (spot) {
+            bounds.extend([Number(spot.coord.longitude), Number(spot.coord.latitude)]);
+        }
+    );
+    map.fitBounds(
+        bounds,
+        {
+            padding: 80,
+            maxZoom: 15,
+            duration: prefersReducedMotion() ? 0 : 800
+        }
+    );
+}
+
+// 聖地の詳細の話の札（「EP6」など）を押すと、その作品のその話の聖地だけにする
+document.addEventListener(
+    "click",
+    function (event) {
+        const badge = event.target.closest(".popup-ep-filter[data-spot-id]");
+        if (!badge) {
+            return;
+        }
+
+        const spot = findSpot(badge.dataset.spotId);
+        if (!spot) {
+            return;
+        }
+
+        const title = getTitleName(spot);
+        activeFilter.titles = [title];
+        activeFilter.episodes = {};
+        activeFilter.episodes[title] = [getSpotEpisodeKey(spot)];
+        activeFilter.keyword = "";
+        applyActiveFilter();
+        fitFilteredSpots();
+
+        window.showToast(
+            `「${title}」の${getSpotEpisodeLabel(spot)}の聖地（${currentSpots.length}か所）で絞り込みました`
+        );
+    }
+);
 
 // =========================================================
 // 絞り込みリセット

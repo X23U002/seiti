@@ -55,6 +55,23 @@ test("作品で絞り込む時に、何期の何話か（劇場版なども）�
     await expect(pins(page)).toHaveCount(SPOTS.length);
 });
 
+test("聖地の詳細の話の札（EP6 など）を押すと、その作品のその話の聖地だけにする", async ({ page }) => {
+    const AOBUTA = "青春ブタ野郎はバニーガール先輩の夢を見ない";
+    const spot = spotNamed("御所ヶ谷公園");
+    const ep3 = ["御所ヶ谷公園", "藤沢駅北口 黄金の像前\n", "七里ヶ浜海岸"].map((name) => SPOTS.find((item) => item.spot_name === name).id).sort();
+    await seed(page);
+    await page.goto("html/map.html?spot=" + spot.id);
+    const badge = page.locator(".popup-meta .popup-ep-filter");
+    await expect(badge).toHaveText("1期 EP3");
+    await badge.click();
+
+    await expect(pins(page)).toHaveCount(ep3.length);
+    const shown = await pins(page).evaluateAll((list) => list.map((pin) => pin.dataset.spotId).sort());
+    expect(shown).toEqual(ep3);
+    await expect(page.locator("#filter-chips .filter-chip")).toHaveText([`${AOBUTA}1期 EP3×`]);
+    await expect(page.locator("#toast")).toContainText("1期 EP3の聖地（3か所）で絞り込みました");
+});
+
 test("Firestore の通信が止められても、Web API から聖地を読む", async ({ page, restCalls }) => {
     await seed(page, { local: { mockFsHang: "1" } });
     await page.goto("html/map.html");
