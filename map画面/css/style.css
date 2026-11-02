@@ -2045,6 +2045,33 @@ body {
     background: #f6f8f9;
 }
 
+/* 長い作品名は省略し、選んだ話は必ず見せる */
+#filter-chips {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.filter-chip {
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.chip-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chip-detail {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #eef1f3;
+    color: #0b3c5d;
+    font-size: 12px;
+}
+
 .chip-x {
     display: flex;
     align-items: center;
@@ -2088,6 +2115,50 @@ body {
 #anime-list .anime-count {
     font-size: 12px;
     color: #6b7b8c;
+}
+
+#anime-list .anime-item[hidden] {
+    display: none;
+}
+
+/* 作品の話で絞り込む（チェックした作品の下に出す） */
+.episode-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 10px 12px 40px;
+}
+
+.episode-filter[hidden] {
+    display: none;
+}
+
+.episode-filter-hint {
+    width: 100%;
+    margin: 0;
+    font-size: 12px;
+    color: #6b7b8c;
+}
+
+.episode-option {
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid #c9d3dc;
+    border-radius: 16px;
+    background: white;
+    color: #2c3e50;
+    font-size: 13px;
+}
+
+.episode-option:hover {
+    transform: none;
+    background: #f6f8f9;
+}
+
+.episode-option[aria-pressed="true"] {
+    border-color: #0b3c5d;
+    background: #0b3c5d;
+    color: white;
 }
 
 /* ---------- ルート案内パネル ---------- */

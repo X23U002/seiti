@@ -4,7 +4,7 @@
 // 「地図で見る」「このルートで巡る」は地図画面を開いて、その状態にする
 // ==========================================
 import { getTitleColor, getTitleName } from "./title-colors.js?v=5c634da9";
-import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=feb7ee57";
+import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=9a2ff22f";
 import { getSpotImageSrc } from "./spot-image.js?v=59165daf";
 import { courseDistance, formatCourseLength } from "./course.js?v=5729311e";
 import { loadCourses, loadMyStampCounts, loadSpots, readCachedSpots } from "./public-data.js?v=c815b81a";

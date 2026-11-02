@@ -5,7 +5,7 @@
 // ==========================================
 import { loadStampBook } from "./stamp-db.js?v=af011576";
 import { deleteSavedRoute, loadFavorites, loadSavedRoutes, setFavorite } from "./saved-db.js?v=2aaaa116";
-import { getSpotEpisodeLabel } from "./episode.js?v=feb7ee57";
+import { getSpotEpisodeLabel } from "./episode.js?v=9a2ff22f";
 import { getTitleColor } from "./title-colors.js?v=5c634da9";
 
 // スポットID → { id, name, title, info }

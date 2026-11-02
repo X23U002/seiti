@@ -12,6 +12,49 @@ test("聖地のピンと検索バーが出て、聖地の一覧を端末に残�
     expect(cached).toBe(SPOTS.length);
 });
 
+test("作品で絞り込む時に、何期の何話か（劇場版なども）でも絞り込める", async ({ page }) => {
+    const AOBUTA = "青春ブタ野郎はバニーガール先輩の夢を見ない";
+    const ep3 = ["御所ヶ谷公園", "藤沢駅北口 黄金の像前\n", "七里ヶ浜海岸"];
+    const movie = ["片瀬東浜海水浴場", "七里ヶ浜"];
+    await seed(page);
+    await page.goto("html/map.html");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+
+    await page.click("#filter-btn");
+    const item = page.locator(`#anime-list .anime-item[data-title="${AOBUTA}"]`);
+    const panel = item.locator(".episode-filter");
+    // 作品にチェックを付けるまでは、話の選択は出さない
+    await expect(panel).toBeHidden();
+    await item.locator("input[type=checkbox]").check();
+    await expect(panel).toBeVisible();
+    await expect(panel.locator(".episode-option")).toHaveText([
+        "1期 EP1（1）", "1期 EP2（1）", "1期 EP3（3）", "1期 EP4（1）", "1期 EP6（1）", "劇場版（2）", "話数不明（2）"
+    ]);
+    // 話の分からない作品には出さない
+    await expect(page.locator(`#anime-list .anime-item[data-title="超かぐや姫！"] .episode-filter`)).toHaveCount(0);
+
+    await panel.locator(".episode-option", { hasText: "1期 EP3" }).click();
+    await panel.locator(".episode-option", { hasText: "劇場版" }).click();
+    await expect(panel.locator(".episode-option[aria-pressed=true]")).toHaveCount(2);
+    await page.click("#filter-ok");
+
+    const ids = [...ep3, ...movie].map((name) => SPOTS.find((spot) => spot.spot_name === name).id).sort();
+    await expect(pins(page)).toHaveCount(ids.length);
+    const shown = await pins(page).evaluateAll((list) => list.map((pin) => pin.dataset.spotId).sort());
+    expect(shown).toEqual(ids);
+    await expect(page.locator("#filter-chips .filter-chip")).toHaveText([`${AOBUTA}1期 EP3・劇場版×`]);
+
+    // 開き直すと、選んだ話が残っている
+    await page.click("#filter-btn");
+    await expect(panel).toBeVisible();
+    await expect(panel.locator(".episode-option[aria-pressed=true]")).toHaveText(["1期 EP3（3）", "劇場版（2）"]);
+    await page.evaluate(() => window.closeFilter());
+
+    // 札の × で外すと全部に戻る
+    await page.locator("#filter-chips .filter-chip").click();
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+});
+
 test("Firestore の通信が止められても、Web API から聖地を読む", async ({ page, restCalls }) => {
     await seed(page, { local: { mockFsHang: "1" } });
     await page.goto("html/map.html");
