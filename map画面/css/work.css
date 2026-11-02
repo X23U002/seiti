@@ -73,9 +73,11 @@
 
 .work-progress-bar {
     display: block;
+    width: 0;
     height: 100%;
     border-radius: 4px;
     background: var(--work-color, var(--color-primary));
+    transition: width .9s cubic-bezier(.2, .9, .3, 1);
 }
 
 .work-progress-label {
@@ -88,6 +90,78 @@
 /* ---------- 作品ページ ---------- */
 .work-hero {
     border-top: 6px solid var(--work-color, var(--color-primary));
+    /* 作品の色を、左上からうっすら */
+    background:
+        linear-gradient(135deg,
+            color-mix(in srgb, var(--work-color, var(--color-primary)) 16%, transparent),
+            transparent 55%),
+        var(--color-surface);
+    animation: work-rise .4s ease-out;
+}
+
+.work-hero h2 {
+    animation: work-rise .45s ease-out .05s backwards;
+}
+
+/* 一覧（作品・聖地・おすすめルート）は、上から順にふわっと出す */
+.work-list > li,
+.work-spots > li,
+.work-routes > li {
+    animation: work-rise .4s ease-out backwards;
+}
+
+.work-list > li:nth-child(2),
+.work-spots > li:nth-child(2),
+.work-routes > li:nth-child(2) { animation-delay: .05s; }
+
+.work-list > li:nth-child(3),
+.work-spots > li:nth-child(3),
+.work-routes > li:nth-child(3) { animation-delay: .1s; }
+
+.work-list > li:nth-child(4),
+.work-spots > li:nth-child(4),
+.work-routes > li:nth-child(4) { animation-delay: .15s; }
+
+.work-list > li:nth-child(n + 5),
+.work-spots > li:nth-child(n + 5),
+.work-routes > li:nth-child(n + 5) { animation-delay: .2s; }
+
+/* 聖地とおすすめルートのカードは、指（マウス）を置くと少し浮く */
+.work-spot,
+.work-route {
+    transition: box-shadow .2s, transform .2s;
+}
+
+.work-spot:hover,
+.work-route:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+@keyframes work-rise {
+    from { opacity: 0; translate: 0 10px; }
+    to { opacity: 1; translate: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .work-hero,
+    .work-hero h2,
+    .work-list > li,
+    .work-spots > li,
+    .work-routes > li {
+        animation: none;
+    }
+
+    .work-progress-bar,
+    .work-spot,
+    .work-route {
+        transition: none;
+    }
+
+    .work-spot:hover,
+    .work-route:hover {
+        transform: none;
+    }
 }
 
 .work-hero h2 {

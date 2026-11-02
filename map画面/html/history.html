@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>お気に入り・ルート・履歴 - 聖地巡礼NAVI</title>
-    <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
+    <link rel="stylesheet" href="../css/common.css?v=c79053d9">
     <link rel="stylesheet" href="../css/history.css?v=24355d19">
 </head>
 <body>
@@ -18,9 +18,12 @@
     <main class="content">
 
         <!-- 読み込み中・未ログインの時 -->
-        <div class="card empty-state" id="saved-notice">
-            <div class="empty-state-icon">⏳</div>
-            <p>読み込み中…</p>
+        <div class="card empty-state is-loading" id="saved-notice" role="status" aria-label="読み込み中">
+            <!-- 読み込み中は、カードの形の影（スケルトン）をきらっと光らせる -->
+            <span class="skeleton-line is-title"></span>
+            <span class="skeleton-line"></span>
+            <span class="skeleton-line"></span>
+            <span class="skeleton-line is-short"></span>
         </div>
 
         <div id="saved-main" hidden>
@@ -78,9 +81,9 @@
         </div>
     </main>
 
-    <script src="../js/common.js?v=d714509d"></script>
+    <script src="../js/common.js?v=bdcf06ca"></script>
     <script src="../js/toast.js?v=720dc155"></script>
     <script src="../js/route-history.js?v=ee9790be"></script>
-    <script type="module" src="../js/history.js?v=617d49f1"></script>
+    <script type="module" src="../js/history.js?v=589119bd"></script>
 </body>
 </html>

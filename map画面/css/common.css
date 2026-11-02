@@ -473,6 +473,37 @@ textarea {
 .empty-state p { margin: 0 0 4px; font-size: 14px; }
 .empty-state small { font-size: 12px; }
 
+/* 読み込み中：カードの形の影（スケルトン）を、左から右へきらっと光らせる */
+.empty-state.is-loading:not([hidden]) {
+    display: grid;
+    gap: 10px;
+    padding: 20px 18px;
+    text-align: left;
+}
+
+.skeleton-line {
+    display: block;
+    height: 12px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #eef1f3 25%, #f8fafb 45%, #eef1f3 65%);
+    background-size: 300% 100%;
+    animation: skeleton-shine 1.3s ease-in-out infinite;
+}
+
+.skeleton-line.is-title {
+    width: 55%;
+    height: 20px;
+}
+
+.skeleton-line.is-short {
+    width: 40%;
+}
+
+@keyframes skeleton-shine {
+    from { background-position: 100% 0; }
+    to { background-position: 0 0; }
+}
+
 /* 動きを減らす設定のユーザー向け */
 @media (prefers-reduced-motion: reduce) {
     *,

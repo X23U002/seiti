@@ -1597,6 +1597,42 @@ body {
     transform: none;
 }
 
+/* 聖地に近づくほど、ボタンの色を濃くする（あと1km以内・200m以内） */
+.popup-card .stamp-button:disabled[data-stamp-stage="closer"] {
+    background: #fff4d6 !important;
+    color: #b9770e !important;
+    transition: background .4s, color .4s;
+}
+
+.popup-card .stamp-button:disabled[data-stamp-stage="near"] {
+    background: #ffe2a3 !important;
+    color: #94590a !important;
+    transition: background .4s, color .4s;
+}
+
+/* スタンプが取れる距離に入ったら、ボタンが光ってドクドクと脈打つ */
+.popup-card .stamp-button[data-stamp-stage="ready"] {
+    animation: stamp-ready 1.2s ease-in-out infinite;
+}
+
+@keyframes stamp-ready {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 3px 8px rgba(245, 158, 11, .35), 0 0 0 0 rgba(245, 158, 11, .55);
+    }
+    50% {
+        transform: scale(1.03);
+        box-shadow: 0 3px 8px rgba(245, 158, 11, .35), 0 0 0 10px rgba(245, 158, 11, 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .popup-card .stamp-button[data-stamp-stage="ready"] {
+        animation: none;
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, .45);
+    }
+}
+
 /* ---------- 公式サイト・ルート追加ボタン ---------- */
 .popup-buttons {
     gap: 10px;
@@ -1684,6 +1720,39 @@ body {
 
 .popup-fav[aria-pressed="true"] .icon {
     fill: currentColor;
+}
+
+/* お気に入りにした瞬間：ハートがポンとふくらみ、小さなハートが散る */
+.popup-fav {
+    position: relative;
+    overflow: visible;
+}
+
+.popup-fav.is-burst .icon {
+    animation: heart-pop .45s cubic-bezier(.3, 1.6, .5, 1);
+}
+
+.heart-particle {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin: -7px 0 0 -5px;
+    color: #e74c3c;
+    font-size: 12px;
+    line-height: 1;
+    pointer-events: none;
+    animation: heart-fly .65s ease-out forwards;
+}
+
+@keyframes heart-pop {
+    0% { transform: scale(.6); }
+    60% { transform: scale(1.35); }
+    100% { transform: scale(1); }
+}
+
+@keyframes heart-fly {
+    0% { opacity: 1; transform: rotate(var(--heart-angle)) translateY(-6px) scale(.6); }
+    100% { opacity: 0; transform: rotate(var(--heart-angle)) translateY(-30px) scale(1); }
 }
 
 .popup-ep {
@@ -2491,6 +2560,114 @@ body {
 @keyframes sheet-up {
     from { translate: 0 40px; opacity: 0; }
     to { translate: 0 0; opacity: 1; }
+}
+
+/* =========================================================
+   画面の出入りの動き
+========================================================= */
+/* 絞り込み・おすすめルートのシートは下からせり上がり、閉じる時は下へ引っ込む */
+#filter-modal[style*="block"],
+#course-modal[style*="block"] {
+    animation: sheet-rise .32s cubic-bezier(.2, .9, .3, 1);
+}
+
+#filter-modal.is-closing,
+#course-modal.is-closing {
+    animation: sheet-sink .2s ease-in forwards;
+}
+
+#filter-modal[style*="block"] + #filter-backdrop,
+#course-modal[style*="block"] + #course-backdrop,
+#side-menu.open + #menu-backdrop {
+    animation: backdrop-in .25s ease;
+}
+
+#filter-modal.is-closing + #filter-backdrop,
+#course-modal.is-closing + #course-backdrop {
+    animation: backdrop-out .2s ease-in forwards;
+}
+
+@keyframes sheet-rise {
+    from { translate: 0 100%; }
+    to { translate: 0 0; }
+}
+
+@keyframes sheet-sink {
+    from { translate: 0 0; }
+    to { translate: 0 100%; }
+}
+
+@keyframes backdrop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes backdrop-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+/* ルート案内のパネルは、出てくる時にふわっと */
+#routePanel {
+    animation: route-panel-in .3s cubic-bezier(.2, .9, .3, 1);
+}
+
+@keyframes route-panel-in {
+    from { translate: 0 16px; opacity: 0; }
+    to { translate: 0 0; opacity: 1; }
+}
+
+/* 一覧は上から順にふわっと出す（最初の数件だけずらす） */
+#course-list > *,
+#anime-list > .anime-item,
+#side-menu.open li,
+.popup-card > * {
+    animation: list-in .32s ease-out backwards;
+}
+
+#course-list > :nth-child(2),
+#anime-list > .anime-item:nth-child(2),
+#side-menu.open li:nth-child(2),
+.popup-card > :nth-child(2) { animation-delay: .04s; }
+
+#course-list > :nth-child(3),
+#anime-list > .anime-item:nth-child(3),
+#side-menu.open li:nth-child(3),
+.popup-card > :nth-child(3) { animation-delay: .08s; }
+
+#course-list > :nth-child(4),
+#anime-list > .anime-item:nth-child(4),
+#side-menu.open li:nth-child(4),
+.popup-card > :nth-child(4) { animation-delay: .12s; }
+
+#course-list > :nth-child(5),
+#anime-list > .anime-item:nth-child(5),
+#side-menu.open li:nth-child(5),
+.popup-card > :nth-child(5) { animation-delay: .16s; }
+
+#course-list > :nth-child(n + 6),
+#anime-list > .anime-item:nth-child(n + 6),
+#side-menu.open li:nth-child(n + 6),
+.popup-card > :nth-child(n + 6) { animation-delay: .2s; }
+
+@keyframes list-in {
+    from { translate: 0 10px; opacity: 0; }
+    to { translate: 0 0; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #filter-modal,
+    #course-modal,
+    #filter-backdrop,
+    #course-backdrop,
+    #menu-backdrop,
+    #routePanel,
+    #course-list > *,
+    #anime-list > .anime-item,
+    #side-menu li,
+    .popup-card > * {
+        animation: none !important;
+    }
 }
 
 

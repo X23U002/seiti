@@ -14,6 +14,9 @@ let spotById = {};
 function showNotice(icon, text, link) {
     const notice = document.getElementById("saved-notice");
     notice.innerHTML = "";
+    notice.classList.remove("is-loading");
+    notice.removeAttribute("role");
+    notice.removeAttribute("aria-label");
     const iconEl = document.createElement("div");
     iconEl.className = "empty-state-icon";
     iconEl.textContent = icon;
