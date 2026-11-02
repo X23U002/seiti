@@ -40,7 +40,7 @@
     <!-- 自作CSS -->
     <link
         rel="stylesheet"
-        href="../css/style.css?v=f58bc02e"
+        href="../css/style.css?v=267ace0a"
     >
 
     <!-- スタンプのランク（回数で枠の色が変わる） -->
@@ -252,7 +252,41 @@
 
         <p class="filter-note">選ぶと、そのルートがルート案内に入ります。距離と時間は直線距離からの目安です。</p>
 
+        <a class="my-plan-jump" id="my-plan-jump" href="#my-plan" hidden>✨ 自分の条件で AI にプランを作ってもらう</a>
+
         <div id="course-list"></div>
+
+        <!-- AI でつくるマイプラン（条件を入れると、その人向けのプランを AI が作る） -->
+        <section class="my-plan" id="my-plan" aria-labelledby="my-plan-heading" hidden>
+            <h3 id="my-plan-heading">AI でつくるマイプラン</h3>
+            <p class="my-plan-lead">使える時間や出発地、希望を入れると、あなた向けの巡礼プランを AI が作ります。</p>
+            <form id="my-plan-form" class="my-plan-form">
+                <label class="my-plan-field">
+                    <span>作品</span>
+                    <select id="my-plan-title"></select>
+                </label>
+                <label class="my-plan-field">
+                    <span>使える時間</span>
+                    <select id="my-plan-duration">
+                        <option value="short">2時間くらい</option>
+                        <option value="half" selected>半日（3〜4時間）</option>
+                        <option value="day">1日（6〜8時間）</option>
+                    </select>
+                </label>
+                <label class="my-plan-field">
+                    <span>出発地（任意）</span>
+                    <input type="text" id="my-plan-start" maxlength="40" placeholder="(例) 京阪宇治駅">
+                </label>
+                <label class="my-plan-field">
+                    <span>希望（任意）</span>
+                    <textarea id="my-plan-wishes" maxlength="100" rows="2" placeholder="(例) ベンチは必ず行きたい・坂は少なめ"></textarea>
+                </label>
+                <button type="submit" class="my-plan-submit" id="my-plan-submit">マイプランを作ってもらう</button>
+            </form>
+            <a class="my-plan-login" id="my-plan-login" href="login.html" hidden>ログインして使う</a>
+            <p class="my-plan-status" id="my-plan-status" role="status" aria-live="polite"></p>
+            <div id="my-plan-result" hidden></div>
+        </section>
 
     </div>
 
@@ -385,7 +419,7 @@
     ====================================================== -->
     <script
         type="module"
-        src="../js/Script.js?v=6deecb16"
+        src="../js/Script.js?v=4f60133b"
     ></script>
 
 

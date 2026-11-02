@@ -4,12 +4,10 @@
 // 「地図で見る」「このルートで巡る」は地図画面を開いて、その状態にする
 // ==========================================
 import { getTitleColor, getTitleName } from "./title-colors.js?v=5c634da9";
-import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=feb7ee57";
+import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=9a2ff22f";
 import { getSpotImageSrc } from "./spot-image.js?v=59165daf";
 import { courseDistance, formatCourseLength } from "./course.js?v=5729311e";
 import { loadCourses, loadMyStampCounts, loadSpots, readCachedSpots } from "./public-data.js?v=c815b81a";
-import { getCurrentUser } from "./firebase-db.js?v=917161b9";
-import { isAiPlanAvailable, readSavedPlan, requestAiPlan, savePlan } from "./ai-plan.js?v=7ad470a0";
 
 const title = new URLSearchParams(location.search).get("title") || "";
 
@@ -118,90 +116,6 @@ function renderRoutes(courses, spotById) {
     });
 }
 
-// ---------- AI におまかせプラン ----------
-
-// 「約3時間10分」
-function formatMinutes(minutes) {
-    if (minutes < 60) return "約" + minutes + "分";
-    return "約" + Math.floor(minutes / 60) + "時間" + (minutes % 60 ? minutes % 60 + "分" : "");
-}
-
-function renderAiPlan(plan) {
-    const result = document.getElementById("ai-plan-result");
-    result.innerHTML = "";
-
-    result.appendChild(el("h3", "", plan.title));
-    if (plan.summary) result.appendChild(el("p", "ai-plan-summary", plan.summary));
-    result.appendChild(el("p", "work-meta",
-        plan.stops.length + "か所・" + formatCourseLength(plan.walk_meters) + "・滞在を入れて合計 " + formatMinutes(plan.total_minutes)));
-
-    const stops = el("ol", "work-route-stops ai-plan-stops");
-    plan.stops.forEach(function (stop) {
-        const li = el("li");
-        const head = el("div", "ai-plan-stop-head");
-        head.appendChild(el("span", "ai-plan-stop-name", stop.name));
-        const episode = getSpotEpisodeLabel(stop);
-        if (episode) head.appendChild(el("span", "work-ep", episode));
-        head.appendChild(el("span", "ai-plan-stay", "滞在 " + formatMinutes(stop.stay_minutes)));
-        li.appendChild(head);
-        if (stop.comment) li.appendChild(el("p", "ai-plan-comment", stop.comment));
-        stops.appendChild(li);
-    });
-    result.appendChild(stops);
-
-    const start = el("a", "btn btn-primary", "地図でこのプランを開く");
-    start.href = "map.html?route=" + encodeURIComponent(plan.stops.map(function (stop) { return stop.id; }).join(","));
-    result.appendChild(start);
-
-    result.appendChild(el("p", "ai-plan-note",
-        "AI が作った目安です。電車の乗換は、地図のルート案内の「🚃 電車で」から確かめてください。"));
-
-    result.hidden = false;
-    document.getElementById("ai-plan-btn").textContent = "別のマイプランを作ってもらう";
-}
-
-let aiSectionReady = false;
-
-async function setupAiSection() {
-    if (aiSectionReady || !isAiPlanAvailable()) return;
-    aiSectionReady = true;
-
-    const form = document.getElementById("ai-plan-form");
-    const button = document.getElementById("ai-plan-btn");
-    const status = document.getElementById("ai-plan-status");
-    document.getElementById("ai-section").hidden = false;
-
-    const saved = readSavedPlan(title);
-    if (saved) renderAiPlan(saved);
-
-    if (!await getCurrentUser()) {
-        document.getElementById("ai-plan-login").hidden = false;
-        status.textContent = "ログインすると使えます（1日の回数に限りがあります）。";
-        return;
-    }
-    form.hidden = false;
-
-    form.addEventListener("submit", async function (event) {
-        event.preventDefault();
-        button.disabled = true;
-        status.textContent = "AI がプランを考えています…（数十秒かかることがあります）";
-        try {
-            const { plan, remaining } = await requestAiPlan(title, {
-                duration: document.getElementById("ai-duration").value,
-                start: document.getElementById("ai-start").value.trim(),
-                wishes: document.getElementById("ai-wishes").value.trim()
-            });
-            savePlan(title, plan);
-            renderAiPlan(plan);
-            status.textContent = "プランができました。今日はあと " + remaining + " 回作れます。";
-        } catch (error) {
-            status.textContent = error.message;
-        } finally {
-            button.disabled = false;
-        }
-    });
-}
-
 function renderSpots(spots, stampCounts) {
     const list = document.getElementById("work-spots");
     list.innerHTML = "";
@@ -252,7 +166,6 @@ function render(allSpots, courses, stampCounts) {
     renderHero(spots, stampCounts);
     renderRoutes(courses, spotById);
     renderSpots(spots, stampCounts);
-    setupAiSection();
 
     document.getElementById("work-notice").hidden = true;
     document.getElementById("work-main").hidden = false;

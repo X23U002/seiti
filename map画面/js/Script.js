@@ -17,7 +17,7 @@ import {
 
 // 何期の何話の場面か（入力された期・話、無ければ説明文から。お気に入り一覧と共通）
 // ※ ?v= を付けて、ブラウザに残った古い episode.js を使わないようにする
-import { getSpotEpisodeLabel } from "./episode.js?v=feb7ee57";
+import { compareEpisodeKeys, formatEpisodeKey, getSpotEpisodeKey, getSpotEpisodeLabel } from "./episode.js?v=9a2ff22f";
 
 // 検索のあいまい比較・作品の略称・HTMLエスケープ
 import {
@@ -35,6 +35,9 @@ import {
     distanceMeters,
     formatCourseLength
 } from "./course.js?v=5729311e";
+
+// AI でつくるマイプラン（おすすめルートの画面の下）
+import { refreshMyPlan, setupMyPlan } from "./my-plan.js?v=dfdb3f4b";
 
 // 聖地・おすすめルートの読み込み（他の画面と共通。通信が止められた時の予備の読み方あり）
 import {
@@ -482,9 +485,14 @@ function startCourse(courseId) {
         return;
     }
 
+    startRouteFromSpotIds(course.spot_ids, course.course_name);
+}
+
+// 聖地の並び（おすすめルート・AI のマイプラン）でルート案内を始める
+function startRouteFromSpotIds(spotIds, routeName) {
     window.clearSelectedSpots();
 
-    course.spot_ids.forEach(
+    spotIds.forEach(
         function (spotId) {
             window.addSpotToRouteById(
                 spotId,
@@ -518,8 +526,51 @@ function startCourse(courseId) {
     fitRouteBounds();
 
     window.showToast(
-        `「${course.course_name}」（${selectedSpots.length}か所）をルート案内に入れました`
+        `「${routeName}」（${selectedSpots.length}か所）をルート案内に入れました`
     );
+}
+
+// マイプランで選べる作品（聖地が2か所以上ある作品。絞り込み中の作品を先に）
+function getMyPlanTitles() {
+    const counts = {};
+    spots.forEach(
+        function (spot) {
+            const title = getTitleName(spot);
+            counts[title] = (counts[title] || 0) + 1;
+        }
+    );
+    return Object.keys(counts)
+        .filter(
+            function (title) {
+                return counts[title] >= 2 && title !== "その他";
+            }
+        )
+        .sort(
+            function (a, b) {
+                return Number(activeFilter.titles.includes(b)) - Number(activeFilter.titles.includes(a)) ||
+                    a.localeCompare(b, "ja");
+            }
+        );
+}
+
+// 地図の準備ができてから（絞り込みの状態を使うので）
+function startMyPlan() {
+    setupMyPlan({
+        getTitles: getMyPlanTitles,
+        getDefaultTitle: function () {
+            return activeFilter.titles[0] || "";
+        },
+        startPlan: function (plan) {
+            startRouteFromSpotIds(
+                plan.stops.map(
+                    function (stop) {
+                        return stop.id;
+                    }
+                ),
+                plan.title
+            );
+        }
+    });
 }
 
 // ---------- メニューの「おすすめルート」 ----------
@@ -530,6 +581,7 @@ window.openCourses =
         }
 
         renderCourseList();
+        refreshMyPlan();
 
         document
             .getElementById(
@@ -787,6 +839,7 @@ function openWorkFromUrl() {
     }
 
     activeFilter.titles = [work];
+    activeFilter.episodes = {};
     activeFilter.keyword = "";
     applyActiveFilter();
 
@@ -893,13 +946,21 @@ function goToSpot(spotId) {
 }
 
 
-function getEpisodeBadgeHTML(spot) {
+// asButton：押すと、その作品のその話で地図を絞り込む（聖地の詳細の札）
+function getEpisodeBadgeHTML(spot, asButton) {
     const label =
         getSpotEpisodeLabel(spot);
 
-    return label
-        ? `<span class="popup-ep">${escapeHTML(label)}</span>`
-        : "";
+    if (!label) {
+        return "";
+    }
+
+    if (asButton) {
+        return `<button type="button" class="popup-ep popup-ep-filter" data-spot-id="${escapeHTML(String(spot.id))}"
+            title="「${escapeHTML(getTitleName(spot))}」の${escapeHTML(label)}の聖地で絞り込む">${escapeHTML(label)}</button>`;
+    }
+
+    return `<span class="popup-ep">${escapeHTML(label)}</span>`;
 }
 
 
@@ -1843,7 +1904,7 @@ function drawMarkers(list) {
                         >
                             ${escapeHTML(titleName)}
                         </a>
-                        ${getEpisodeBadgeHTML(data)}
+                        ${getEpisodeBadgeHTML(data, true)}
                         <div class="popup-actions">
                             <button
                                 type="button"
@@ -2400,6 +2461,9 @@ map.on(
         // ログインしていればお気に入りを読み込む（待たずに進める）
         loadFavoriteIds();
 
+        // AI でつくるマイプラン（おすすめルートの画面の下）
+        startMyPlan();
+
         // おすすめルートを読み込む（待たずに進める）。
         // 作品ページの「このルートで巡る」（map.html?course=ID）から来た時は、読み込めたらそのルートを始める
         coursesReady.then(
@@ -2545,10 +2609,26 @@ window.moveToCurrentLocation =
 // =========================================================
 
 // 今かかっている絞り込み（チェックした作品名と、入力したキーワード）
+// episodes：作品名 → 選んだ話の目印（episode.js の getSpotEpisodeKey）。無い・空ならその作品の全部
 const activeFilter = {
     titles: [],
+    episodes: {},
     keyword: ""
 };
+
+// 作品で選んだ話に入る聖地か（話を選んでいなければ全部）
+function matchesEpisodeFilter(spot, title) {
+    const keys = activeFilter.episodes[title];
+    return !keys || keys.length === 0 || keys.includes(getSpotEpisodeKey(spot));
+}
+
+// 札に出す、選んだ話（「1期 EP3・EP5」。選んでいなければ空文字）
+function getEpisodeFilterText(title) {
+    const keys = activeFilter.episodes[title] || [];
+    if (keys.length === 0) return "";
+    if (keys.length > 3) return keys.length + "話分";
+    return keys.slice().sort(compareEpisodeKeys).map(formatEpisodeKey).join("・");
+}
 
 // 絞り込みの条件に合うスポットを返す（条件が無ければ全件）
 function filterSpots() {
@@ -2574,7 +2654,8 @@ function filterSpots() {
                 normalizeText(rawTitle).includes(keyword);
 
             const isMatchCheck =
-                activeFilter.titles.includes(rawTitle);
+                activeFilter.titles.includes(rawTitle) &&
+                matchesEpisodeFilter(spot, rawTitle);
 
             return isMatchKeyword || isMatchCheck;
         }
@@ -2619,8 +2700,10 @@ function renderFilterChips() {
                                     return item !== title;
                                 }
                             );
+                        delete activeFilter.episodes[title];
                         applyActiveFilter();
-                    }
+                    },
+                    getEpisodeFilterText(title)
                 )
             );
         }
@@ -2651,7 +2734,8 @@ function renderFilterChips() {
         );
 }
 
-function createFilterChip(label, color, onRemove) {
+// detail：作品名のあとに付ける選んだ話（長い作品名は省略しても、こちらは必ず見せる）
+function createFilterChip(label, color, onRemove, detail) {
     const chip =
         document.createElement(
             "button"
@@ -2660,7 +2744,7 @@ function createFilterChip(label, color, onRemove) {
     chip.className = "filter-chip";
     chip.setAttribute(
         "aria-label",
-        `${label} の絞り込みを解除`
+        `${label}${detail ? " " + detail : ""} の絞り込みを解除`
     );
 
     if (color) {
@@ -2673,11 +2757,23 @@ function createFilterChip(label, color, onRemove) {
         chip.appendChild(dot);
     }
 
-    chip.appendChild(
-        document.createTextNode(
-            label
-        )
-    );
+    const name =
+        document.createElement(
+            "span"
+        );
+    name.className = "chip-label";
+    name.textContent = label;
+    chip.appendChild(name);
+
+    if (detail) {
+        const episodes =
+            document.createElement(
+                "span"
+            );
+        episodes.className = "chip-detail";
+        episodes.textContent = detail;
+        chip.appendChild(episodes);
+    }
 
     const cross =
         document.createElement(
@@ -2766,11 +2862,102 @@ function populateAnimeList() {
                 count
             );
 
+            const item =
+                document.createElement(
+                    "div"
+                );
+            item.className = "anime-item";
+            item.dataset.title = title;
+            item.appendChild(label);
+
+            // 作品にチェックを付けると、何期の何話かでも選べる
+            const episodePanel =
+                createEpisodePanel(title);
+            if (episodePanel) {
+                episodePanel.hidden = !checkbox.checked;
+                checkbox.addEventListener(
+                    "change",
+                    function () {
+                        episodePanel.hidden = !checkbox.checked;
+                    }
+                );
+                item.appendChild(episodePanel);
+            }
+
             listContainer.appendChild(
-                label
+                item
             );
         }
     );
+}
+
+// 作品の話の選択欄（話が2つ以上分かる作品だけ。押すと選ぶ・もう一度押すと外す）
+function createEpisodePanel(title) {
+    const counts = {};
+    spots.forEach(
+        function (spot) {
+            if (getTitleName(spot) !== title) {
+                return;
+            }
+            const key = getSpotEpisodeKey(spot);
+            counts[key] = (counts[key] || 0) + 1;
+        }
+    );
+
+    const keys = Object.keys(counts).sort(compareEpisodeKeys);
+    const known = keys.filter(
+        function (key) {
+            return key !== "";
+        }
+    );
+    if (known.length < 2) {
+        return null;
+    }
+
+    const selected = activeFilter.episodes[title] || [];
+
+    const panel =
+        document.createElement(
+            "div"
+        );
+    panel.className = "episode-filter";
+    panel.setAttribute("role", "group");
+    panel.setAttribute("aria-label", title + " の話で絞り込む");
+
+    const hint =
+        document.createElement(
+            "p"
+        );
+    hint.className = "episode-filter-hint";
+    hint.textContent = "話で絞り込む（選ばなければ全部）";
+    panel.appendChild(hint);
+
+    keys.forEach(
+        function (key) {
+            const option =
+                document.createElement(
+                    "button"
+                );
+            option.type = "button";
+            option.className = "episode-option";
+            option.dataset.key = key;
+            option.setAttribute(
+                "aria-pressed",
+                String(selected.includes(key))
+            );
+            option.textContent =
+                formatEpisodeKey(key) + "（" + counts[key] + "）";
+            option.onclick = function () {
+                option.setAttribute(
+                    "aria-pressed",
+                    String(option.getAttribute("aria-pressed") !== "true")
+                );
+            };
+            panel.appendChild(option);
+        }
+    );
+
+    return panel;
 }
 
 // =========================================================
@@ -2840,20 +3027,17 @@ window.searchAnime =
 
         document
             .querySelectorAll(
-                "#anime-list label"
+                "#anime-list .anime-item"
             )
             .forEach(
-                function (label) {
+                function (item) {
                     const title =
                         normalizeText(
-                            label.querySelector("input").value
+                            item.dataset.title
                         );
 
-                    // "" にするとCSS側の表示方法（flex）に戻る
-                    label.style.display =
-                        title.includes(keyword)
-                            ? ""
-                            : "none";
+                    item.hidden =
+                        !title.includes(keyword);
                 }
             );
     };
@@ -2865,6 +3049,7 @@ window.applyFilter =
     function () {
         const previous = {
             titles: activeFilter.titles.slice(),
+            episodes: activeFilter.episodes,
             keyword: activeFilter.keyword
         };
 
@@ -2887,12 +3072,40 @@ window.applyFilter =
                 }
             );
 
+        // チェックした作品ごとに、選んだ話
+        activeFilter.episodes = {};
+        document
+            .querySelectorAll(
+                "#anime-list .anime-item"
+            )
+            .forEach(
+                function (item) {
+                    const title = item.dataset.title;
+                    if (!activeFilter.titles.includes(title)) {
+                        return;
+                    }
+                    const keys = Array.from(
+                        item.querySelectorAll(
+                            ".episode-option[aria-pressed='true']"
+                        )
+                    ).map(
+                        function (option) {
+                            return option.dataset.key;
+                        }
+                    );
+                    if (keys.length > 0) {
+                        activeFilter.episodes[title] = keys;
+                    }
+                }
+            );
+
         // 1件も無い時は元の絞り込みに戻し、画面は閉じずに知らせる
         if (filterSpots().length === 0) {
             activeFilter.titles = previous.titles;
+            activeFilter.episodes = previous.episodes;
             activeFilter.keyword = previous.keyword;
             window.showToast(
-                "入力された作品名のスポットは見つかりませんでした",
+                "条件に合うスポットは見つかりませんでした",
                 "error"
             );
             return;
@@ -2900,7 +3113,58 @@ window.applyFilter =
 
         applyActiveFilter();
         window.closeFilter();
+        fitFilteredSpots();
     };
+
+// 絞り込んだ聖地が全部見えるように地図を動かす
+function fitFilteredSpots() {
+    if (currentSpots.length === 0 || currentSpots === spots) {
+        return;
+    }
+
+    const bounds = new mapboxgl.LngLatBounds();
+    currentSpots.forEach(
+        function (spot) {
+            bounds.extend([Number(spot.coord.longitude), Number(spot.coord.latitude)]);
+        }
+    );
+    map.fitBounds(
+        bounds,
+        {
+            padding: 80,
+            maxZoom: 15,
+            duration: prefersReducedMotion() ? 0 : 800
+        }
+    );
+}
+
+// 聖地の詳細の話の札（「EP6」など）を押すと、その作品のその話の聖地だけにする
+document.addEventListener(
+    "click",
+    function (event) {
+        const badge = event.target.closest(".popup-ep-filter[data-spot-id]");
+        if (!badge) {
+            return;
+        }
+
+        const spot = findSpot(badge.dataset.spotId);
+        if (!spot) {
+            return;
+        }
+
+        const title = getTitleName(spot);
+        activeFilter.titles = [title];
+        activeFilter.episodes = {};
+        activeFilter.episodes[title] = [getSpotEpisodeKey(spot)];
+        activeFilter.keyword = "";
+        applyActiveFilter();
+        fitFilteredSpots();
+
+        window.showToast(
+            `「${title}」の${getSpotEpisodeLabel(spot)}の聖地（${currentSpots.length}か所）で絞り込みました`
+        );
+    }
+);
 
 // =========================================================
 // 絞り込みリセット
@@ -2921,9 +3185,30 @@ window.resetFilter =
                 }
             );
 
+        document
+            .querySelectorAll(
+                "#anime-list .episode-option"
+            )
+            .forEach(
+                function (option) {
+                    option.setAttribute("aria-pressed", "false");
+                }
+            );
+
+        document
+            .querySelectorAll(
+                "#anime-list .episode-filter"
+            )
+            .forEach(
+                function (panel) {
+                    panel.hidden = true;
+                }
+            );
+
         window.searchAnime();
 
         activeFilter.titles = [];
+        activeFilter.episodes = {};
         activeFilter.keyword = "";
         applyActiveFilter();
     };

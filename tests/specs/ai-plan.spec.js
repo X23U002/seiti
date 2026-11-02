@@ -1,4 +1,4 @@
-// 作品ページの「AI でつくるマイプラン」と、管理ページの「AI で下書きを作る」（中継サーバーの答えは差しかえる）
+// 地図のおすすめルートの画面の「AI でつくるマイプラン」と、管理ページの「AI で下書きを作る」（中継サーバーの答えは差しかえる）
 import { test, expect, seed, withSpots, readStore, PROFILE, spotNamed } from "../helpers.js";
 
 const EUPHO = "響け！ユーフォニアム";
@@ -30,7 +30,27 @@ async function fakeServer(page, answer) {
 }
 
 const loggedIn = { user: "uid2", data: withSpots({ user: { uid2: PROFILE("巡礼者", "p@x.jp") } }) };
-const openWork = (page) => page.goto("html/work.html?title=" + encodeURIComponent(EUPHO));
+
+// 地図の「おすすめルート」を開き、マイプランの作品を選ぶ
+async function openMyPlan(page) {
+    await page.goto("html/map.html");
+    await expect(page.locator("#my-plan")).toBeAttached();
+    await expect.poll(() => page.locator("#my-plan-title option").count()).toBeGreaterThan(1);
+    await page.evaluate(() => window.openCourses());
+    await page.selectOption("#my-plan-title", EUPHO);
+}
+
+test("作品ページには出さず、地図のおすすめルートの画面に出す", async ({ page }) => {
+    await fakeServer(page, () => [200, { plan: PLAN, remaining: 4 }]);
+    await seed(page, loggedIn);
+    await page.goto("html/work.html?title=" + encodeURIComponent(EUPHO));
+    await expect(page.locator("#work-title")).toHaveText(EUPHO);
+    await expect(page.locator("#my-plan, #ai-section")).toHaveCount(0);
+
+    await openMyPlan(page);
+    await expect(page.locator("#my-plan")).toBeVisible();
+    await expect(page.locator("#my-plan-jump")).toBeVisible();
+});
 
 test("ふだんは公開した中継サーバーに作品名と条件を送る", async ({ page }) => {
     const sent = [];
@@ -39,82 +59,76 @@ test("ふだんは公開した中継サーバーに作品名と条件を送る",
         await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ plan: PLAN, remaining: 4 }) });
     });
     await seed(page, loggedIn);
-    await openWork(page);
-    await page.click("#ai-plan-btn");
-    await expect(page.locator("#ai-plan-result h3")).toHaveText(PLAN.title);
+    await openMyPlan(page);
+    await page.click("#my-plan-submit");
+    await expect(page.locator("#my-plan-result h4")).toHaveText(PLAN.title);
     expect(sent).toEqual([{ title: EUPHO, duration: "half", start: "", wishes: "" }]);
 });
 
 test("未ログインだと、ログインへの案内を出す", async ({ page }) => {
     await fakeServer(page, () => [200, { plan: PLAN, remaining: 4 }]);
     await seed(page);
-    await openWork(page);
-    await expect(page.locator("#ai-section")).toBeVisible();
-    await expect(page.locator("#ai-plan-login")).toBeVisible();
-    await expect(page.locator("#ai-plan-form")).toBeHidden();
+    await page.goto("html/map.html");
+    await expect(page.locator("#my-plan-login")).toBeAttached();
+    await page.evaluate(() => window.openCourses());
+    await expect(page.locator("#my-plan-login")).toBeVisible();
+    await expect(page.locator("#my-plan-form")).toBeHidden();
 });
 
-test("ログイン中は、ログインへの案内を出さない", async ({ page }) => {
-    await fakeServer(page, () => [200, { plan: PLAN, remaining: 4 }]);
-    await seed(page, loggedIn);
-    await openWork(page);
-    await expect(page.locator("#ai-plan-btn")).toBeVisible();
-    await expect(page.locator("#ai-plan-login")).toBeHidden();
-});
-
-test("作品名・条件・ログインの証明を送り、プランを出して地図で開ける。開き直しても残る", async ({ page }) => {
+test("作品名・条件・ログインの証明を送り、プランを出してルート案内に入れられる。開き直しても残る", async ({ page }) => {
     const requests = await fakeServer(page, () => [200, { plan: PLAN, remaining: 4 }]);
     await seed(page, loggedIn);
-    await openWork(page);
-    await page.selectOption("#ai-duration", "short");
-    await page.fill("#ai-start", "  京阪宇治駅  ");
-    await page.fill("#ai-wishes", "1期の名場面中心で");
-    await page.click("#ai-plan-btn");
+    await openMyPlan(page);
+    await expect(page.locator("#my-plan-login")).toBeHidden();
+    await page.selectOption("#my-plan-duration", "short");
+    await page.fill("#my-plan-start", "  京阪宇治駅  ");
+    await page.fill("#my-plan-wishes", "1期の名場面中心で");
+    await page.click("#my-plan-submit");
 
-    const result = page.locator("#ai-plan-result");
+    const result = page.locator("#my-plan-result");
     await expect(result).toBeVisible();
-    await expect(result.locator("h3")).toHaveText(PLAN.title);
+    await expect(result.locator("h4")).toHaveText(PLAN.title);
     await expect(result).toContainText("3か所・約1.5km");
     await expect(result).toContainText("合計 約1時間35分");
-    await expect(result.locator(".ai-plan-stops > li")).toHaveCount(3);
-    await expect(result.locator(".ai-plan-stops > li").first()).toContainText("1期 EP1");
-    await expect(result.locator(".ai-plan-stops > li").first()).toContainText("麗奈と再会した駅");
-    await expect(page.locator("#ai-plan-status")).toContainText("あと 4 回");
+    await expect(result.locator(".my-plan-stops > li")).toHaveCount(3);
+    await expect(result.locator(".my-plan-stops > li").first()).toContainText("1期 EP1");
+    await expect(result.locator(".my-plan-stops > li").first()).toContainText("麗奈と再会した駅");
+    await expect(page.locator("#my-plan-status")).toContainText("あと 4 回");
     expect(requests).toEqual([{
         body: { title: EUPHO, duration: "short", start: "京阪宇治駅", wishes: "1期の名場面中心で" },
         auth: "Bearer test-token"
     }]);
 
-    // 地図で開く：保存したルートと同じ map.html?route=
-    const href = await result.locator("a.btn-primary").getAttribute("href");
-    expect(href).toBe("map.html?route=" + encodeURIComponent([station.id, bridge.id, bench.id].join(",")));
-    await result.locator("a.btn-primary").click();
+    // このプランで巡る：ルート案内に順番どおりに入り、おすすめルートの画面は閉じる
+    await result.locator(".my-plan-start").click();
+    await expect(page.locator("#course-modal")).toBeHidden();
     await expect(page.locator(".routeItem")).toHaveCount(3);
     await expect(page.locator(".routeItem").first()).toContainText(station.spot_name);
+    await expect(page.locator("#toast")).toContainText(PLAN.title);
 
-    // 作品ページを開き直すと、回数を使わずに前のプランが出る
-    await openWork(page);
-    await expect(page.locator("#ai-plan-result h3")).toHaveText(PLAN.title);
-    await expect(page.locator("#ai-plan-btn")).toHaveText("別のマイプランを作ってもらう");
+    // 開き直すと、回数を使わずに前のプランが出る
+    await openMyPlan(page);
+    await expect(page.locator("#my-plan-result h4")).toHaveText(PLAN.title);
+    await expect(page.locator("#my-plan-submit")).toHaveText("別のマイプランを作ってもらう");
     expect(requests).toHaveLength(1);
 });
 
 test("回数の上限など、サーバーの断りの文をそのまま出す", async ({ page }) => {
     await fakeServer(page, () => [429, { error: "limit", message: "今日はこれ以上作れません。明日またお試しください。" }]);
     await seed(page, loggedIn);
-    await openWork(page);
-    await page.click("#ai-plan-btn");
-    await expect(page.locator("#ai-plan-status")).toHaveText("今日はこれ以上作れません。明日またお試しください。");
-    await expect(page.locator("#ai-plan-result")).toBeHidden();
-    await expect(page.locator("#ai-plan-btn")).toBeEnabled();
+    await openMyPlan(page);
+    await page.click("#my-plan-submit");
+    await expect(page.locator("#my-plan-status")).toHaveText("今日はこれ以上作れません。明日またお試しください。");
+    await expect(page.locator("#my-plan-result")).toBeHidden();
+    await expect(page.locator("#my-plan-submit")).toBeEnabled();
 });
 
 test("ログインの証明を取り直せない時（広告ブロックなど）は、サーバーに送らずに分かる文を出す", async ({ page }) => {
     const requests = await fakeServer(page, () => [200, { plan: PLAN, remaining: 4 }]);
     await seed(page, Object.assign({ local: { mockTokenFail: "1" } }, loggedIn));
-    await openWork(page);
-    await page.click("#ai-plan-btn");
-    await expect(page.locator("#ai-plan-status")).toContainText("ログインの確認ができませんでした");
+    await openMyPlan(page);
+    await page.click("#my-plan-submit");
+    await expect(page.locator("#my-plan-status")).toContainText("ログインの確認ができませんでした");
     expect(requests).toHaveLength(0);
 });
 

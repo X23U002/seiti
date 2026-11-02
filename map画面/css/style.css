@@ -1667,6 +1667,19 @@ body {
     white-space: nowrap;
 }
 
+/* 押すと、その作品のその話で絞り込む */
+.popup-ep-filter {
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.popup-ep-filter:hover,
+.popup-ep-filter:focus-visible {
+    transform: none;
+    background: #0b3c5d;
+    color: white;
+}
+
 /* ---------- 近くの聖地 ---------- */
 .popup-nearby {
     margin-top: 12px;
@@ -2045,6 +2058,33 @@ body {
     background: #f6f8f9;
 }
 
+/* 長い作品名は省略し、選んだ話は必ず見せる */
+#filter-chips {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.filter-chip {
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.chip-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chip-detail {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #eef1f3;
+    color: #0b3c5d;
+    font-size: 12px;
+}
+
 .chip-x {
     display: flex;
     align-items: center;
@@ -2088,6 +2128,50 @@ body {
 #anime-list .anime-count {
     font-size: 12px;
     color: #6b7b8c;
+}
+
+#anime-list .anime-item[hidden] {
+    display: none;
+}
+
+/* 作品の話で絞り込む（チェックした作品の下に出す） */
+.episode-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 10px 12px 40px;
+}
+
+.episode-filter[hidden] {
+    display: none;
+}
+
+.episode-filter-hint {
+    width: 100%;
+    margin: 0;
+    font-size: 12px;
+    color: #6b7b8c;
+}
+
+.episode-option {
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid #c9d3dc;
+    border-radius: 16px;
+    background: white;
+    color: #2c3e50;
+    font-size: 13px;
+}
+
+.episode-option:hover {
+    transform: none;
+    background: #f6f8f9;
+}
+
+.episode-option[aria-pressed="true"] {
+    border-color: #0b3c5d;
+    background: #0b3c5d;
+    color: white;
 }
 
 /* ---------- ルート案内パネル ---------- */
@@ -2798,6 +2882,141 @@ body {
 .course-card .course-start:hover {
     background: #14537f;
     transform: none;
+}
+
+/* ---------- AI でつくるマイプラン（おすすめルートの画面の下） ---------- */
+.my-plan[hidden],
+.my-plan-jump[hidden],
+.my-plan-login[hidden],
+.my-plan-form[hidden],
+#my-plan-result[hidden] {
+    display: none;
+}
+
+.my-plan-jump {
+    display: block;
+    margin: 0 0 4px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #0b3c5d;
+}
+
+.my-plan {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px dashed #c9d3dc;
+    scroll-margin-top: 16px;
+}
+
+.my-plan h3 {
+    margin: 0 0 6px;
+    font-size: 17px;
+    color: #0b3c5d;
+}
+
+.my-plan-lead {
+    margin: 0 0 12px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #2c3e50;
+}
+
+.my-plan-form {
+    display: grid;
+    gap: 10px;
+}
+
+.my-plan-field {
+    display: grid;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: bold;
+    color: #6b7b8c;
+}
+
+.my-plan-field select,
+.my-plan-field input,
+.my-plan-field textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #c9d3dc;
+    border-radius: 8px;
+    background: #fff;
+    color: #2c3e50;
+    font: inherit;
+    font-size: 16px;
+    font-weight: normal;
+}
+
+.my-plan-field textarea {
+    resize: vertical;
+}
+
+.my-plan-submit,
+.my-plan-login {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    border-radius: 10px;
+    background: #0b3c5d;
+    color: #fff;
+    font-size: 15px;
+    font-weight: bold;
+    line-height: 44px;
+    text-align: center;
+    text-decoration: none;
+}
+
+.my-plan-submit {
+    line-height: normal;
+}
+
+.my-plan-submit:hover {
+    background: #14537f;
+    transform: none;
+}
+
+.my-plan-submit:disabled {
+    background: #8a9aa8;
+    cursor: wait;
+}
+
+.my-plan-status {
+    margin: 10px 0;
+    font-size: 13px;
+    color: #6b7b8c;
+}
+
+.my-plan-status:empty {
+    display: none;
+}
+
+.my-plan-stop-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+}
+
+.my-plan-stop-name {
+    font-weight: bold;
+}
+
+.my-plan-stay {
+    font-size: 12px;
+    color: #6b7b8c;
+}
+
+.my-plan-comment {
+    margin: 2px 0 6px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.my-plan-note {
+    margin: 10px 0 0;
+    font-size: 12px;
+    color: #6b7b8c;
 }
 
 /* 聖地の詳細の「この聖地を通るおすすめルート」 */
