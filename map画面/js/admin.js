@@ -6,6 +6,7 @@
 // ・聖地を新しく登録する・登録済みの聖地を編集する
 // ・登録済みの聖地の「何期の何話か」（spot の season・episode）をまとめて入力する
 // ・作品ごとのおすすめ聖地巡礼ルート（course）を作る・直す・消す
+// ・作品の説明（work）を書く
 // 誰が管理者かは Firestore のルールでも確かめている（画面を開けても、管理者でなければ読み書きできない）
 // ==========================================
 import {
@@ -1152,6 +1153,101 @@ document.getElementById("episode-bulk").addEventListener("click", async function
     }
 });
 
+// ---------- 作品の説明（work コレクション。作品ページの見出しの下に出す） ----------
+const WORK_COLLECTION = "work";
+const WORK_DESCRIPTION_MAX = 1000;
+let workList = [];          // { id, data }
+
+async function loadWorkList() {
+    const snapshot = await getDocs(collection(db, WORK_COLLECTION));
+    workList = [];
+    snapshot.forEach(function (d) { workList.push({ id: d.id, data: d.data() }); });
+}
+
+function findWork(title) {
+    return workList.find(function (work) { return work.data.title_name === title; });
+}
+
+function updateWorkCount() {
+    const length = Array.from(document.getElementById("work-description").value).length;
+    document.getElementById("work-count").textContent = length + " / " + WORK_DESCRIPTION_MAX + "文字";
+}
+
+// 選んだ作品の説明を入力欄に出す
+function showWork() {
+    const title = document.getElementById("work-title").value;
+    const work = findWork(title);
+    document.getElementById("work-description").value = work ? work.data.description || "" : "";
+    document.getElementById("work-preview").href = "work.html?title=" + encodeURIComponent(title);
+    document.getElementById("work-error").hidden = true;
+    updateWorkCount();
+}
+
+// 作品の選択肢（聖地のある作品。説明を書いた作品には ✓）
+function renderWorks() {
+    const select = document.getElementById("work-title");
+    const current = select.value;
+    const titles = Array.from(new Set(spots.map(function (spot) { return spot.data.title_name || "その他"; })))
+        .filter(function (title) { return title !== "その他"; })
+        .sort();
+
+    select.innerHTML = "";
+    titles.forEach(function (title) {
+        const work = findWork(title);
+        const option = document.createElement("option");
+        option.value = title;
+        option.textContent = (work && work.data.description ? "✓ " : "") + title;
+        select.appendChild(option);
+    });
+    if (titles.includes(current)) select.value = current;
+    showWork();
+}
+
+document.getElementById("work-title").addEventListener("change", showWork);
+document.getElementById("work-description").addEventListener("input", updateWorkCount);
+
+document.getElementById("work-form").addEventListener("submit", async function (event) {
+    event.preventDefault();
+    const title = document.getElementById("work-title").value;
+    if (!title) return;
+
+    const button = document.getElementById("work-save");
+    button.disabled = true;
+    button.textContent = "保存中…";
+
+    const data = {
+        title_name: title,
+        description: document.getElementById("work-description").value.trim(),
+        updated_at: serverTimestamp()
+    };
+
+    try {
+        const work = findWork(title);
+        const batch = writeBatch(db);
+        const ref = work ? doc(db, WORK_COLLECTION, work.id) : doc(collection(db, WORK_COLLECTION));
+        batch.set(ref, data);
+        await batch.commit();
+
+        if (work) {
+            work.data = data;
+        } else {
+            workList.push({ id: ref.id, data: data });
+        }
+        notify("「" + title + "」の説明を保存しました");
+        renderWorks();
+    } catch (error) {
+        console.error(error);
+        const box = document.getElementById("work-error");
+        box.textContent = error && error.code === "permission-denied"
+            ? "保存する権限がありません。Firestore のルールに work を追加してください。"
+            : "保存できませんでした。通信状況を確認して、もう一度お試しください。";
+        box.hidden = false;
+    } finally {
+        button.disabled = false;
+        button.textContent = "保存する";
+    }
+});
+
 // ---------- おすすめ聖地巡礼ルート（course コレクション） ----------
 let courseList = [];        // { id, data }
 let editingCourse = null;   // 編集中のルート（新しく作る時は null）
@@ -1494,18 +1590,19 @@ document.getElementById("course-new").addEventListener("click", function () { op
 
 // ---------- タブ ----------
 function selectTab(name) {
-    ["requests", "contacts", "spots", "episodes", "courses"].forEach(function (key) {
+    ["requests", "contacts", "spots", "episodes", "works", "courses"].forEach(function (key) {
         const selected = key === name;
         document.getElementById("tab-" + key).setAttribute("aria-selected", String(selected));
         document.getElementById("panel-" + key).hidden = !selected;
     });
     // 「対応済みも表示」は申請・お問い合わせの時だけ
-    document.getElementById("show-done-label").hidden = name === "spots" || name === "episodes" || name === "courses";
+    document.getElementById("show-done-label").hidden = name === "spots" || name === "episodes" || name === "works" || name === "courses";
 }
 document.getElementById("tab-requests").addEventListener("click", function () { selectTab("requests"); });
 document.getElementById("tab-contacts").addEventListener("click", function () { selectTab("contacts"); });
 document.getElementById("tab-spots").addEventListener("click", function () { selectTab("spots"); });
 document.getElementById("tab-episodes").addEventListener("click", function () { selectTab("episodes"); });
+document.getElementById("tab-works").addEventListener("click", function () { selectTab("works"); });
 document.getElementById("tab-courses").addEventListener("click", function () { selectTab("courses"); });
 document.getElementById("show-done").addEventListener("change", render);
 
@@ -1569,6 +1666,15 @@ document.getElementById("show-done").addEventListener("change", render);
         notify("おすすめルートを読めませんでした。Firestore のルールに course を追加してください", "error");
     }
     renderCourses();
+
+    // 作品の説明（ルールに work が無くても、他の管理はできるよう別に読む）
+    try {
+        await loadWorkList();
+    } catch (error) {
+        console.error("作品の説明を読めませんでした:", error);
+        notify("作品の説明を読めませんでした。Firestore のルールに work を追加してください", "error");
+    }
+    renderWorks();
 })();
 
 // 色の確認用（作品名の入力欄の横に作品の色を出す）

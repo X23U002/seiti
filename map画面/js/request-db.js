@@ -13,7 +13,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 import { db } from "./firebase-db.js?v=917161b9";
-import { getLoginUserId } from "./stamp-db.js?v=af011576";
+import { getLoginUserId } from "./stamp-db.js?v=1e4afed3";
 
 export { getLoginUserId };
 

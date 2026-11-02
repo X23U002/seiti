@@ -221,8 +221,17 @@ test("地図上にルートを生成すると、区間の時間も実際の道�
     await expect(legs).toHaveCount(3);
     await expect(legs.nth(1)).toContainText("（目安）");
 
+    // 生成する前から、ピンに回る順番の番号と、回る順に結ぶ点線を出す
+    const preview = () => page.evaluate(() => window.__map.getSource("selected-spots-preview")._data.features);
+    for (let i = 0; i < order.length; i++) {
+        await expect(page.locator(`.mapboxgl-marker[data-spot-id="${order[i].id}"] .route-order-badge`)).toHaveText(String(i + 1));
+    }
+    await expect.poll(async () => (await preview()).map((f) => f.geometry.coordinates.length)).toEqual([3]);
+
     await page.click("#generate-mapbox-route");
     await expect(page.locator("#toast")).toContainText("約1.7km・徒歩約21分");
+    // 道に沿ったルートを出している間は、点線は出さない
+    expect(await preview()).toEqual([]);
     await expect(legs.nth(1)).toHaveText(/^徒歩 約450m・6分/);
     await expect(legs.nth(2)).toHaveText(/^徒歩 約1\.3km・15分/);
     await expect(legs.nth(1)).not.toContainText("目安");
@@ -236,9 +245,19 @@ test("地図上にルートを生成すると、区間の時間も実際の道�
         await expect(page.locator(`.mapboxgl-marker[data-spot-id="${order[i].id}"] .route-order-badge`)).toHaveText(String(i + 1));
     }
 
+    // ルートを出したまま聖地を1か所消すと、残りで作り直す
+    const requests = [];
+    page.on("request", (request) => { if (request.url().includes("/directions/v5/")) requests.push(request.url()); });
+    await page.locator('#routeList .routeItem[data-index="2"] .route-remove').click();
+    await expect.poll(() => requests.length).toBe(1);
+    expect(decodeURIComponent(requests[0])).toContain(`${order[0].coord.longitude},${order[0].coord.latitude};${order[1].coord.longitude},${order[1].coord.latitude}?`);
+    await expect(page.locator(".route-order-badge")).toHaveCount(2);
+
+    // 解除すると目安に戻り、番号と点線は残る
     await page.click("#generate-mapbox-route");
     await expect(legs.nth(1)).toContainText("（目安）");
-    await expect(page.locator(".route-order-badge")).toHaveCount(0);
+    await expect(page.locator(".route-order-badge")).toHaveCount(2);
+    await expect.poll(async () => (await preview()).map((f) => f.geometry.coordinates.length)).toEqual([2]);
 });
 
 test("地図上にルートを生成する時は船を除いて頼み、断られたら除かずに頼み直す。船の区間が残れば知らせる", async ({ page }) => {

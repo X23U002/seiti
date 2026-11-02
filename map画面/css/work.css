@@ -97,6 +97,19 @@
     overflow-wrap: anywhere;
 }
 
+/* 作品の説明（管理ページの「作品」で入力） */
+.work-description {
+    margin: 10px 0 0;
+    font-size: 14px;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.work-description[hidden] {
+    display: none;
+}
+
 .work-actions {
     display: flex;
     flex-wrap: wrap;

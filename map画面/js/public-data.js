@@ -245,6 +245,20 @@ export async function loadSpots() {
     return list;
 }
 
+// 作品の説明（work コレクション。作品名 → 説明文）
+export const WORK_COLLECTION = "work";
+
+export async function loadWorkDescriptions() {
+    const list = await fetchCollection(WORK_COLLECTION);
+    const descriptions = {};
+    list.forEach(function (work) {
+        if (typeof work.title_name === "string" && typeof work.description === "string" && work.description.trim()) {
+            descriptions[work.title_name] = work.description.trim();
+        }
+    });
+    return descriptions;
+}
+
 export async function loadCourses() {
     const list = await fetchCollection(COURSE_COLLECTION);
     return sortCourses(list.filter(function (course) {

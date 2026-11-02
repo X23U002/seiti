@@ -10,7 +10,7 @@ import {
 
 import { db, getCurrentUser } from "./firebase-db.js?v=917161b9";
 // 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
-import { queryMine } from "./public-data.js?v=c815b81a";
+import { queryMine } from "./public-data.js?v=0ba43cde";
 
 function showNotice(icon, text, link) {
     const notice = document.getElementById("inbox-notice");

@@ -44,14 +44,14 @@ import {
     loadCourses as fetchCourseList,
     loadSpots,
     readCachedSpots
-} from "./public-data.js?v=c815b81a";
+} from "./public-data.js?v=0ba43cde";
 
 // お気に入り・保存したルート
 import {
     loadFavorites,
     saveRoute,
     setFavorite
-} from "./saved-db.js?v=2aaaa116";
+} from "./saved-db.js?v=c6cb832f";
 
 // stampsyori.js（スタンプ獲得の演出）からも同じ色を使う
 window.getTitleColor = getTitleColor;
@@ -2041,9 +2041,11 @@ function drawMarkers(list) {
     showRouteOrderOnMarkers();
 }
 
-// 地図上にルートを生成している間は、ルートの聖地のピンに回る順番の番号を出す
+// ルート案内に入れた聖地のピンに、回る順番の番号を出す（入れかえ・削除のたびに付け直す）
 function showRouteOrderOnMarkers() {
-    if (!isMapboxRouteActive) return;
+    document.querySelectorAll(".route-order-badge").forEach(function (badge) {
+        badge.remove();
+    });
 
     const orderById = new Map();
     selectedSpots.forEach(function (spot, index) {
@@ -2053,7 +2055,7 @@ function showRouteOrderOnMarkers() {
     spotMarkers.forEach(function (marker) {
         const element = marker.getElement();
         const order = orderById.get(element.dataset.spotId);
-        if (!order || element.querySelector(".route-order-badge")) return;
+        if (!order) return;
 
         const badge = document.createElement("span");
         badge.className = "route-order-badge";
@@ -3318,6 +3320,11 @@ window.addSpotToRouteById =
             );
         }
 
+        // 道に沿ったルートを出している時は、足した聖地も入れて作り直す
+        if (isMapboxRouteActive) {
+            generateMapboxRoute();
+        }
+
     };
 
 
@@ -3341,9 +3348,13 @@ window.removeSpotFromRoute =
                 index,
                 1
             );
-            // ルート表示中なら、個別削除時もMapboxのルートを解除
+            // 道に沿ったルートを出している時は、残りの聖地で作り直す（1か所になったら解除）
             if (isMapboxRouteActive) {
-                unsetMapboxRoute(false);
+                if (selectedSpots.length >= 2) {
+                    generateMapboxRoute();
+                } else {
+                    unsetMapboxRoute(false);
+                }
             }
 
             updateRouteList();
@@ -3401,6 +3412,10 @@ function updateRouteList() {
     }
 
     routeList.innerHTML = "";
+
+    // ピンの回る順番の番号と、回る順に結ぶ線
+    showRouteOrderOnMarkers();
+    updateRoutePreview();
 
     // パネルの見出しに件数を表示
     const routeCount =
@@ -4020,6 +4035,11 @@ const MAPBOX_ROUTE_LAYER_ID = "selected-spots-route-line";
 const MAPBOX_ROUTE_ARROW_LAYER_ID = "selected-spots-route-arrow";
 const MAPBOX_ROUTE_ARROW_IMAGE = "selected-spots-route-arrow";
 
+// 「地図上にルートを生成」を押す前の、回る順に聖地を結ぶ直線（点線）
+const ROUTE_PREVIEW_SOURCE_ID = "selected-spots-preview";
+const ROUTE_PREVIEW_LAYER_ID = "selected-spots-preview-line";
+const ROUTE_PREVIEW_ARROW_LAYER_ID = "selected-spots-preview-arrow";
+
 // 進む向きの矢印（右向きの「›」。白い矢印に濃い縁取り）
 function createRouteArrowImage() {
     const size = 32;
@@ -4105,10 +4125,46 @@ function unsetMapboxRoute(showMessage = true) {
     }
 }
 
+// ルート案内の聖地を回る順に直線で結ぶ（道に沿ったルートを出している間は出さない）
+function updateRoutePreview() {
+    setupMapboxRouteLayer();
+    const source = map.getSource(ROUTE_PREVIEW_SOURCE_ID);
+    if (!source) {
+        return;
+    }
+
+    const showPreview = !isMapboxRouteActive && selectedSpots.length >= 2;
+    source.setData({
+        type: "FeatureCollection",
+        features: showPreview
+            ? [{
+                type: "Feature",
+                properties: {},
+                geometry: {
+                    type: "LineString",
+                    coordinates: selectedSpots.map(function (spot) {
+                        return [Number(spot.longitude), Number(spot.latitude)];
+                    })
+                }
+            }]
+            : []
+    });
+}
+
 // ルートの線を地図に登録
 function setupMapboxRouteLayer() {
     if (!map.isStyleLoaded()) {
         return;
+    }
+
+    if (!map.getSource(ROUTE_PREVIEW_SOURCE_ID)) {
+        map.addSource(ROUTE_PREVIEW_SOURCE_ID, {
+            type: "geojson",
+            data: {
+                type: "FeatureCollection",
+                features: []
+            }
+        });
     }
 
     // すでに存在する場合は重複登録しない
@@ -4125,6 +4181,41 @@ function setupMapboxRouteLayer() {
     // 進む向きの矢印の画像
     if (!map.hasImage(MAPBOX_ROUTE_ARROW_IMAGE)) {
         map.addImage(MAPBOX_ROUTE_ARROW_IMAGE, createRouteArrowImage());
+    }
+
+    if (!map.getLayer(ROUTE_PREVIEW_LAYER_ID)) {
+        map.addLayer({
+            id: ROUTE_PREVIEW_LAYER_ID,
+            type: "line",
+            source: ROUTE_PREVIEW_SOURCE_ID,
+            layout: {
+                "line-join": "round",
+                "line-cap": "round"
+            },
+            paint: {
+                "line-color": "#1976D2",
+                "line-width": 3,
+                "line-opacity": 0.75,
+                "line-dasharray": [2, 2]
+            }
+        });
+    }
+
+    if (!map.getLayer(ROUTE_PREVIEW_ARROW_LAYER_ID)) {
+        map.addLayer({
+            id: ROUTE_PREVIEW_ARROW_LAYER_ID,
+            type: "symbol",
+            source: ROUTE_PREVIEW_SOURCE_ID,
+            layout: {
+                "symbol-placement": "line",
+                "symbol-spacing": 90,
+                "icon-image": MAPBOX_ROUTE_ARROW_IMAGE,
+                "icon-size": 0.45,
+                "icon-allow-overlap": true,
+                "icon-ignore-placement": true,
+                "icon-rotation-alignment": "map"
+            }
+        });
     }
 
     if (!map.getLayer(MAPBOX_ROUTE_LAYER_ID)) {
@@ -4390,6 +4481,7 @@ document
 // 地図のスタイルが切り替わった場合にも線を再登録する
 map.on("style.load", function () {
     setupMapboxRouteLayer();
+    updateRoutePreview();
 });
 
 // =========================================================
