@@ -85,6 +85,13 @@ function courseOk(data) {
         !!data.course_name && data.course_name.length <= 50 && data.description.length <= 500;
 }
 
+function workOk(data) {
+    return hasKeys(data, ["description", "title_name", "updated_at"]) &&
+        data.updated_at === SERVER_TIME && typeof data.title_name === "string" &&
+        data.title_name.length > 0 && data.title_name.length <= 100 &&
+        typeof data.description === "string" && data.description.length <= 1000;
+}
+
 // 新しく作る時
 const CREATE_RULES = {
     request_spot: (d) => isMine(d) && d.request_state === "申請中" &&
@@ -100,7 +107,8 @@ const CREATE_RULES = {
     message: (d) => isAdmin() && hasKeys(d, ["user_id", "title", "body", "is_read", "created_at"]) &&
         d.is_read === false && d.created_at === SERVER_TIME,
     spot: (d) => isAdmin() && spotOk(d),
-    course: (d) => isAdmin() && courseOk(d)
+    course: (d) => isAdmin() && courseOk(d),
+    work: (d) => isAdmin() && workOk(d)
 };
 
 // 書きかえ・削除（管理者か、自分のものだけ）
@@ -123,6 +131,7 @@ function applyUpdate(store, collectionName, id, data) {
     const merged = Object.assign({}, current, mapValues(data, encode));
     if (collectionName === "spot" && !spotOk(merged)) throw denied("spot " + Object.keys(merged).sort().join(","));
     if (collectionName === "course" && !courseOk(data)) throw denied("course " + Object.keys(data).sort().join(","));
+    if (collectionName === "work" && !workOk(data)) throw denied("work " + Object.keys(data).sort().join(","));
     store[collectionName][id] = merged;
 }
 

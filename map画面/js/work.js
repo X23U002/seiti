@@ -1,13 +1,13 @@
 // ==========================================
 // 作品ページ（work.html?title=作品名）
-// その作品の聖地（話数の順）・おすすめルート・スタンプの進み具合・公式サイトを出す。
+// その作品の説明・聖地（話数の順）・おすすめルート・スタンプの進み具合・公式サイトを出す。
 // 「地図で見る」「このルートで巡る」は地図画面を開いて、その状態にする
 // ==========================================
 import { getTitleColor, getTitleName } from "./title-colors.js?v=5c634da9";
 import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=9a2ff22f";
 import { getSpotImageSrc } from "./spot-image.js?v=59165daf";
 import { courseDistance, formatCourseLength } from "./course.js?v=5729311e";
-import { loadCourses, loadMyStampCounts, loadSpots, readCachedSpots } from "./public-data.js?v=c815b81a";
+import { loadCourses, loadMyStampCounts, loadSpots, loadWorkDescriptions, readCachedSpots } from "./public-data.js?v=0ba43cde";
 
 const title = new URLSearchParams(location.search).get("title") || "";
 
@@ -86,6 +86,14 @@ function renderHero(spots, stampCounts) {
         progress.hidden = true;
         label.hidden = true;
     }
+}
+
+// 作品の説明（無ければ出さない）
+function renderDescription(descriptions) {
+    const description = document.getElementById("work-description");
+    const text = descriptions && descriptions[title];
+    description.textContent = text || "";
+    description.hidden = !text;
 }
 
 function renderRoutes(courses, spotById) {
@@ -181,6 +189,13 @@ function render(allSpots, courses, stampCounts) {
     // 地図で前に読み込んだ聖地があれば、すぐに出す
     const cached = readCachedSpots();
     const shownFromCache = cached ? render(cached, [], null) : false;
+
+    // 作品の説明は、聖地を待たずに出す（読めなければ出さない）
+    loadWorkDescriptions()
+        .then(renderDescription)
+        .catch(function (error) {
+            console.warn("作品の説明を読み込めませんでした:", error);
+        });
 
     const [spots, courses, counts] = await Promise.all([
         loadSpots().catch(function (error) {

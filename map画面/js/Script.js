@@ -44,14 +44,14 @@ import {
     loadCourses as fetchCourseList,
     loadSpots,
     readCachedSpots
-} from "./public-data.js?v=c815b81a";
+} from "./public-data.js?v=0ba43cde";
 
 // お気に入り・保存したルート
 import {
     loadFavorites,
     saveRoute,
     setFavorite
-} from "./saved-db.js?v=2aaaa116";
+} from "./saved-db.js?v=c6cb832f";
 
 // stampsyori.js（スタンプ獲得の演出）からも同じ色を使う
 window.getTitleColor = getTitleColor;

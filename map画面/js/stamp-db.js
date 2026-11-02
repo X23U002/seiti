@@ -6,7 +6,7 @@
 // ==========================================
 import { getCurrentUser } from "./firebase-db.js?v=917161b9";
 // 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
-import { fetchCollection, queryMine } from "./public-data.js?v=c815b81a";
+import { fetchCollection, queryMine } from "./public-data.js?v=0ba43cde";
 import { getTitleColor, getTitleName } from "./title-colors.js?v=5c634da9";
 
 // ログイン中のユーザーのID（Firebase Authentication の uid。未ログインなら null）

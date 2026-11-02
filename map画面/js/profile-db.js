@@ -8,7 +8,7 @@ import {
 
 import { db } from "./firebase-db.js?v=917161b9";
 // 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
-import { getOneDoc } from "./public-data.js?v=c815b81a";
+import { getOneDoc } from "./public-data.js?v=0ba43cde";
 
 // 登録されているニックネーム（見つからなければ null）
 export async function loadUserName(userId) {

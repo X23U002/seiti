@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex">
     <title>管理ページ - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
-    <link rel="stylesheet" href="../css/admin.css?v=2e75e41f">
+    <link rel="stylesheet" href="../css/admin.css?v=5405f8ef">
 
     <!-- 位置の確認・調整に使う地図 -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
@@ -42,6 +42,9 @@
                 </button>
                 <button type="button" class="admin-tab" role="tab" id="tab-episodes" aria-selected="false" aria-controls="panel-episodes">
                     期・話
+                </button>
+                <button type="button" class="admin-tab" role="tab" id="tab-works" aria-selected="false" aria-controls="panel-works">
+                    作品
                 </button>
                 <button type="button" class="admin-tab" role="tab" id="tab-courses" aria-selected="false" aria-controls="panel-courses">
                     ルート <span class="tab-count" id="count-courses">0</span>
@@ -93,6 +96,28 @@
                 <div class="episode-save">
                     <button type="button" class="btn btn-primary" id="episode-save" disabled>変更はありません</button>
                 </div>
+            </section>
+
+            <!-- 作品の説明（作品ページの見出しの下に出す） -->
+            <section id="panel-works" role="tabpanel" aria-labelledby="tab-works" hidden>
+                <p class="episode-lead">
+                    作品ページの見出しの下に表示される、作品の紹介文です。あらすじや見どころを書いてください（公式サイトなどの文章をそのまま写さないでください）。
+                </p>
+                <form id="work-form" class="work-form">
+                    <label class="episode-filter">
+                        作品
+                        <select id="work-title"></select>
+                    </label>
+                    <label class="work-form-field">
+                        <span>説明<span class="work-count" id="work-count"></span></span>
+                        <textarea id="work-description" maxlength="1000" rows="8" placeholder="(例) 京都府宇治市を舞台に、高校の吹奏楽部で全国大会を目指す青春物語。"></textarea>
+                    </label>
+                    <p class="form-alert" id="work-error" role="alert" hidden></p>
+                    <div class="work-form-actions">
+                        <a class="btn btn-secondary" id="work-preview" target="_blank" rel="noopener">作品ページで見る</a>
+                        <button type="submit" class="btn btn-primary" id="work-save">保存する</button>
+                    </div>
+                </form>
             </section>
 
             <!-- 作品ごとのおすすめ聖地巡礼ルート -->
@@ -267,6 +292,6 @@
 
     <script src="../js/common.js?v=d714509d"></script>
     <script src="../js/toast.js?v=720dc155"></script>
-    <script type="module" src="../js/admin.js?v=e0499e38"></script>
+    <script type="module" src="../js/admin.js?v=47f8ff1e"></script>
 </body>
 </html>
