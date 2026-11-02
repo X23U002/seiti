@@ -1326,6 +1326,39 @@ body {
     filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .4)) brightness(1.08);
 }
 
+/* 初めて出すピンは、上から落ちてきて少し弾む。
+   位置は Mapbox が transform で決めているので、それとは別の translate で動かす（✓ や番号も一緒に動く） */
+.mapboxgl-marker.pin-drop {
+    animation: pin-drop .55s cubic-bezier(.3, 1.35, .5, 1) var(--pin-delay, 0ms) backwards;
+}
+
+@keyframes pin-drop {
+    0% { translate: 0 -48px; opacity: 0; }
+    55% { translate: 0 3px; opacity: 1; }
+    75% { translate: 0 -5px; }
+    100% { translate: 0 0; }
+}
+
+/* 押したピンは、ぴょんと跳ねる */
+.mapboxgl-marker.is-selected {
+    animation: pin-hop .5s ease-out;
+}
+
+@keyframes pin-hop {
+    0% { translate: 0 0; }
+    35% { translate: 0 -16px; }
+    65% { translate: 0 0; }
+    80% { translate: 0 -4px; }
+    100% { translate: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mapboxgl-marker.pin-drop,
+    .mapboxgl-marker.is-selected {
+        animation: none;
+    }
+}
+
 /* スタンプ取得済みのピンに ✓ バッジを付ける */
 .mapboxgl-marker.stamp-completed-marker::after {
     content: "✓";
@@ -2623,17 +2656,72 @@ body {
     background: #fff;
     box-shadow: 0 12px 32px rgba(0, 0, 0, .25);
     text-align: center;
-    animation: stamp-card-in .25s ease;
+    /* 出てきて、ハンコが当たった瞬間に「ドン」と少し沈む */
+    animation:
+        stamp-card-in .25s ease,
+        stamp-card-thud .3s ease-out .33s;
+}
+
+/* 文字はハンコが押されてから、下から順にふわっと出す */
+.stamp-celebration-card > p,
+.stamp-celebration-card > button {
+    animation: stamp-text-in .35s ease-out both;
+}
+
+.stamp-celebration-card > :nth-child(2) { animation-delay: .42s; }
+.stamp-celebration-card > :nth-child(3) { animation-delay: .5s; }
+.stamp-celebration-card > :nth-child(4) { animation-delay: .56s; }
+.stamp-celebration-card > :nth-child(5) { animation-delay: .62s; }
+.stamp-celebration-card > :nth-child(6) { animation-delay: .68s; }
+.stamp-celebration-card > :nth-child(n + 7) { animation-delay: .74s; }
+
+/* ハンコと、押した瞬間のインクのにじみ・はじける光を重ねる台 */
+.stamp-celebration-impact {
+    position: relative;
+    width: 104px;
+    height: 104px;
+    margin: 0 auto 14px;
+}
+
+/* 押した瞬間に、ハンコのまわりへインクがにじんで広がる */
+.stamp-ink {
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 6px solid rgba(229, 57, 53, .55);
+    opacity: 0;
+    animation: stamp-ink .7s ease-out .33s both;
+}
+
+/* はじける光（10本。--spark-angle の向きへ飛ぶ） */
+.stamp-sparks span {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 6px;
+    height: 16px;
+    margin: -8px 0 0 -3px;
+    border-radius: 3px;
+    background: #f59e0b;
+    opacity: 0;
+    transform: rotate(var(--spark-angle)) translateY(0);
+    animation: stamp-spark .6s ease-out .33s both;
+}
+
+.stamp-sparks span:nth-child(even) {
+    background: #e53935;
+    height: 11px;
 }
 
 /* 上から「ポン」と押されるスタンプ */
 .stamp-celebration-stamp {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
     width: 104px;
     height: 104px;
-    margin: 0 auto 14px;
+    margin: 0;
     border-radius: 50%;
     border: 5px solid #fff;
     box-shadow: 0 0 0 4px #f59e0b, 0 8px 18px rgba(0, 0, 0, .2);
@@ -2732,6 +2820,27 @@ body {
     100% { opacity: 1; transform: scale(1) rotate(-8deg); }
 }
 
+@keyframes stamp-ink {
+    0% { opacity: .9; transform: scale(.7); }
+    100% { opacity: 0; transform: scale(1.45); }
+}
+
+@keyframes stamp-spark {
+    0% { opacity: 1; transform: rotate(var(--spark-angle)) translateY(-40px) scaleY(.4); }
+    100% { opacity: 0; transform: rotate(var(--spark-angle)) translateY(-84px) scaleY(1); }
+}
+
+@keyframes stamp-card-thud {
+    0% { transform: none; }
+    35% { transform: translateY(4px) scale(.985); }
+    100% { transform: none; }
+}
+
+@keyframes stamp-text-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+}
+
 @keyframes confetti-fall {
     from { transform: translateY(0) rotate(0deg); opacity: 1; }
     to { transform: translateY(105vh) rotate(540deg); opacity: .7; }
@@ -2741,11 +2850,15 @@ body {
 @media (prefers-reduced-motion: reduce) {
     .stamp-celebration,
     .stamp-celebration-card,
+    .stamp-celebration-card > p,
+    .stamp-celebration-card > button,
     .stamp-celebration-stamp {
         animation: none;
     }
 
-    .stamp-celebration .confetti {
+    .stamp-celebration .confetti,
+    .stamp-ink,
+    .stamp-sparks {
         display: none;
     }
 }

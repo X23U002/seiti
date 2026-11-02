@@ -85,7 +85,12 @@ export const test = base.extend({
     // REST で読まれた回数（「METHOD パス +token」の一覧）
     restCalls: async ({}, use) => { await use([]); },
 
-    page: async ({ page, restCalls }, use) => {
+    // 動き（ピンが落ちる・線が伸びる など）を止めて、結果をすぐ確かめる。
+    // 動きを確かめるテストだけ test.use({ motion: "no-preference" }) にする（motion.spec.js）
+    motion: ["reduce", { option: true }],
+
+    page: async ({ page, restCalls, motion }, use) => {
+        await page.emulateMedia({ reducedMotion: motion });
         const state = { data: withSpots() };
         const errors = [];
         page.on("pageerror", (error) => errors.push(error.message));

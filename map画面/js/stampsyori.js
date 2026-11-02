@@ -1133,7 +1133,13 @@ function showStampCelebration(
     overlay.innerHTML = `
         ${confetti}
         <div class="stamp-celebration-card">
-            <div class="stamp-celebration-stamp" aria-hidden="true">⛩️</div>
+            <div class="stamp-celebration-impact" aria-hidden="true">
+                <span class="stamp-ink"></span>
+                <span class="stamp-sparks">${Array.from({ length: 10 }, function (_, index) {
+                    return `<span style="--spark-angle:${index * 36}deg;"></span>`;
+                }).join("")}</span>
+                <div class="stamp-celebration-stamp">⛩️</div>
+            </div>
             <p class="stamp-celebration-title" id="stamp-celebration-title">${completedTitle ? "🎉 作品コンプリート！" : "スタンプ獲得！"}</p>
             ${rankUpText ? `<p class="stamp-celebration-rankup rank-pill rank-${rank.key}">${rankUpText}</p>` : ""}
             <p class="stamp-celebration-spot">${escapeStampHTML(spot.spot_name || "スポット")}</p>
@@ -1216,6 +1222,28 @@ function showStampCelebration(
     document.addEventListener("keydown", onKeydown);
     document.body.appendChild(overlay);
     overlay.querySelector(".stamp-celebration-close").focus();
+
+    // ハンコが紙に当たる瞬間（style.css の stamp-press の 60%）に、スマホを短く震わせる
+    // （コンプリートの時は「トトン、ドン」）。動きを減らす設定の人には震わせない
+    const reduceMotion =
+        window.matchMedia &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (
+        !reduceMotion &&
+        typeof navigator.vibrate === "function"
+    ) {
+        setTimeout(
+            function () {
+                try {
+                    navigator.vibrate(completedTitle ? [40, 60, 40, 60, 160] : 45);
+                } catch (error) {
+                    // 震わせられない端末では何もしない
+                }
+            },
+            330
+        );
+    }
 
     // 普段は少しで自動的に閉じる（コンプリートの時はOKを押すまで残す）
     if (!completedTitle) {
