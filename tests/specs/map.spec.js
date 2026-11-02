@@ -257,7 +257,7 @@ test("地図上にルートを生成すると、区間の時間も実際の道�
     await page.click("#generate-mapbox-route");
     await expect(legs.nth(1)).toContainText("（目安）");
     await expect(page.locator(".route-order-badge")).toHaveCount(2);
-    await expect.poll(async () => (await preview()).map((f) => f.geometry.coordinates.length)).toEqual([2]);
+    await expect.poll(async () => (await preview()).length).toBe(1);
 });
 
 test("地図上にルートを生成する時は船を除いて頼み、断られたら除かずに頼み直す。船の区間が残れば知らせる", async ({ page }) => {

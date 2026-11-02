@@ -1759,9 +1759,15 @@ function getMarkerMode() {
 let drawnMarkerMode = null;
 let drawnMarkerList = null;
 
+// 一度出したピン（初めて出す時だけ、上から落ちてくる動きを付ける。ズームや絞り込みで描き直しても繰り返さない）
+const droppedPinIds = new Set();
+
 function drawMarkers(list) {
     drawnMarkerMode = getMarkerMode();
     drawnMarkerList = list;
+
+    // 初めて出すピンを、少しずつずらして落とす
+    let dropCount = 0;
 
     spotMarkers.forEach(
         function (spotMarker) {
@@ -2013,6 +2019,24 @@ function drawMarkers(list) {
                 .dataset
                 .spotId =
                     String(data.id);
+
+            if (!droppedPinIds.has(String(data.id))) {
+                droppedPinIds.add(String(data.id));
+                const element = spotMarker.getElement();
+                element.classList.add("pin-drop");
+                element.style.setProperty(
+                    "--pin-delay",
+                    Math.min(dropCount * 18, 600) + "ms"
+                );
+                dropCount++;
+                element.addEventListener(
+                    "animationend",
+                    function () {
+                        element.classList.remove("pin-drop");
+                    },
+                    { once: true }
+                );
+            }
 
 
             if (
@@ -4127,39 +4151,150 @@ function unsetMapboxRoute(showMessage = true) {
     }
 }
 
+// ---------- 線を、始まりから回る順に伸ばして描く ----------
+const routeLineAnimations = {};
+
+// 2点の間の長さ（線を伸ばす割合を決めるだけなので、平面の近似でよい）
+function lineSegmentLength(from, to) {
+    const dx = (to[0] - from[0]) * Math.cos(from[1] * Math.PI / 180);
+    const dy = to[1] - from[1];
+    return Math.hypot(dx, dy);
+}
+
+function lineLength(coordinates) {
+    let total = 0;
+    for (let i = 1; i < coordinates.length; i++) {
+        total += lineSegmentLength(coordinates[i - 1], coordinates[i]);
+    }
+    return total;
+}
+
+// features（回る順）を、始まりから length の長さまでで切る
+function sliceRouteLines(features, lengths, length) {
+    const result = [];
+    let remaining = length;
+
+    for (let i = 0; i < features.length && remaining > 0; i++) {
+        if (remaining >= lengths[i]) {
+            result.push(features[i]);
+            remaining -= lengths[i];
+            continue;
+        }
+
+        const coordinates = features[i].geometry.coordinates;
+        const partial = [coordinates[0]];
+        for (let j = 1; j < coordinates.length && remaining > 0; j++) {
+            const segment = lineSegmentLength(coordinates[j - 1], coordinates[j]);
+            if (segment <= remaining) {
+                partial.push(coordinates[j]);
+                remaining -= segment;
+            } else {
+                const ratio = remaining / segment;
+                partial.push([
+                    coordinates[j - 1][0] + (coordinates[j][0] - coordinates[j - 1][0]) * ratio,
+                    coordinates[j - 1][1] + (coordinates[j][1] - coordinates[j - 1][1]) * ratio
+                ]);
+                remaining = 0;
+            }
+        }
+        if (partial.length >= 2) {
+            result.push(Object.assign({}, features[i], {
+                geometry: { type: "LineString", coordinates: partial }
+            }));
+        }
+        remaining = 0;
+    }
+
+    return result;
+}
+
+// 線の source に features を入れる。animate なら始まりから伸ばして描く（動きを減らす設定の人にはすぐ全部）
+function setRouteLine(sourceId, features, animate) {
+    cancelAnimationFrame(routeLineAnimations[sourceId]);
+
+    const source = map.getSource(sourceId);
+    if (!source) {
+        return;
+    }
+
+    const full = { type: "FeatureCollection", features: features };
+    const lengths = features.map(function (feature) {
+        return lineLength(feature.geometry.coordinates);
+    });
+    const total = lengths.reduce(function (sum, value) { return sum + value; }, 0);
+
+    if (!animate || prefersReducedMotion() || total === 0) {
+        source.setData(full);
+        return;
+    }
+
+    // 区間が多いほど少し長く（最長 1.8 秒）
+    const duration = Math.min(1800, 700 + features.length * 250);
+    const startTime = performance.now();
+
+    const frame = function (now) {
+        const progress = Math.min(1, (now - startTime) / duration);
+        if (progress >= 1) {
+            source.setData(full);
+            return;
+        }
+        const eased = 1 - Math.pow(1 - progress, 3);
+        source.setData({
+            type: "FeatureCollection",
+            features: sliceRouteLines(features, lengths, total * eased)
+        });
+        routeLineAnimations[sourceId] = requestAnimationFrame(frame);
+    };
+
+    source.setData({ type: "FeatureCollection", features: [] });
+    routeLineAnimations[sourceId] = requestAnimationFrame(frame);
+}
+
 // 回る順に結ぶ線の道のり（聖地の並び → 道に沿った線の座標）。同じ並びでは頼み直さない
 const routePreviewCache = new Map();
 let routePreviewTimer = null;
+// 今描いている線の聖地の並び（同じなら描き直さない）
+let routePreviewShownKey = "";
 
-// ルート案内の聖地を回る順に結ぶ（道に沿ったルートを出している間は出さない）
-// 道のりを頼んでいる間・頼めなかった時は直線で結び、届いたら道に沿った線にする
+function getRoutePreviewKey() {
+    return selectedSpots.map(function (spot) {
+        return `${spot.longitude},${spot.latitude}`;
+    }).join(";");
+}
+
+// ルート案内の聖地を回る順に、道に沿った線で結ぶ（道に沿ったルートを出している間は出さない）
+// 並びが変わったら線を消して道のりを頼み、届いたら1番目から伸ばして描く。頼めなかった時は直線で結ぶ
 function updateRoutePreview() {
     setupMapboxRouteLayer();
-    const source = map.getSource(ROUTE_PREVIEW_SOURCE_ID);
-    if (!source) {
+    if (!map.getSource(ROUTE_PREVIEW_SOURCE_ID)) {
+        return;
+    }
+
+    if (isMapboxRouteActive || selectedSpots.length < 2) {
+        clearTimeout(routePreviewTimer);
+        routePreviewShownKey = "";
+        setRouteLine(ROUTE_PREVIEW_SOURCE_ID, [], false);
+        return;
+    }
+
+    const coordinates = getRoutePreviewKey();
+    if (coordinates === routePreviewShownKey) {
         return;
     }
 
     clearTimeout(routePreviewTimer);
 
-    if (isMapboxRouteActive || selectedSpots.length < 2) {
-        source.setData({ type: "FeatureCollection", features: [] });
-        return;
-    }
-
-    const coordinates = selectedSpots.map(function (spot) {
-        return `${spot.longitude},${spot.latitude}`;
-    }).join(";");
-
     const draw = function (line) {
-        source.setData({
-            type: "FeatureCollection",
-            features: [{
+        routePreviewShownKey = coordinates;
+        setRouteLine(
+            ROUTE_PREVIEW_SOURCE_ID,
+            [{
                 type: "Feature",
                 properties: {},
                 geometry: { type: "LineString", coordinates: line }
-            }]
-        });
+            }],
+            true
+        );
     };
 
     if (routePreviewCache.has(coordinates)) {
@@ -4167,30 +4302,34 @@ function updateRoutePreview() {
         return;
     }
 
-    draw(selectedSpots.map(function (spot) {
+    routePreviewShownKey = "";
+    setRouteLine(ROUTE_PREVIEW_SOURCE_ID, [], false);
+
+    const straight = selectedSpots.map(function (spot) {
         return [Number(spot.longitude), Number(spot.latitude)];
-    }));
+    });
+
+    // 待っている間に並びが変わっていなければ描く
+    const stillCurrent = function () {
+        return getRoutePreviewKey() === coordinates && !isMapboxRouteActive;
+    };
 
     // 続けて聖地を入れた時に何度も頼まないよう、少し待ってから頼む
     routePreviewTimer = setTimeout(async function () {
+        let line = null;
         try {
             const data = await fetchWalkingRoute(coordinates, false);
-            const line = data.code === "Ok" && data.routes && data.routes[0] &&
+            line = data.code === "Ok" && data.routes && data.routes[0] &&
                 data.routes[0].geometry && data.routes[0].geometry.coordinates;
-            if (!line || line.length < 2) {
-                return;
-            }
-            routePreviewCache.set(coordinates, line);
-
-            // 待っている間に並びが変わっていなければ描く
-            const current = selectedSpots.map(function (spot) {
-                return `${spot.longitude},${spot.latitude}`;
-            }).join(";");
-            if (current === coordinates && !isMapboxRouteActive) {
-                draw(line);
-            }
         } catch (error) {
             console.warn("回る順に結ぶ道のりを読めませんでした（直線で出します）:", error);
+        }
+
+        if (line && line.length >= 2) {
+            routePreviewCache.set(coordinates, line);
+        }
+        if (stillCurrent()) {
+            draw(line && line.length >= 2 ? line : straight);
         }
     }, 400);
 }
@@ -4202,6 +4341,8 @@ function setupMapboxRouteLayer() {
     }
 
     if (!map.getSource(ROUTE_PREVIEW_SOURCE_ID)) {
+        // 地図のスタイルを読み直した時は、線を描き直す
+        routePreviewShownKey = "";
         map.addSource(ROUTE_PREVIEW_SOURCE_ID, {
             type: "geojson",
             data: {
@@ -4303,14 +4444,7 @@ function setupMapboxRouteLayer() {
 
 // 生成済みルートを消す
 function clearMapboxRoute() {
-    const source = map.getSource(MAPBOX_ROUTE_SOURCE_ID);
-
-    if (source) {
-        source.setData({
-            type: "FeatureCollection",
-            features: []
-        });
-    }
+    setRouteLine(MAPBOX_ROUTE_SOURCE_ID, [], false);
 }
 
 // Mapbox Directions API に、聖地を順に通る徒歩の道のりを頼む（coordinates は「経度,緯度;経度,緯度…」）
@@ -4442,15 +4576,15 @@ async function generateMapboxRoute() {
             return feature.geometry.coordinates.length >= 2;
         });
 
-        const source = map.getSource(MAPBOX_ROUTE_SOURCE_ID);
-
-        source.setData({
-            type: "FeatureCollection",
+        // 1番目の聖地から順に、線を伸ばして描く
+        setRouteLine(
+            MAPBOX_ROUTE_SOURCE_ID,
             // 区間に分けられなかった時は、全体を1本の線で出す
-            features: legFeatures.length > 0
+            legFeatures.length > 0
                 ? legFeatures
-                : [{ type: "Feature", properties: { index: 0 }, geometry: route.geometry }]
-        });
+                : [{ type: "Feature", properties: { index: 0 }, geometry: route.geometry }],
+            true
+        );
 
         isMapboxRouteActive = true;
         mapboxRouteSpotIds = new Set(
