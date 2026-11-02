@@ -4035,7 +4035,7 @@ const MAPBOX_ROUTE_LAYER_ID = "selected-spots-route-line";
 const MAPBOX_ROUTE_ARROW_LAYER_ID = "selected-spots-route-arrow";
 const MAPBOX_ROUTE_ARROW_IMAGE = "selected-spots-route-arrow";
 
-// 「地図上にルートを生成」を押す前の、回る順に聖地を結ぶ直線（点線）
+// 「地図上にルートを生成」を押す前の、回る順に聖地を結ぶ線（道に沿った線。読めない間は直線）
 const ROUTE_PREVIEW_SOURCE_ID = "selected-spots-preview";
 const ROUTE_PREVIEW_LAYER_ID = "selected-spots-preview-line";
 const ROUTE_PREVIEW_ARROW_LAYER_ID = "selected-spots-preview-arrow";
@@ -4111,6 +4111,8 @@ function updateMapboxRouteButtons() {
 
 // Mapboxルートを解除
 function unsetMapboxRoute(showMessage = true) {
+    // 頼んでいる途中のルートがあれば、届いても使わない（消した後に線が残らないように）
+    mapboxRouteRequest++;
     isMapboxRouteActive = false;
     mapboxRouteSpotIds.clear();
     mapboxRouteLegs.clear();
@@ -4125,7 +4127,12 @@ function unsetMapboxRoute(showMessage = true) {
     }
 }
 
-// ルート案内の聖地を回る順に直線で結ぶ（道に沿ったルートを出している間は出さない）
+// 回る順に結ぶ線の道のり（聖地の並び → 道に沿った線の座標）。同じ並びでは頼み直さない
+const routePreviewCache = new Map();
+let routePreviewTimer = null;
+
+// ルート案内の聖地を回る順に結ぶ（道に沿ったルートを出している間は出さない）
+// 道のりを頼んでいる間・頼めなかった時は直線で結び、届いたら道に沿った線にする
 function updateRoutePreview() {
     setupMapboxRouteLayer();
     const source = map.getSource(ROUTE_PREVIEW_SOURCE_ID);
@@ -4133,22 +4140,59 @@ function updateRoutePreview() {
         return;
     }
 
-    const showPreview = !isMapboxRouteActive && selectedSpots.length >= 2;
-    source.setData({
-        type: "FeatureCollection",
-        features: showPreview
-            ? [{
+    clearTimeout(routePreviewTimer);
+
+    if (isMapboxRouteActive || selectedSpots.length < 2) {
+        source.setData({ type: "FeatureCollection", features: [] });
+        return;
+    }
+
+    const coordinates = selectedSpots.map(function (spot) {
+        return `${spot.longitude},${spot.latitude}`;
+    }).join(";");
+
+    const draw = function (line) {
+        source.setData({
+            type: "FeatureCollection",
+            features: [{
                 type: "Feature",
                 properties: {},
-                geometry: {
-                    type: "LineString",
-                    coordinates: selectedSpots.map(function (spot) {
-                        return [Number(spot.longitude), Number(spot.latitude)];
-                    })
-                }
+                geometry: { type: "LineString", coordinates: line }
             }]
-            : []
-    });
+        });
+    };
+
+    if (routePreviewCache.has(coordinates)) {
+        draw(routePreviewCache.get(coordinates));
+        return;
+    }
+
+    draw(selectedSpots.map(function (spot) {
+        return [Number(spot.longitude), Number(spot.latitude)];
+    }));
+
+    // 続けて聖地を入れた時に何度も頼まないよう、少し待ってから頼む
+    routePreviewTimer = setTimeout(async function () {
+        try {
+            const data = await fetchWalkingRoute(coordinates, false);
+            const line = data.code === "Ok" && data.routes && data.routes[0] &&
+                data.routes[0].geometry && data.routes[0].geometry.coordinates;
+            if (!line || line.length < 2) {
+                return;
+            }
+            routePreviewCache.set(coordinates, line);
+
+            // 待っている間に並びが変わっていなければ描く
+            const current = selectedSpots.map(function (spot) {
+                return `${spot.longitude},${spot.latitude}`;
+            }).join(";");
+            if (current === coordinates && !isMapboxRouteActive) {
+                draw(line);
+            }
+        } catch (error) {
+            console.warn("回る順に結ぶ道のりを読めませんでした（直線で出します）:", error);
+        }
+    }, 400);
 }
 
 // ルートの線を地図に登録
@@ -4194,9 +4238,8 @@ function setupMapboxRouteLayer() {
             },
             paint: {
                 "line-color": "#1976D2",
-                "line-width": 3,
-                "line-opacity": 0.75,
-                "line-dasharray": [2, 2]
+                "line-width": 4,
+                "line-opacity": 0.7
             }
         });
     }
@@ -4270,6 +4313,36 @@ function clearMapboxRoute() {
     }
 }
 
+// Mapbox Directions API に、聖地を順に通る徒歩の道のりを頼む（coordinates は「経度,緯度;経度,緯度…」）
+// withSteps：区間の中の道のり（steps）も受け取る（回る順に結ぶ線だけなら要らない）
+async function fetchWalkingRoute(coordinates, withSteps) {
+    const url =
+        "https://api.mapbox.com/directions/v5/mapbox/walking/" +
+        coordinates +
+        "?geometries=geojson" +
+        "&overview=full" +
+        // 区間ごとに線を分けて色を変えるため、区間の中の道のり（steps）も受け取る
+        // （船の区間かどうかも steps で分かる）
+        "&steps=" + (withSteps ? "true" : "false") +
+        "&access_token=" +
+        encodeURIComponent(mapboxgl.accessToken);
+
+    // 徒歩でも、川や海の近くでは渡し船の航路を使うことがあるので、船を除いて頼む
+    // （船を使わないと行けない区間があって断られた時は、除かずに頼み直す）
+    let response = await fetch(url + "&exclude=ferry");
+    if (response.status === 422) {
+        response = await fetch(url);
+    }
+
+    if (!response.ok) {
+        throw new Error(
+            `Directions API エラー: ${response.status}`
+        );
+    }
+
+    return response.json();
+}
+
 // Mapbox Directions APIでルートを生成
 async function generateMapboxRoute() {
     const button = document.getElementById(
@@ -4327,31 +4400,7 @@ async function generateMapboxRoute() {
             return `${spot.longitude},${spot.latitude}`;
         }).join(";");
 
-        const url =
-            "https://api.mapbox.com/directions/v5/mapbox/walking/" +
-            coordinates +
-            "?geometries=geojson" +
-            "&overview=full" +
-            // 区間ごとに線を分けて色を変えるため、区間の中の道のり（steps）も受け取る
-            // （船の区間かどうかも steps で分かる）
-            "&steps=true" +
-            "&access_token=" +
-            encodeURIComponent(mapboxgl.accessToken);
-
-        // 徒歩でも、川や海の近くでは渡し船の航路を使うことがあるので、船を除いて頼む
-        // （船を使わないと行けない区間があって断られた時は、除かずに頼み直す）
-        let response = await fetch(url + "&exclude=ferry");
-        if (response.status === 422) {
-            response = await fetch(url);
-        }
-
-        if (!response.ok) {
-            throw new Error(
-                `Directions API エラー: ${response.status}`
-            );
-        }
-
-        const data = await response.json();
+        const data = await fetchWalkingRoute(coordinates, true);
 
         // 待っている間に、もっと新しい順番で頼み直していれば、この答えは使わない
         if (request !== mapboxRouteRequest) {

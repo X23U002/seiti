@@ -247,7 +247,7 @@ test("地図上にルートを生成すると、区間の時間も実際の道�
 
     // ルートを出したまま聖地を1か所消すと、残りで作り直す
     const requests = [];
-    page.on("request", (request) => { if (request.url().includes("/directions/v5/")) requests.push(request.url()); });
+    page.on("request", (request) => { if (request.url().includes("/directions/v5/") && request.url().includes("steps=true")) requests.push(request.url()); });
     await page.locator('#routeList .routeItem[data-index="2"] .route-remove').click();
     await expect.poll(() => requests.length).toBe(1);
     expect(decodeURIComponent(requests[0])).toContain(`${order[0].coord.longitude},${order[0].coord.latitude};${order[1].coord.longitude},${order[1].coord.latitude}?`);
@@ -271,7 +271,8 @@ test("地図上にルートを生成する時は船を除いて頼み、断ら�
     const urls = [];
     await page.route(/\/directions\/v5\/mapbox\/walking\//, (route) => {
         const url = new URL(route.request().url());
-        urls.push(url.searchParams.get("exclude"));
+        // 回る順に結ぶ線だけの問い合わせ（steps=false）は数えない
+        if (url.searchParams.get("steps") === "true") urls.push(url.searchParams.get("exclude"));
         if (url.searchParams.get("exclude") === "ferry") {
             return route.fulfill({ status: 422, contentType: "application/json", body: JSON.stringify({ code: "InvalidInput", message: "no route" }) });
         }
@@ -307,7 +308,8 @@ test("地図上にルートを出している時に順番を入れ替えると�
     const pending = [];
     await page.route(/\/directions\/v5\/mapbox\/walking\//, (route) => {
         const coords = decodeURIComponent(new URL(route.request().url()).pathname.split("/walking/")[1]).split(";");
-        requests.push(coords.map((c) => Number(c.split(",")[0]).toFixed(5)));
+        const lineOnly = new URL(route.request().url()).searchParams.get("steps") !== "true";
+        if (!lineOnly) requests.push(coords.map((c) => Number(c.split(",")[0]).toFixed(5)));
         const answer = () => route.fulfill({
             status: 200,
             contentType: "application/json",
@@ -322,7 +324,7 @@ test("地図上にルートを出している時に順番を入れ替えると�
             })
         });
         // 2回目（入れ替え1回目）の答えは遅らせる
-        if (requests.length === 2) pending.push(answer); else return answer();
+        if (!lineOnly && requests.length === 2) pending.push(answer); else return answer();
     });
     await page.goto("html/map.html?course=c1");
     await page.click("#generate-mapbox-route");
@@ -343,6 +345,50 @@ test("地図上にルートを出している時に順番を入れ替えると�
     const last = await page.evaluate(() => window.__map.getSource("selected-spots-route")._data.features.at(-1).geometry.coordinates.at(-1)[0]);
     expect(last.toFixed(5)).toBe(at(order[0]));
     await expect(page.locator("#toast")).toContainText("約3.0km");
+});
+
+test("ルート案内の聖地は、道に沿った線で回る順に結ぶ。ルートを作っている途中で全部消しても、線は残さない", async ({ page }) => {
+    const [a, b, c] = ["京阪宇治駅", "宇治橋", "大吉山展望台"].map(spotNamed);
+    const bend = [135.805, 34.89];
+    const pending = [];
+    await page.route(/\/directions\/v5\/mapbox\/walking\//, (route) => {
+        const url = new URL(route.request().url());
+        const coords = decodeURIComponent(url.pathname.split("/walking/")[1]).split(";").map((x) => x.split(",").map(Number));
+        // 道に沿った線（聖地の間に曲がり角を1つ入れる）
+        const path = [coords[0], bend, ...coords.slice(1)];
+        const answer = () => route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+                code: "Ok",
+                routes: [{
+                    distance: 100,
+                    duration: 100,
+                    legs: coords.slice(1).map((point, i) => ({ distance: 50, duration: 50, steps: [{ geometry: { type: "LineString", coordinates: [coords[i], point] } }] })),
+                    geometry: { type: "LineString", coordinates: path }
+                }]
+            })
+        });
+        // 「地図上にルートを生成」の答えは、全部消した後に届ける
+        if (url.searchParams.get("steps") === "true") pending.push(answer); else answer();
+    });
+    await seed(page);
+    await page.goto("html/map.html");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+    const lines = (id) => page.evaluate((source) => window.__map.getSource(source)._data.features, id);
+
+    for (const spot of [a, b, c]) await page.evaluate((id) => window.addSpotToRouteById(id), spot.id);
+    await expect.poll(async () => (await lines("selected-spots-preview")).map((f) => f.geometry.coordinates[1])).toEqual([bend]);
+
+    await page.click("#generate-mapbox-route");
+    await expect.poll(() => pending.length).toBe(1);
+    await page.click("#clear-route");
+    await pending[0]();
+    await page.waitForTimeout(500);
+    expect(await lines("selected-spots-route")).toEqual([]);
+    expect(await lines("selected-spots-preview")).toEqual([]);
+    await expect(page.locator(".route-order-badge")).toHaveCount(0);
+    await expect(page.locator("#generate-mapbox-route")).toBeEnabled();
 });
 
 test("徒歩で1時間以上かかる区間は「○時間○分」で出す", async ({ page }) => {
