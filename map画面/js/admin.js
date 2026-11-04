@@ -544,7 +544,10 @@ function openSpotForm(mode, values) {
             container: "approve-map",
             style: "mapbox://styles/mapbox/streets-v12",
             center: [139.7671, 35.6812],
-            zoom: 11
+            zoom: 11,
+            // 地名などを日本語で出す
+            language: "ja",
+            worldview: "JP"
         });
         approveMap.on("click", function (event) {
             setApprovePosition(event.lngLat, false);

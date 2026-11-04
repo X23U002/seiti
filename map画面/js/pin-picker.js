@@ -16,7 +16,10 @@ export function createPinPicker(options) {
         container: options.container,
         style: "mapbox://styles/mapbox/streets-v12",
         center: [139.7671, 35.6812],
-        zoom: 10
+        zoom: 10,
+        // 地名などを日本語で出す
+        language: "ja",
+        worldview: "JP"
     });
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
 
