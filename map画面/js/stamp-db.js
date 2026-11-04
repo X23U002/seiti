@@ -4,25 +4,15 @@
 //   { user_id: user/{ID}への参照, spot_id: spot/{ID}への参照, time_stamp: 取得日時 }
 // （書き込みは地図画面の stampsyori.js が行う）
 // ==========================================
-import {
-    collection,
-    doc,
-    getDocs,
-    query,
-    where
-} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+import { getCurrentUser } from "./firebase-db.js?v=917161b9";
+// 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
+import { fetchCollection, queryMine } from "./public-data.js?v=c815b81a";
+import { getTitleColor, getTitleName } from "./title-colors.js?v=5c634da9";
 
-import { db } from "./firebase-db.js";
-
-// ログイン中のユーザーID（未ログインなら null）
-export function getLoginUserId() {
-    try {
-        return sessionStorage.getItem("userId") ||
-            localStorage.getItem("seitiCurrentUserId") ||
-            null;
-    } catch (e) {
-        return null;
-    }
+// ログイン中のユーザーのID（Firebase Authentication の uid。未ログインなら null）
+export async function getLoginUserId() {
+    const user = await getCurrentUser();
+    return user ? user.uid : null;
 }
 
 // 2026年10月13日 の形にする
@@ -34,20 +24,71 @@ function formatDate(time) {
         String(date.getDate()).padStart(2, "0") + "日";
 }
 
-// 獲得したスタンプの一覧（スポットごとに1件、初めて取った順）。未ログインなら null を返す
-// { id, name, anime, scene, date, stampedAt, count }
-export async function loadMyStamps() {
-    const userId = getLoginUserId();
-    if (!userId) return null;
+// 聖地の一覧（DBの spot から作る）
+// { total, titles: { 作品名: { count, color } }, spots: [{ id, name, title, info }] }
+function buildSpotSummary(spotSnapshot) {
+    const summary = { total: 0, titles: {}, spots: [] };
 
-    // このユーザーのスタンプと、名前を出すための聖地の一覧を同時に読む
-    const [stampSnapshot, spotSnapshot] = await Promise.all([
-        getDocs(query(
-            collection(db, "stamp"),
-            where("user_id", "==", doc(db, "user", userId))
-        )),
-        getDocs(collection(db, "spot"))
+    spotSnapshot.forEach(function (spotDoc) {
+        const data = spotDoc.data();
+        const title = getTitleName(data);
+
+        if (!summary.titles[title]) {
+            summary.titles[title] = { count: 0, color: getTitleColor(title) };
+        }
+        summary.titles[title].count++;
+
+        summary.spots.push({
+            id: spotDoc.id,
+            name: data.spot_name || "無題のスポット",
+            title: title,
+            info: data.spot_info || "",
+            season: data.season || 0,
+            episode: data.episode || 0
+        });
+    });
+
+    summary.total = summary.spots.length;
+
+    // 次に開いた時、読み込みが終わるまでの表示に使う
+    try {
+        localStorage.setItem("seitiSpotSummary", JSON.stringify(
+            Object.assign({ updatedAt: Date.now() }, summary)
+        ));
+    } catch (e) {
+        // 保存できない環境では何もしない
+    }
+
+    return summary;
+}
+
+// スタンプ帳・マイページで使うデータをまとめて読む
+// stamps：獲得したスタンプ（スポットごとに1件、初めて取った順）。未ログインなら null
+//   { id, name, anime, scene, date, stampedAt, count }
+// summary：聖地の一覧（地図を開いていなくても分かる）
+export async function loadStampBook() {
+    const userId = await getLoginUserId();
+
+    // 聖地の一覧と、このユーザーのスタンプを同時に読む
+    const [spotList, stampSnapshot] = await Promise.all([
+        fetchCollection("spot"),
+        userId ? queryMine("stamp") : null
     ]);
+
+    // 聖地は { id, ...項目 } の配列なので、これまでと同じく forEach(doc => doc.id / doc.data()) で使える形にする
+    const spotSnapshot = {
+        forEach: function (callback) {
+            spotList.forEach(function (item) {
+                const { id, ...data } = item;
+                callback({ id: id, data: function () { return data; } });
+            });
+        }
+    };
+
+    const summary = buildSpotSummary(spotSnapshot);
+    if (!userId) {
+        return { stamps: null, summary: summary };
+    }
 
     const spots = {};
     spotSnapshot.forEach(function (spotDoc) {
@@ -70,18 +111,24 @@ export async function loadMyStamps() {
         entry.count += 1;
     });
 
-    return Object.keys(bySpot)
+    // 削除された聖地のスタンプは出さない
+    const stamps = Object.keys(bySpot)
+        .filter(function (spotId) { return spots[spotId]; })
         .map(function (spotId) {
-            const spot = spots[spotId] || {};
+            const spot = spots[spotId];
             return {
                 id: spotId,
                 name: spot.spot_name || "無題のスポット",
-                anime: spot.title_name || "作品名不明",
+                anime: getTitleName(spot),
                 scene: spot.spot_info || "",
+                season: spot.season || 0,
+                episode: spot.episode || 0,
                 date: formatDate(bySpot[spotId].first),
                 stampedAt: bySpot[spotId].first,
                 count: bySpot[spotId].count
             };
         })
         .sort(function (a, b) { return a.stampedAt - b.stampedAt; });
+
+    return { stamps: stamps, summary: summary };
 }

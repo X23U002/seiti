@@ -3,63 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>履歴・ルート案内 - 聖地巡礼NAVI</title>
-    <link rel="stylesheet" href="../css/common.css">
-    <link rel="stylesheet" href="../css/history.css">
+    <title>お気に入り・ルート・履歴 - 聖地巡礼NAVI</title>
+    <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
+    <link rel="stylesheet" href="../css/history.css?v=24355d19">
 </head>
 <body>
 
     <!-- アプリ共通ヘッダー -->
     <header class="app-header">
-        <button type="button" class="back-btn" onclick="goToMyPage()" aria-label="マイページに戻る">＜ 戻る</button>
-        <h1>履歴・ルート案内</h1>
+        <a href="mypage.html" class="back-btn" aria-label="マイページに戻る">＜ 戻る</a>
+        <h1>お気に入り・ルート・履歴</h1>
     </header>
 
     <main class="content">
 
-        
-           <!-- 現在のルート案内（タイムライン） -->
-<section>
-    <h2 class="section-title">
-        <span aria-hidden="true">📍</span>
-        現在のルート
-    </h2>
+        <!-- 読み込み中・未ログインの時 -->
+        <div class="card empty-state" id="saved-notice">
+            <div class="empty-state-icon">⏳</div>
+            <p>読み込み中…</p>
+        </div>
 
-    <!-- 選択した履歴のルートを表示する -->
-    <ol
-        class="timeline-container card"
-        id="currentRouteTimeline"
-    >
-    </ol>
+        <div id="saved-main" hidden>
+            <!-- タブ -->
+            <div class="saved-tabs" role="tablist" aria-label="表示する内容">
+                <button type="button" class="saved-tab" role="tab" id="tab-favorites" aria-selected="true" aria-controls="panel-favorites">
+                    お気に入り <span class="tab-count" id="count-favorites">0</span>
+                </button>
+                <button type="button" class="saved-tab" role="tab" id="tab-routes" aria-selected="false" aria-controls="panel-routes">
+                    ルート <span class="tab-count" id="count-routes">0</span>
+                </button>
+                <button type="button" class="saved-tab" role="tab" id="tab-guided" aria-selected="false" aria-controls="panel-guided">
+                    案内履歴 <span class="tab-count" id="count-guided">0</span>
+                </button>
+                <button type="button" class="saved-tab" role="tab" id="tab-history" aria-selected="false" aria-controls="panel-history">
+                    巡礼履歴 <span class="tab-count" id="count-history">0</span>
+                </button>
+            </div>
 
-    <button
-        type="button"
-        class="btn btn-success"
-        onclick="startRoute()"
-    >
-        ▶ 案内開始
-    </button>
-</section>
+            <!-- お気に入りの聖地 -->
+            <section id="panel-favorites" role="tabpanel" aria-labelledby="tab-favorites">
+                <ul class="saved-list" id="favorite-list"></ul>
+            </section>
 
-           
+            <!-- 保存したルート -->
+            <section id="panel-routes" role="tabpanel" aria-labelledby="tab-routes" hidden>
+                <ul class="saved-list" id="route-list"></ul>
+            </section>
 
-       
-           <!-- 過去の履歴リスト -->
-<section class="history-section">
-    <h2 class="section-title">
-        <span aria-hidden="true">🕒</span>
-        過去の巡礼履歴
-    </h2>
+            <!-- 案内履歴（「Googleマップで徒歩案内」を押したルート。この端末に記録） -->
+            <section id="panel-guided" role="tabpanel" aria-labelledby="tab-guided" hidden>
+                <p class="guided-lead">地図で「Googleマップで徒歩案内」を押したルートが、この端末に記録されます。選ぶと「現在のルート」に表示され、もう一度案内を始められます。</p>
 
-    <!-- JavaScriptで履歴を表示する -->
-    <ul class="history-list" id="historyList">
-    </ul>
-</section>
-        </section>
+                <!-- 現在のルート案内（タイムライン） -->
+                <h2 class="section-title"><span aria-hidden="true">📍</span> 現在のルート</h2>
 
+                <!-- 選択した履歴のルートを表示する -->
+                <ol class="timeline-container card" id="currentRouteTimeline"></ol>
+
+                <button type="button" class="btn btn-success" onclick="startRoute()">▶ 案内開始</button>
+
+                <!-- 過去の履歴リスト -->
+                <div class="history-section">
+                    <h2 class="section-title"><span aria-hidden="true">🕒</span> 過去の案内</h2>
+
+                    <!-- JavaScriptで履歴を表示する -->
+                    <ul class="history-list" id="historyList"></ul>
+                </div>
+            </section>
+
+            <!-- 巡礼履歴（スタンプを取った聖地） -->
+            <section id="panel-history" role="tabpanel" aria-labelledby="tab-history" hidden>
+                <ul class="saved-list" id="history-list"></ul>
+            </section>
+        </div>
     </main>
 
-    <script src="../js/common.js"></script>
-    <script src="../js/history.js"></script>
+    <script src="../js/common.js?v=d714509d"></script>
+    <script src="../js/toast.js?v=720dc155"></script>
+    <script src="../js/route-history.js?v=ee9790be"></script>
+    <script type="module" src="../js/history.js?v=ad33ac00"></script>
 </body>
 </html>

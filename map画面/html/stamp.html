@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>スタンプ帳 - 聖地巡礼NAVI</title>
-    <link rel="stylesheet" href="../css/common.css">
-    <link rel="stylesheet" href="../css/stamp.css">
+    <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
+    <link rel="stylesheet" href="../css/stamp-rank.css?v=63a337bd">
+    <link rel="stylesheet" href="../css/stamp.css?v=6072c4ec">
 </head>
 <body>
 
@@ -28,9 +29,15 @@
             </div>
         </section>
 
-        <!-- 作品の切り替え（札）と「獲得済みだけ表示」 -->
+        <!-- 作品の絞り込み（押すと作品の一覧が開く）と「獲得済みだけ表示」 -->
         <div class="toolbar">
-            <div class="title-chips" id="title-chips" role="tablist" aria-label="作品の切り替え"></div>
+            <button type="button" class="title-picker-btn" id="title-picker-btn" onclick="openTitlePicker()" aria-haspopup="dialog">
+                <span class="picker-caption">作品</span>
+                <span class="color-dot" id="picker-dot" hidden></span>
+                <span class="picker-label" id="picker-label">すべての作品</span>
+                <span class="picker-count" id="picker-count"></span>
+                <span class="picker-caret" aria-hidden="true">▾</span>
+            </button>
             <label class="only-earned">
                 <input type="checkbox" id="only-earned">
                 <span class="switch" aria-hidden="true"></span>
@@ -44,6 +51,16 @@
 
     </main>
 
+    <!-- =============== 作品の絞り込み =============== -->
+    <div id="title-modal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="title-modal-title">
+        <div class="modal-content title-picker">
+            <button type="button" class="modal-close-btn" onclick="closeTitlePicker()" aria-label="閉じる" data-modal-close>✕</button>
+            <h2 class="modal-title" id="title-modal-title">作品で絞り込む</h2>
+            <input type="search" class="title-search" id="title-search" placeholder="作品名で探す" autocomplete="off" aria-label="作品名で探す">
+            <ul class="title-options" id="title-options" aria-label="作品の一覧"></ul>
+        </div>
+    </div>
+
     <!-- =============== スタンプ詳細のポップアップ =============== -->
     <div id="stamp-modal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="modal-content stamp-detail">
@@ -51,7 +68,11 @@
 
             <div class="stamp-big-circle" id="modal-circle" aria-hidden="true">⛩️</div>
             <h2 id="modal-title" class="spot-title">〇〇神社</h2>
-            <div id="modal-date" class="visit-date">訪問日：2026年05月15日</div>
+            <div class="visit-badges">
+                <span id="modal-date" class="visit-date">訪問日：2026年05月15日</span>
+                <span id="modal-count" class="rank-pill" hidden>ブロンズ・獲得 1回</span>
+            </div>
+            <p id="modal-next" class="rank-next" hidden></p>
 
             <dl class="info-group">
                 <dt class="info-label">作品名</dt>
@@ -65,14 +86,15 @@
         </div>
     </div>
 
-    <script src="../js/common.js"></script>
-    <script src="../js/stamp.js?v=2"></script>
+    <script src="../js/common.js?v=d714509d"></script>
+    <script src="../js/stamp-rank.js?v=5854d0d9"></script>
+    <script src="../js/stamp.js?v=7606a823"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
-        import { loadMyStamps } from "../js/stamp-db.js?v=3";
+        import { loadStampBook } from "../js/stamp-db.js?v=fb2d2a17";
 
-        loadMyStamps().then(function (stamps) {
-            showStamps(stamps || [], stamps === null ? "guest" : "ready");
+        loadStampBook().then(function (book) {
+            showStamps(book.stamps || [], book.stamps === null ? "guest" : "ready", book.summary);
         }, function (error) {
             console.error("スタンプの読み込みに失敗しました:", error);
             showStamps([], "error");

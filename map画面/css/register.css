@@ -13,3 +13,56 @@
 }
 
 .card .btn { margin-top: 8px; }
+
+/* 何期の何話 */
+.episode-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.episode-inputs label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.form-group .episode-inputs input {
+    width: 80px;
+    min-height: 44px;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 16px;
+}
+
+/* 住所と「位置を調べる」 */
+.address-row {
+    display: flex;
+    gap: 8px;
+}
+
+.address-row input {
+    flex: 1;
+    min-width: 0;
+}
+
+.card .address-row .btn {
+    width: auto;
+    margin-top: 0;
+    min-height: 46px;
+    padding: 0 14px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+/* ピンを置く地図 */
+.pin-map {
+    height: 260px;
+    margin-top: 8px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}

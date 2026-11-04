@@ -1,7 +1,7 @@
 // ==========================================
 // スタンプ帳
 // ・獲得したスタンプはDB（user/{ユーザーID}/stamps）から stamp.html で読み込んで渡す
-// ・聖地の一覧は seitiSpotSummary（地図を開いた時に保存される）
+// ・聖地の一覧もDB（spot）から読む。読み込みが終わるまでは前回の一覧（seitiSpotSummary）で表示する
 //   一覧があれば、まだ集めていない聖地もグレーで並べる
 // ==========================================
 
@@ -27,8 +27,8 @@ let loadState = "loading";
 // スポットID → 獲得したスタンプ
 let collectedById = {};
 
-const summary = readJson("seitiSpotSummary", null);
-const hasSpotList = Boolean(summary && Array.isArray(summary.spots));
+let summary = readJson("seitiSpotSummary", null);
+let hasSpotList = Boolean(summary && Array.isArray(summary.spots));
 
 // 作品の色（地図のピンと同じ色。分からない時は紺）
 function titleColor(title) {
@@ -56,7 +56,8 @@ function buildStamps() {
                 title: spot.title,
                 info: (stamp && stamp.scene) || spot.info,
                 earned: Boolean(stamp),
-                date: stamp ? stamp.date : ""
+                date: stamp ? stamp.date : "",
+                count: stamp ? stamp.count || 1 : 0
             };
         })
         // 聖地の一覧がまだ無い時は、獲得したスタンプだけを並べる
@@ -68,7 +69,8 @@ function buildStamps() {
                 title: stamp.anime,
                 info: stamp.scene,
                 earned: true,
-                date: stamp.date
+                date: stamp.date,
+                count: stamp.count || 1
             };
         });
 
@@ -109,47 +111,139 @@ function renderOverall() {
         : (got >= total && total > 0 ? "すべての聖地をコンプリート！" : "コンプリートまで あと " + (total - got) + " 個");
 }
 
-// ---------- 作品の札 ----------
-function renderChips() {
-    const area = document.getElementById("title-chips");
-    area.innerHTML = "";
+// ---------- 作品の絞り込み ----------
+// 選んでいる作品をボタンに表示する
+function renderTitlePicker() {
+    const dot = document.getElementById("picker-dot");
+    const count = document.getElementById("picker-count");
 
-    function addChip(label, title, color, got, total) {
-        const chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "title-chip";
-        chip.setAttribute("role", "tab");
-        chip.setAttribute("aria-selected", String(selectedTitle === title));
+    document.getElementById("picker-label").textContent =
+        selectedTitle === null ? "すべての作品" : selectedTitle;
 
-        if (color) {
-            const dot = document.createElement("span");
-            dot.className = "color-dot";
-            dot.style.background = color;
-            chip.appendChild(dot);
-        }
-
-        chip.appendChild(document.createTextNode(label));
-
-        if (total !== undefined) {
-            const count = document.createElement("span");
-            count.className = "chip-count";
-            count.textContent = hasSpotList ? got + "/" + total : got;
-            chip.appendChild(count);
-        }
-
-        chip.onclick = function () {
-            selectedTitle = title;
-            renderChips();
-            renderSections();
-        };
-        area.appendChild(chip);
+    dot.hidden = selectedTitle === null;
+    if (selectedTitle !== null) {
+        dot.style.background = titleColor(selectedTitle);
     }
 
-    addChip("すべて", null, null);
-    titles.forEach(function (title) {
-        addChip(title, title, titleColor(title), earnedCount(title), countOf(title));
-    });
+    count.textContent = selectedTitle === null
+        ? titles.length + "作品"
+        : (hasSpotList ? earnedCount(selectedTitle) + "/" + countOf(selectedTitle) : earnedCount(selectedTitle) + "個");
 }
+
+// 全角・半角、大文字・小文字、カタカナ・ひらがなの違いを無視して探す
+function normalizeText(text) {
+    return String(text)
+        .normalize("NFKC")
+        .toLowerCase()
+        .replace(/[\u30a1-\u30f6]/g, function (ch) {
+            return String.fromCharCode(ch.charCodeAt(0) - 0x60);
+        });
+}
+
+// 作品の一覧（検索欄の文字で絞る）
+function renderTitleOptions() {
+    const list = document.getElementById("title-options");
+    const keyword = normalizeText(document.getElementById("title-search").value.trim());
+    list.innerHTML = "";
+
+    function addOption(label, title, color, got, total) {
+        const li = document.createElement("li");
+        const option = document.createElement("button");
+        option.type = "button";
+        option.className = "title-option";
+        option.setAttribute("aria-pressed", String(selectedTitle === title));
+
+        const dot = document.createElement("span");
+        dot.className = "color-dot";
+        if (color) {
+            dot.style.background = color;
+        } else {
+            dot.classList.add("is-all");
+        }
+
+        const body = document.createElement("span");
+        body.className = "option-body";
+
+        const name = document.createElement("span");
+        name.className = "option-name";
+        name.textContent = label;
+
+        const count = document.createElement("span");
+        count.className = "option-count";
+        count.textContent = hasSpotList ? got + " / " + total : got + "個";
+
+        const bar = document.createElement("span");
+        bar.className = "option-bar";
+        const fill = document.createElement("span");
+        fill.style.width = (total > 0 ? got / total * 100 : 0) + "%";
+        if (color) fill.style.background = color;
+        bar.appendChild(fill);
+
+        body.append(name, count, bar);
+        option.append(dot, body);
+
+        option.onclick = function () {
+            selectedTitle = title;
+            closeTitlePicker();
+            renderTitlePicker();
+            renderSections();
+        };
+
+        li.appendChild(option);
+        list.appendChild(li);
+    }
+
+    const earnedAll = allStamps.filter(function (s) { return s.earned; }).length;
+    if (!keyword) {
+        addOption("すべての作品", null, null, earnedAll, allStamps.length);
+    }
+
+    const matched = titles.filter(function (title) {
+        return normalizeText(title).includes(keyword);
+    });
+
+    matched.forEach(function (title) {
+        addOption(title, title, titleColor(title), earnedCount(title), countOf(title));
+    });
+
+    if (keyword && matched.length === 0) {
+        const li = document.createElement("li");
+        li.className = "option-empty";
+        li.textContent = "「" + document.getElementById("title-search").value.trim() + "」に合う作品はありません";
+        list.appendChild(li);
+    }
+}
+
+function openTitlePicker() {
+    const search = document.getElementById("title-search");
+    search.value = "";
+    renderTitleOptions();
+    document.getElementById("title-modal").style.display = "flex";
+
+    // スマホではキーボードが開いて一覧が隠れるので、マウス操作の時だけ検索欄にカーソルを置く
+    if (window.matchMedia("(pointer: fine)").matches) {
+        search.focus();
+    } else {
+        const current = document.querySelector('.title-option[aria-pressed="true"]');
+        if (current) current.focus();
+    }
+}
+
+function closeTitlePicker() {
+    document.getElementById("title-modal").style.display = "none";
+    document.getElementById("title-picker-btn").focus();
+}
+
+document.getElementById("title-search").addEventListener("input", renderTitleOptions);
+
+// 検索欄でEnterを押したら、一番上の作品を選ぶ
+document.getElementById("title-search").addEventListener("keydown", function (event) {
+    if (event.key !== "Enter" || event.isComposing) return;
+    // そのままだと、閉じた後にフォーカスが戻ったボタンまでEnterで押されてしまう
+    event.preventDefault();
+    const first = document.querySelector("#title-options .title-option");
+    if (first) first.click();
+});
 
 // ---------- スタンプの一覧（作品ごと） ----------
 function renderSections() {
@@ -226,7 +320,10 @@ function createStampItem(stamp) {
     const item = document.createElement("button");
     item.type = "button";
     item.className = "stamp-item" + (stamp.earned ? "" : " is-locked");
-    item.setAttribute("aria-label", stamp.name + (stamp.earned ? "（獲得済み）" : "（未獲得）"));
+    const rank = stamp.earned ? getStampRank(stamp.count) : null;
+    item.setAttribute("aria-label", stamp.name + (stamp.earned
+        ? "（獲得済み・" + rank.name + "・" + stamp.count + "回）"
+        : "（未獲得）"));
 
     const circle = document.createElement("div");
     circle.className = "stamp-circle";
@@ -234,7 +331,8 @@ function createStampItem(stamp) {
 
     if (stamp.earned) {
         circle.textContent = "⛩️";
-        circle.style.background = titleColor(stamp.title);
+        // 中は作品の色、枠は取った回数のランクの色
+        applyStampRank(circle, stamp.count, titleColor(stamp.title));
     } else {
         circle.textContent = "?";
     }
@@ -256,13 +354,31 @@ function openStampModal(stamp) {
     const circle = document.getElementById("modal-circle");
     circle.textContent = stamp.earned ? "⛩️" : "?";
     circle.classList.toggle("is-locked", !stamp.earned);
-    circle.style.background = stamp.earned ? titleColor(stamp.title) : "";
+    applyStampRank(circle, stamp.earned ? stamp.count : 0, titleColor(stamp.title));
 
     document.getElementById("modal-title").textContent = stamp.name || "";
 
     const date = document.getElementById("modal-date");
-    date.textContent = stamp.earned ? "訪問日：" + (stamp.date || "-") : "まだ獲得していません";
+    date.textContent = !stamp.earned
+        ? "まだ獲得していません"
+        : (stamp.count > 1 ? "初めての訪問：" : "訪問日：") + (stamp.date || "-");
     date.classList.toggle("is-locked", !stamp.earned);
+
+    // ランクと獲得した回数（stamp コレクションの、このスポットの記録の数）
+    const count = document.getElementById("modal-count");
+    const next = document.getElementById("modal-next");
+    const rank = stamp.earned ? getStampRank(stamp.count) : null;
+    count.hidden = !rank;
+    next.hidden = !rank;
+    if (rank) {
+        count.className = "rank-pill rank-" + rank.key;
+        count.textContent = rank.name + "・獲得 " + stamp.count + "回";
+
+        const nextRank = getNextStampRank(stamp.count);
+        next.textContent = nextRank
+            ? "あと " + nextRank.remaining + "回で" + nextRank.rank.name
+            : "最高ランクです！";
+    }
 
     document.getElementById("modal-anime").textContent = stamp.title || "-";
     document.getElementById("modal-scene").textContent = stamp.info || "-";
@@ -282,13 +398,17 @@ function closeStampModal() {
 document.getElementById("only-earned").addEventListener("change", renderSections);
 
 // DBから読み込んだスタンプで表示し直す（stamp.html から呼ぶ）
-function showStamps(stamps, state) {
+function showStamps(stamps, state, spotSummary) {
+    if (spotSummary) {
+        summary = spotSummary;
+        hasSpotList = Array.isArray(summary.spots) && summary.spots.length > 0;
+    }
     collected = Array.isArray(stamps) ? stamps : [];
     loadState = state;
     buildStamps();
     renderNotice();
     renderOverall();
-    renderChips();
+    renderTitlePicker();
     renderSections();
 }
 

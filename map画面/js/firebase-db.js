@@ -1,5 +1,5 @@
 // ==========================================
-// Firestore の接続（ログイン・新規登録で共通）
+// Firestore とログイン（Firebase Authentication）の接続（各画面で共通）
 // ==========================================
 import {
     initializeApp
@@ -8,6 +8,10 @@ import {
 import {
     getFirestore
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+
+import {
+    getAuth
+} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyCga1yFbLWdLXmMrNwScXuOGUWnz283eYs",
@@ -22,3 +26,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 export const db = getFirestore(app);
+
+// ログイン（Firebase Authentication）
+export const auth = getAuth(app);
+
+// 今ログインしている人（未ログインなら null）
+// ページを開いた直後は前回のログイン状態を読み込み中なので、終わるまで待ってから返す
+export async function getCurrentUser() {
+    await auth.authStateReady();
+    return auth.currentUser;
+}

@@ -15,7 +15,8 @@ const STAMP_FIREBASE_CONFIG = {
 };
 
 // スタンプの保存先
-// stamp/{自動ID}：{ user_id: user/{ID}への参照, spot_id: spot/{ID}への参照, time_stamp: 取得日時 }
+// stamp/{自動ID}：{ user_id: user/{ID}への参照, spot_id: spot/{ID}への参照,
+//                   position: 取った時の現在地, time_stamp: 取得日時（サーバーの時刻） }
 // ※ Firestoreのルールで「作成」だけが許可されている（更新・削除はできない）
 const STAMP_COLLECTION_NAME = "stamp";
 const USER_COLLECTION_NAME = "user";
@@ -38,7 +39,7 @@ const NORMAL_STAMP_COOLDOWN_MS =
     24 * 60 * 60 * 1000;
 
 // 以前は端末（localStorage）に保存していた。
-// ログイン後に一度だけDBへ移して、端末からは消す
+// 端末の記録は書きかえられるので、DBへは移さずに消す（clearLegacyLocalStamps）
 const STAMP_HISTORY_STORAGE_KEY =
     "osikatumap-stamp-history-v2";
 
@@ -63,6 +64,9 @@ const collectingSpotIds = new Set();
 
 // スポットID → 最後にスタンプを取った時刻（DBから読み込む）
 const stampHistory = {};
+
+// スポットID → 取った回数（DBの stamp の件数）
+const stampCounts = {};
 
 window.stampHistory =
     stampHistory;
@@ -98,77 +102,6 @@ function getStampCooldownMs() {
     return STAMP_DEBUG_MODE
         ? DEBUG_STAMP_COOLDOWN_MS
         : NORMAL_STAMP_COOLDOWN_MS;
-}
-
-
-// ==========================================
-// 以前に端末へ保存した取得時刻を読む（DBへの移行用）
-// ==========================================
-function loadLegacyLocalStampHistory() {
-    try {
-        const saved =
-            localStorage.getItem(
-                STAMP_HISTORY_STORAGE_KEY
-            );
-
-        if (saved) {
-            const parsed =
-                JSON.parse(saved);
-
-            if (
-                parsed &&
-                typeof parsed ===
-                    "object" &&
-                !Array.isArray(parsed)
-            ) {
-                return parsed;
-            }
-        }
-
-        // 古いID配列形式から移行
-        const legacySaved =
-            localStorage.getItem(
-                LEGACY_STAMP_STORAGE_KEY
-            );
-
-        if (!legacySaved) {
-            return {};
-        }
-
-        const legacyIds =
-            JSON.parse(
-                legacySaved
-            );
-
-        if (
-            !Array.isArray(
-                legacyIds
-            )
-        ) {
-            return {};
-        }
-
-        const migratedHistory = {};
-        const migratedAt =
-            Date.now();
-
-        legacyIds.forEach(
-            function (spotId) {
-                migratedHistory[
-                    String(spotId)
-                ] = migratedAt;
-            }
-        );
-
-        return migratedHistory;
-    } catch (error) {
-        console.warn(
-            "スタンプ履歴の読込に失敗しました:",
-            error
-        );
-
-        return {};
-    }
 }
 
 
@@ -213,6 +146,19 @@ function isSpotStamped(
         getStampRemainingMs(
             spotId
         ) > 0
+    );
+}
+
+
+// ==========================================
+// 一度でもスタンプを取ったスポットか（地図のピンの ✓ に使う）
+// ==========================================
+function hasCollectedStamp(
+    spotId
+) {
+    return (
+        String(spotId) in
+        stampHistory
     );
 }
 
@@ -725,22 +671,27 @@ function getStampPopupHTML(
 
 
 // ==========================================
-// ログイン中のユーザーID（未ログインなら null）
+// ログイン中のユーザーID（Firebase Authentication の uid。未ログインなら null）
+// 前回のログイン状態の読み込みが終わるまで待ってから返す
 // ==========================================
 function getStampLoginUserId() {
-    try {
-        return (
-            sessionStorage.getItem(
-                "userId"
-            ) ||
-            localStorage.getItem(
-                "seitiCurrentUserId"
-            ) ||
-            null
-        );
-    } catch (error) {
-        return null;
-    }
+    return new Promise(
+        function (resolve) {
+            const unsubscribe =
+                window.firebase
+                    .auth()
+                    .onAuthStateChanged(
+                        function (user) {
+                            unsubscribe();
+                            resolve(
+                                user
+                                    ? user.uid
+                                    : null
+                            );
+                        }
+                    );
+        }
+    );
 }
 
 
@@ -776,11 +727,11 @@ function prepareStampFirebase() {
 
 // ==========================================
 // 1件分のスタンプ（stampコレクションのルールに合わせる）
-// stampedAt を省くとサーバーの時刻になる
+// 取った時刻はサーバーの時刻。取った時の現在地（position）も入れ、
+// ルールで「聖地の近くで取ったか」を確かめる
 // ==========================================
 function createStampDocument(
-    spotId,
-    stampedAt
+    spotId
 ) {
     return {
         user_id:
@@ -793,116 +744,35 @@ function createStampDocument(
                 .doc(
                     String(spotId)
                 ),
+        position:
+            new window.firebase
+                .firestore
+                .GeoPoint(
+                    currentStampPosition.latitude,
+                    currentStampPosition.longitude
+                ),
         time_stamp:
-            stampedAt
-                ? window.firebase
-                    .firestore
-                    .Timestamp
-                    .fromMillis(
-                        stampedAt
-                    )
-                : window.firebase
-                    .firestore
-                    .FieldValue
-                    .serverTimestamp()
+            window.firebase
+                .firestore
+                .FieldValue
+                .serverTimestamp()
     };
 }
 
 
 // ==========================================
-// 以前に端末へ保存したスタンプをDBへ移す（1回だけ）
+// 以前（DBに保存する前）に端末へ残したスタンプの記録を消す
+// ※ 以前は端末の記録をDBへ移していたが、端末の記録は書きかえられるため
+//   （取っていないスタンプをDBに入れられてしまう）、移さずに消す
 // ==========================================
-async function migrateLocalStampsToFirestore() {
-    let collected = [];
-
+function clearLegacyLocalStamps() {
     try {
-        collected =
-            JSON.parse(
-                localStorage.getItem(
-                    COLLECTED_STAMPS_STORAGE_KEY
-                )
-            ) || [];
+        localStorage.removeItem(STAMP_HISTORY_STORAGE_KEY);
+        localStorage.removeItem(LEGACY_STAMP_STORAGE_KEY);
+        localStorage.removeItem(COLLECTED_STAMPS_STORAGE_KEY);
     } catch (error) {
-        collected = [];
+        // 消せない環境では何もしない
     }
-
-    const localHistory =
-        loadLegacyLocalStampHistory();
-
-    // スポットID → 端末に残っていた情報
-    const localStamps = {};
-
-    collected.forEach(
-        function (stamp) {
-            if (stamp && stamp.id !== undefined) {
-                localStamps[String(stamp.id)] = stamp;
-            }
-        }
-    );
-
-    Object.keys(
-        localHistory
-    ).forEach(
-        function (spotId) {
-            localStamps[spotId] =
-                localStamps[spotId] || { id: spotId };
-        }
-    );
-
-    const spotIds =
-        Object.keys(
-            localStamps
-        ).filter(
-            function (spotId) {
-                // DBに既にあるスポットはそのまま
-                return !(spotId in stampHistory);
-            }
-        );
-
-    if (spotIds.length > 0) {
-        const batch =
-            stampDb.batch();
-
-        spotIds.forEach(
-            function (spotId) {
-                const stampedAt =
-                    Number(localHistory[spotId]) ||
-                    Date.now();
-
-                batch.set(
-                    stampDb
-                        .collection(
-                            STAMP_COLLECTION_NAME
-                        )
-                        .doc(),
-                    createStampDocument(
-                        spotId,
-                        stampedAt
-                    )
-                );
-            }
-        );
-
-        await batch.commit();
-
-        // 保存できてから地図に反映する
-        spotIds.forEach(
-            function (spotId) {
-                stampHistory[spotId] =
-                    Number(localHistory[spotId]) ||
-                    Date.now();
-            }
-        );
-
-        console.log(
-            `スタンプ：端末の${spotIds.length}件をDBへ移しました`
-        );
-    }
-
-    // 移し終わったので端末からは消す
-    localStorage.removeItem(STAMP_HISTORY_STORAGE_KEY);
-    localStorage.removeItem(LEGACY_STAMP_STORAGE_KEY);
-    localStorage.removeItem(COLLECTED_STAMPS_STORAGE_KEY);
 }
 
 
@@ -910,8 +780,26 @@ async function migrateLocalStampsToFirestore() {
 // DBからスタンプを読み込む
 // ==========================================
 async function initializeStampStorage() {
-    const userId =
-        getStampLoginUserId();
+    let userId;
+
+    try {
+        prepareStampFirebase();
+
+        userId =
+            await getStampLoginUserId();
+    } catch (error) {
+        console.error(
+            "ログイン状態を確認できませんでした:",
+            error
+        );
+
+        stampStorageState =
+            "error";
+
+        refreshStampUI();
+
+        return false;
+    }
 
     if (!userId) {
         stampStorageState =
@@ -923,7 +811,6 @@ async function initializeStampStorage() {
     }
 
     try {
-        prepareStampFirebase();
 
         stampUserRef =
             stampDb
@@ -962,10 +849,16 @@ async function initializeStampStorage() {
                         ? data.time_stamp.toMillis()
                         : 0;
 
+                if (!spotId) {
+                    return;
+                }
+
+                stampCounts[spotId] =
+                    (stampCounts[spotId] || 0) + 1;
+
                 if (
-                    spotId &&
                     stampedAt >
-                        Number(stampHistory[spotId] || 0)
+                    Number(stampHistory[spotId] || 0)
                 ) {
                     stampHistory[spotId] =
                         stampedAt;
@@ -976,15 +869,7 @@ async function initializeStampStorage() {
         stampStorageState =
             "ready";
 
-        try {
-            await migrateLocalStampsToFirestore();
-        } catch (error) {
-            // 移行に失敗しても端末のデータは残っているので、次回また試す
-            console.warn(
-                "端末のスタンプをDBへ移せませんでした:",
-                error
-            );
-        }
+        clearLegacyLocalStamps();
 
         console.log(
             "スタンプ：DBから読み込み完了"
@@ -1090,6 +975,9 @@ async function collectStamp(spotId) {
             selectedSpot.id
         );
 
+    const isFirstTime =
+        !hasCollectedStamp(key);
+
     collectingSpotIds.add(key);
     refreshStampUI();
 
@@ -1108,17 +996,15 @@ async function collectStamp(spotId) {
         stampHistory[key] =
             Date.now();
 
-        const nextText =
-            STAMP_DEBUG_MODE
-                ? "15秒後に再取得できます"
-                : "24時間後に再取得できます";
+        stampCounts[key] =
+            (stampCounts[key] || 0) + 1;
 
-        notifyStamp(
-            `🎉 ${
-                selectedSpot
-                    .spot_name ||
-                "スポット"
-            }のスタンプを取得しました！ ${nextText}`
+        showStampCelebration(
+            selectedSpot,
+            stampCounts[key],
+            isFirstTime
+                ? getCompletedTitle(selectedSpot)
+                : null
         );
     } catch (error) {
         console.error(
@@ -1137,6 +1023,197 @@ async function collectStamp(spotId) {
     } finally {
         collectingSpotIds.delete(key);
         refreshStampUI();
+    }
+}
+
+
+// ==========================================
+// このスタンプでその作品の聖地を全部回ったら、作品名を返す
+// ==========================================
+function getCompletedTitle(
+    spot
+) {
+    const title =
+        spot.title_name;
+
+    if (!title) {
+        return null;
+    }
+
+    const titleSpots =
+        getStampSpots().filter(
+            function (item) {
+                return item.title_name === title;
+            }
+        );
+
+    return titleSpots.length > 0 &&
+        titleSpots.every(
+            function (item) {
+                return hasCollectedStamp(item.id);
+            }
+        )
+        ? title
+        : null;
+}
+
+
+// ==========================================
+// スタンプ獲得の演出（スタンプを押すアニメーション）
+// 作品をコンプリートした時はお祝いも出す
+// ==========================================
+function showStampCelebration(
+    spot,
+    count,
+    completedTitle
+) {
+    document
+        .querySelectorAll(
+            ".stamp-celebration"
+        )
+        .forEach(
+            function (old) {
+                old.remove();
+            }
+        );
+
+    const title =
+        spot.title_name ||
+        "その他";
+
+    const color =
+        typeof window.getTitleColor ===
+            "function"
+            ? window.getTitleColor(title)
+            : "#f59e0b";
+
+    const nextText =
+        STAMP_DEBUG_MODE
+            ? "15秒後に再取得できます"
+            : "24時間後に再取得できます";
+
+    // 取った回数のランク（ちょうど上がった時はお知らせする）
+    const rank =
+        typeof window.getStampRank ===
+            "function"
+            ? window.getStampRank(count)
+            : null;
+
+    const rankUpText =
+        rank &&
+        count > 1 &&
+        rank.min === count
+            ? `✨ ${rank.name}にランクアップ！`
+            : "";
+
+    const overlay =
+        document.createElement(
+            "div"
+        );
+
+    overlay.className =
+        "stamp-celebration" +
+        (completedTitle ? " is-complete" : "");
+
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-labelledby", "stamp-celebration-title");
+
+    // お祝いの紙吹雪（コンプリートの時だけ）
+    const confetti =
+        completedTitle
+            ? Array.from(
+                { length: 18 },
+                function (_, index) {
+                    return `<span class="confetti" style="left:${(index * 37) % 100}%;animation-delay:${(index % 6) * 0.12}s;background:${["#f59e0b", "#e53935", "#1e88e5", "#43a047", "#ec407a", "#fdd835"][index % 6]};"></span>`;
+                }
+            ).join("")
+            : "";
+
+    overlay.innerHTML = `
+        ${confetti}
+        <div class="stamp-celebration-card">
+            <div class="stamp-celebration-stamp" aria-hidden="true">⛩️</div>
+            <p class="stamp-celebration-title" id="stamp-celebration-title">${completedTitle ? "🎉 作品コンプリート！" : "スタンプ獲得！"}</p>
+            ${rankUpText ? `<p class="stamp-celebration-rankup rank-pill rank-${rank.key}">${rankUpText}</p>` : ""}
+            <p class="stamp-celebration-spot">${escapeStampHTML(spot.spot_name || "スポット")}</p>
+            <p class="stamp-celebration-meta">${escapeStampHTML(title)}・${count}回目${rank ? "・" + rank.name : ""}</p>
+            ${completedTitle
+                ? `<p class="stamp-celebration-complete">「${escapeStampHTML(completedTitle)}」の聖地を<br>すべて回りました！</p>`
+                : ""}
+            <p class="stamp-celebration-next">${nextText}</p>
+            <button type="button" class="stamp-celebration-close">OK</button>
+        </div>
+    `;
+
+    const previousFocus =
+        document.activeElement;
+
+    let closeTimer = null;
+
+    function close() {
+        clearTimeout(closeTimer);
+        document.removeEventListener("keydown", onKeydown);
+        overlay.remove();
+
+        if (
+            previousFocus &&
+            document.contains(previousFocus)
+        ) {
+            previousFocus.focus();
+        }
+    }
+
+    function onKeydown(event) {
+        if (event.key === "Escape") {
+            close();
+        }
+    }
+
+    overlay.addEventListener(
+        "click",
+        function (event) {
+            // カード以外（背景）かOKボタンを押したら閉じる
+            if (
+                event.target === overlay ||
+                event.target.closest(".stamp-celebration-close")
+            ) {
+                close();
+            }
+        }
+    );
+
+    // 中は作品の色、枠は取った回数のランクの色
+    const stampElement =
+        overlay.querySelector(
+            ".stamp-celebration-stamp"
+        );
+
+    if (
+        typeof window.applyStampRank ===
+        "function"
+    ) {
+        window.applyStampRank(
+            stampElement,
+            count,
+            color
+        );
+    } else {
+        stampElement.style.background =
+            color;
+    }
+
+    document.addEventListener("keydown", onKeydown);
+    document.body.appendChild(overlay);
+    overlay.querySelector(".stamp-celebration-close").focus();
+
+    // 普段は少しで自動的に閉じる（コンプリートの時はOKを押すまで残す）
+    if (!completedTitle) {
+        closeTimer =
+            setTimeout(
+                close,
+                4000
+            );
     }
 }
 
@@ -1334,7 +1411,7 @@ function refreshStampUI() {
                     .toggle(
                         "stamp-completed-marker",
 
-                        isSpotStamped(
+                        hasCollectedStamp(
                             markerElement
                                 .dataset
                                 .spotId
@@ -1539,6 +1616,9 @@ window.getStampPopupHTML =
 
 window.isSpotStamped =
     isSpotStamped;
+
+window.hasCollectedStamp =
+    hasCollectedStamp;
 
 window.refreshStampUI =
     refreshStampUI;

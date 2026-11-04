@@ -472,3 +472,24 @@ button.stat:hover {
 .stat:nth-child(3) .stat-value strong {
     color: var(--color-success);
 }
+
+/* 管理者にだけ出す項目（hidden の時は隠す） */
+.menu-item[hidden] {
+    display: none;
+}
+
+/* お知らせの未読の数 */
+.menu-badge {
+    min-width: 22px;
+    padding: 2px 7px;
+    border-radius: 11px;
+    background: var(--color-accent);
+    color: #fff;
+    font-size: 12px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.menu-badge[hidden] {
+    display: none;
+}

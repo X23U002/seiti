@@ -1,292 +1,288 @@
-// マイページに戻る
-function goToMyPage() {
-    window.location.href = "mypage.html";
+// ==========================================
+// お気に入り・保存したルート・巡礼履歴
+// お気に入り（favorite）と保存したルート（root）は地図画面で追加する。
+// 巡礼履歴は獲得したスタンプ（stamp）から作る
+// ==========================================
+import { loadStampBook } from "./stamp-db.js?v=fb2d2a17";
+import { deleteSavedRoute, loadFavorites, loadSavedRoutes, setFavorite } from "./saved-db.js?v=2aaaa116";
+import { getSpotEpisodeLabel } from "./episode.js?v=feb7ee57";
+import { getTitleColor } from "./title-colors.js?v=5c634da9";
+
+// スポットID → { id, name, title, info }
+let spotById = {};
+
+function showNotice(icon, text, link) {
+    const notice = document.getElementById("saved-notice");
+    notice.innerHTML = "";
+    const iconEl = document.createElement("div");
+    iconEl.className = "empty-state-icon";
+    iconEl.textContent = icon;
+    const p = document.createElement("p");
+    p.textContent = text;
+    notice.append(iconEl, p);
+    if (link) {
+        const a = document.createElement("a");
+        a.href = link.href;
+        a.className = "btn btn-primary";
+        a.textContent = link.text;
+        notice.appendChild(a);
+    }
+    notice.hidden = false;
+    document.getElementById("saved-main").hidden = true;
 }
 
+function formatDate(millis) {
+    if (!millis) return "";
+    const d = new Date(millis);
+    return d.getFullYear() + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" +
+        String(d.getDate()).padStart(2, "0");
+}
 
-// =========================================================
-// 案内開始ボタン
-// =========================================================
-window.startRoute = function () {
+function mapUrl(name, value) {
+    return "map.html?" + name + "=" + encodeURIComponent(value);
+}
 
-    // 選択中のルートを取得
-    const route = window.selectedRouteForNavigation;
+function el(tag, className, text) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    if (text !== undefined) element.textContent = text;
+    return element;
+}
 
-    // ルートが選択されていない場合
-    if (!route) {
-        if (typeof window.showToast === "function") {
-            window.showToast(
-                "先に過去の巡礼履歴を選択してください",
-                "error"
-            );
-        } else {
-            alert("先に過去の巡礼履歴を選択してください");
-        }
+// 作品名の札（作品の色）と、何話の場面かの札
+function createBadges(spot) {
+    const row = el("div", "saved-badges");
+    const title = el("span", "title-chip", spot.title);
+    title.style.background = getTitleColor(spot.title);
+    row.appendChild(title);
 
+    const episode = getSpotEpisodeLabel({ season: spot.season, episode: spot.episode, spot_info: spot.info });
+    if (episode) row.appendChild(el("span", "ep-chip", episode));
+    return row;
+}
+
+function createLinkButton(text, href, primary) {
+    const a = el("a", "btn " + (primary ? "btn-primary" : "btn-secondary") + " saved-btn", text);
+    a.href = href;
+    return a;
+}
+
+function showEmpty(list, text) {
+    const item = el("li", "card empty-state");
+    item.appendChild(el("p", "", text));
+    list.appendChild(item);
+}
+
+function setCount(name, count) {
+    document.getElementById("count-" + name).textContent = count;
+}
+
+// ---------- お気に入り ----------
+function renderFavorites(favorites) {
+    const list = document.getElementById("favorite-list");
+    list.innerHTML = "";
+
+    // 削除された聖地は出さない
+    const items = favorites.filter(function (item) { return spotById[item.spotId]; });
+    setCount("favorites", items.length);
+
+    if (items.length === 0) {
+        showEmpty(list, "まだありません。地図で聖地の詳細を開き、♡を押すと追加されます。");
         return;
     }
 
-    // 保存されているGoogleマップのURLを取得
-    if (!route.googleMapsUrl) {
-        alert("このルートのGoogleマップ情報がありません");
-        return;
-    }
+    items.forEach(function (item) {
+        const spot = spotById[item.spotId];
+        const li = el("li", "card saved-item");
+        li.appendChild(createBadges(spot));
+        li.appendChild(el("h2", "saved-name", spot.name));
 
-    try {
-        // 保存したURLを読み込む
-        const routeUrl = new URL(route.googleMapsUrl);
+        const actions = el("div", "saved-actions");
+        actions.appendChild(createLinkButton("地図で見る", mapUrl("spot", spot.id), true));
 
-        // ナビゲーション開始を要求する
-        routeUrl.searchParams.set(
-            "dir_action",
-            "navigate"
-        );
-
-        // Googleマップを開く
-        window.open(
-            routeUrl.toString(),
-            "_blank"
-        );
-
-    } catch (error) {
-        console.error(
-            "ルート案内の開始に失敗しました",
-            error
-        );
-
-        alert("ルート案内を開始できませんでした");
-    }
-};
-
-// =========================================================
-// ローカルに保存された巡礼履歴を表示
-// =========================================================
-// =========================================================
-// 過去の巡礼履歴を表示
-// =========================================================
-window.renderRouteHistory = function () {
-    const historyList =
-        document.getElementById("historyList");
-
-    if (!historyList) return;
-
-    historyList.replaceChildren();
-
-    let history = [];
-
-    try {
-        history = JSON.parse(
-            localStorage.getItem("googleMapsRouteHistory") || "[]"
-        );
-
-        if (!Array.isArray(history)) {
-            history = [];
-        }
-    } catch (error) {
-        console.error("履歴の読み込みに失敗しました", error);
-    }
-
-    if (history.length === 0) {
-        const li = document.createElement("li");
-        li.className = "history-item";
-        li.textContent = "まだ巡礼履歴はありません";
-        historyList.appendChild(li);
-        return;
-    }
-
-    history.forEach(function (route) {
-        const li = document.createElement("li");
-        li.className = "history-item";
-        li.tabIndex = 0;
-        li.setAttribute("role", "button");
-        li.setAttribute("aria-pressed", "false");
-
-        // ルート名
-        const routeElement = document.createElement("div");
-        routeElement.className = "history-route";
-
-        const spots = Array.isArray(route.spots)
-            ? route.spots
-            : [];
-
-        if (spots.length > 0) {
-            spots.forEach(function (spot, index) {
-                if (index > 0) {
-                    const arrow = document.createElement("span");
-                    arrow.className = "arrow";
-                    arrow.textContent = " → ";
-                    routeElement.appendChild(arrow);
-                }
-
-                const name = document.createElement("span");
-                name.textContent = getHistorySpotName(spot);
-                routeElement.appendChild(name);
-            });
-        } else {
-            routeElement.textContent =
-                route.destination || "ルート情報なし";
-        }
-
-        // 保存日時
-        const dateElement = document.createElement("div");
-        dateElement.className = "history-date";
-
-        const date = new Date(
-            route.savedAt || route.createdAt
-        );
-
-        dateElement.textContent =
-            Number.isNaN(date.getTime())
-                ? "保存日時不明"
-                : date.toLocaleString("ja-JP");
-
-        li.append(routeElement, dateElement);
-
-        // 履歴をクリックしたときの処理
-        function selectHistory() {
-            window.renderCurrentRoute(route);
-
-            historyList
-                .querySelectorAll(".history-item.selected")
-                .forEach(function (item) {
-                    item.classList.remove("selected");
-                    item.setAttribute("aria-pressed", "false");
-                });
-
-            li.classList.add("selected");
-            li.setAttribute("aria-pressed", "true");
-        }
-
-        li.addEventListener("click", selectHistory);
-
-        // Enterキー・Spaceキーでも選択可能にする
-        li.addEventListener("keydown", function (event) {
-            if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                selectHistory();
+        const remove = el("button", "btn btn-secondary saved-btn", "お気に入りから外す");
+        remove.type = "button";
+        remove.addEventListener("click", async function () {
+            remove.disabled = true;
+            try {
+                await setFavorite(spot.id, false);
+                favorites.splice(favorites.indexOf(item), 1);
+                renderFavorites(favorites);
+                window.showToast("「" + spot.name + "」をお気に入りから外しました");
+            } catch (error) {
+                console.error("お気に入りを外せませんでした:", error);
+                window.showToast(
+                    error && error.code === "permission-denied"
+                        ? "お気に入りを外す権限がありません（Firestore のルールの favorite が必要です）"
+                        : "お気に入りを外せませんでした。通信状況を確認してください",
+                    "error"
+                );
+                remove.disabled = false;
             }
         });
+        actions.appendChild(remove);
 
-        historyList.appendChild(li);
+        li.appendChild(actions);
+        list.appendChild(li);
     });
-};
-
-// =========================================================
-// スポット名を取得
-// =========================================================
-function getHistorySpotName(spot) {
-    if (typeof spot === "string") {
-        return spot;
-    }
-
-    if (!spot || typeof spot !== "object") {
-        return "名称不明のスポット";
-    }
-
-    return (
-        spot.name ||
-        spot.spot_name ||
-        spot.spotName ||
-        spot.title_name ||
-        spot.title ||
-        spot.placeName ||
-        (
-            spot.latitude != null &&
-            spot.longitude != null
-                ? `${spot.latitude}, ${spot.longitude}`
-                : "名称不明のスポット"
-        )
-    );
 }
 
-// =========================================================
-// 現在のルート欄を更新
-// =========================================================
-window.renderCurrentRoute = function (route) {
+// ---------- 保存したルート ----------
+function renderRoutes(routes) {
+    const list = document.getElementById("route-list");
+    list.innerHTML = "";
+    setCount("routes", routes.length);
 
-        // 案内開始時に使うルートを保存
-    window.selectedRouteForNavigation = route;
-
-    const timeline = document.getElementById(
-        "currentRouteTimeline"
-    );
-
-    if (!timeline) return;
-
-    timeline.replaceChildren();
-
-    if (!route) {
-        const li = document.createElement("li");
-        li.className = "timeline-node current";
-        li.textContent =
-            "ルート未選択：下の履歴から選択してください";
-
-        timeline.appendChild(li);
+    if (routes.length === 0) {
+        showEmpty(list, "まだありません。地図のルート案内で「このルートを保存」を押すと追加されます。");
         return;
     }
 
-    const spots = Array.isArray(route.spots)
-        ? route.spots
-        : [];
+    routes.forEach(function (route) {
+        const spotIds = route.spotIds.filter(function (id) { return spotById[id]; });
+        const li = el("li", "card saved-item");
 
-    // 現在地
-    const start = document.createElement("li");
-    start.className = "timeline-node current";
+        const stops = el("ol", "route-stops");
+        spotIds.forEach(function (id) {
+            stops.appendChild(el("li", "", spotById[id].name));
+        });
+        li.appendChild(stops);
 
-    const startTitle = document.createElement("div");
-    startTitle.className = "timeline-title";
-    startTitle.textContent = "現在地";
+        const missing = route.spotIds.length - spotIds.length;
+        li.appendChild(el("p", "saved-meta",
+            spotIds.length + "か所" +
+            (missing > 0 ? "（削除された聖地 " + missing + "か所は除く）" : "") +
+            (route.savedAt ? "・" + formatDate(route.savedAt) + " 保存" : "")));
 
-    const startDetail = document.createElement("div");
-    startDetail.className = "timeline-time";
-    startDetail.textContent = "出発点";
+        const actions = el("div", "saved-actions");
+        if (spotIds.length > 0) {
+            actions.appendChild(createLinkButton("地図で開く", mapUrl("route", spotIds.join(",")), true));
+        }
 
-    start.append(startTitle, startDetail);
-    timeline.appendChild(start);
+        const remove = el("button", "btn btn-secondary saved-btn saved-delete", "削除");
+        remove.type = "button";
+        remove.addEventListener("click", async function () {
+            if (!window.confirm("このルートを削除しますか？")) return;
+            remove.disabled = true;
+            try {
+                await deleteSavedRoute(route.id);
+                routes.splice(routes.indexOf(route), 1);
+                renderRoutes(routes);
+                window.showToast("ルートを削除しました");
+            } catch (error) {
+                console.error("ルートを削除できませんでした:", error);
+                // ルールで削除が許可されていない時は、その旨を出す（管理者がルールを直せるように）
+                window.showToast(
+                    error && error.code === "permission-denied"
+                        ? "ルートを削除する権限がありません（Firestore のルールの root に allow delete が必要です）"
+                        : "ルートを削除できませんでした。通信状況を確認してください",
+                    "error"
+                );
+                remove.disabled = false;
+            }
+        });
+        actions.appendChild(remove);
 
-    // 保存されたスポット
-    spots.forEach(function (spot, index) {
-        const isGoal = index === spots.length - 1;
-
-        const li = document.createElement("li");
-        li.className = isGoal
-            ? "timeline-node goal"
-            : "timeline-node";
-
-        const title = document.createElement("div");
-        title.className = "timeline-title";
-        title.textContent = getHistorySpotName(spot);
-
-        const detail = document.createElement("div");
-        detail.className = "timeline-time";
-
-        const badge = document.createElement("span");
-        badge.className = isGoal
-            ? "badge badge-goal"
-            : "badge";
-
-        badge.textContent = isGoal ? "目的地" : "経由地";
-
-        detail.appendChild(badge);
-        li.append(title, detail);
-        timeline.appendChild(li);
+        li.appendChild(actions);
+        list.appendChild(li);
     });
-};
-
-
-// =========================================================
-// ページを開いたときに履歴を表示
-// =========================================================
-function initializeHistoryPage() {
-    window.renderCurrentRoute(null);
-    window.renderRouteHistory();
 }
 
-if (document.readyState === "loading") {
-    document.addEventListener(
-        "DOMContentLoaded",
-        initializeHistoryPage
-    );
-} else {
-    initializeHistoryPage();
+// ---------- 巡礼履歴 ----------
+const HISTORY_MAX = 30;
+
+function renderHistory(stamps) {
+    const list = document.getElementById("history-list");
+    list.innerHTML = "";
+    setCount("history", stamps.length);
+
+    if (stamps.length === 0) {
+        showEmpty(list, "まだありません。聖地でスタンプを取ると、ここに記録されます。");
+        return;
+    }
+
+    // 新しい順
+    stamps
+        .slice()
+        .sort(function (a, b) { return b.stampedAt - a.stampedAt; })
+        .slice(0, HISTORY_MAX)
+        .forEach(function (stamp) {
+            const li = el("li", "card saved-item");
+            li.appendChild(createBadges({ title: stamp.anime, info: stamp.scene, season: stamp.season, episode: stamp.episode }));
+            li.appendChild(el("h2", "saved-name", stamp.name));
+            li.appendChild(el("p", "saved-meta",
+                stamp.date + " 初獲得" + (stamp.count > 1 ? "・" + stamp.count + "回" : "")));
+
+            const actions = el("div", "saved-actions");
+            actions.appendChild(createLinkButton("地図で見る", mapUrl("spot", stamp.id), false));
+            li.appendChild(actions);
+            list.appendChild(li);
+        });
+
+    if (stamps.length > HISTORY_MAX) {
+        const li = el("li", "saved-more");
+        li.appendChild(createLinkButton("スタンプ帳ですべて見る", "stamp.html", false));
+        list.appendChild(li);
+    }
 }
+
+// ---------- タブ ----------
+function setupTabs() {
+    const tabs = Array.from(document.querySelectorAll(".saved-tab"));
+
+    function select(tab) {
+        tabs.forEach(function (other) {
+            const selected = other === tab;
+            other.setAttribute("aria-selected", String(selected));
+            other.tabIndex = selected ? 0 : -1;
+            document.getElementById(other.getAttribute("aria-controls")).hidden = !selected;
+        });
+        try { sessionStorage.setItem("seitiSavedTab", tab.id); } catch (e) { /* 何もしない */ }
+    }
+
+    tabs.forEach(function (tab, index) {
+        tab.addEventListener("click", function () { select(tab); });
+        // 左右キーでタブを移動
+        tab.addEventListener("keydown", function (event) {
+            const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+            if (!step) return;
+            const next = tabs[(index + step + tabs.length) % tabs.length];
+            select(next);
+            next.focus();
+        });
+    });
+
+    // 前に見ていたタブを開く
+    let saved = null;
+    try { saved = sessionStorage.getItem("seitiSavedTab"); } catch (e) { saved = null; }
+    select(document.getElementById(saved) || tabs[0]);
+}
+
+(async function init() {
+    try {
+        const [book, favorites, routes] = await Promise.all([
+            loadStampBook(),
+            loadFavorites(),
+            loadSavedRoutes()
+        ]);
+
+        if (!book.stamps || !favorites || !routes) {
+            showNotice("🔒", "お気に入りや保存したルートは、ログインすると使えます。", { href: "login.html", text: "ログインする" });
+            return;
+        }
+
+        spotById = {};
+        book.summary.spots.forEach(function (spot) { spotById[spot.id] = spot; });
+
+        renderFavorites(favorites);
+        renderRoutes(routes);
+        renderHistory(book.stamps);
+        setupTabs();
+
+        document.getElementById("saved-notice").hidden = true;
+        document.getElementById("saved-main").hidden = false;
+    } catch (error) {
+        console.error("読み込みに失敗しました:", error);
+        showNotice("⚠️", "読み込みに失敗しました。時間をおいてもう一度開いてください。");
+    }
+})();
