@@ -72,6 +72,17 @@ test("聖地の詳細の話の札（EP6 など）を押すと、その作品の�
     await expect(page.locator("#toast")).toContainText("1期 EP3の聖地（3か所）で絞り込みました");
 });
 
+test("地図の文字（地名・ボタンの説明）は日本語", async ({ page }) => {
+    await seed(page);
+    await page.goto("html/map.html");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+    expect(await page.evaluate(() => window.__map.getLanguage())).toBe("ja");
+    expect(await page.evaluate(() => window.__map.getWorldview())).toBe("JP");
+    await expect(page.locator(".mapboxgl-ctrl-zoom-in")).toHaveAttribute("aria-label", "拡大");
+    await expect(page.locator(".mapboxgl-ctrl-compass")).toHaveAttribute("aria-label", "北を上にする");
+    await expect(page.locator(".mapboxgl-ctrl-geocoder--button")).toHaveAttribute("aria-label", "入力を消す");
+});
+
 test("Firestore の通信が止められても、Web API から聖地を読む", async ({ page, restCalls }) => {
     await seed(page, { local: { mockFsHang: "1" } });
     await page.goto("html/map.html");

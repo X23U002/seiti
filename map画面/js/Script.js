@@ -102,7 +102,27 @@ const map = new mapboxgl.Map({
     pitch: 0,
     bearing: 0,
     minZoom: 6,
-    maxZoom: 18
+    maxZoom: 18,
+    // 地名・駅名・お店などの名前を日本語で出す（日本語の名前が無いものは、その土地の言葉で出す）
+    language: "ja",
+    // 国境などの書き方を日本の見方にする
+    worldview: "JP",
+    // 漢字・かなは端末の日本語フォントで描く（読みやすく、文字の読み込みも軽い）
+    localIdeographFontFamily: "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', Meiryo, sans-serif",
+    // 地図のボタンの説明（マウスを置いた時・読み上げ）も日本語にする
+    locale: {
+        "NavigationControl.ZoomIn": "拡大",
+        "NavigationControl.ZoomOut": "縮小",
+        "NavigationControl.ResetBearing": "北を上にする",
+        "GeolocateControl.FindMyLocation": "現在地を表示",
+        "GeolocateControl.LocationNotAvailable": "現在地を取得できません",
+        "ScrollZoomBlocker.CtrlMessage": "Ctrl キーを押しながらスクロールで拡大・縮小",
+        "ScrollZoomBlocker.CmdMessage": "⌘ キーを押しながらスクロールで拡大・縮小",
+        "TouchPanBlocker.Message": "2本の指で地図を動かせます",
+        "AttributionControl.ToggleAttribution": "地図の出典",
+        "LogoControl.Title": "Mapbox のホームページ",
+        "Map.Title": "地図"
+    }
 });
 
 
@@ -115,14 +135,6 @@ map.dragRotate.enable();
 // スマホの2本指回転は有効
 map.touchZoomRotate.enableRotation();
 
-
-map.on("style.load", () => {
-    map.setConfigProperty(
-        "basemap",
-        "language",
-        "ja"
-    );
-});
 
 
 map.on("pitch", () => {
@@ -2374,6 +2386,15 @@ function initializeSearchBox() {
     container.appendChild(
         geocoder.onAdd(map)
     );
+
+    // 入力を消すボタンの説明（読み上げ）も日本語にする
+    container
+        .querySelectorAll(".mapboxgl-ctrl-geocoder--button")
+        .forEach(
+            function (button) {
+                button.setAttribute("aria-label", "入力を消す");
+            }
+        );
 
 
     geocoder.on(
