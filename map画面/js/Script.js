@@ -1,3 +1,13 @@
+import {
+    createGLBPinLayer
+} from "./pin-3d-layer.js?v=20261102a";
+
+// import * as THREE from
+//     "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+
+
+
+    
 // =========================================================
 // 1. Firebase の読み込みと設定
 // =========================================================
@@ -88,18 +98,20 @@ let hoverPopup = null;
 // =========================================================
 const titleColorMap = {};
 
+
+
 const map = new mapboxgl.Map({
     container: "map",
     style: "mapbox://styles/mapbox/standard",
-    center: [
-        139.7671,
-        35.6812
-    ],
+    center: [139.7671, 35.6812],
     zoom: 12,
     pitch: 0,
     bearing: 0,
     minZoom: 6,
-    maxZoom: 18
+    maxZoom: 18,
+
+    // 3Dピンの輪郭を滑らかにする
+    antialias: true
 });
 
 
@@ -136,6 +148,460 @@ map.addControl(
     new mapboxgl.NavigationControl(),
     "top-right"
 );
+
+// =========================================================
+// 3Dピンレイヤー
+// ズーム11以上の個別スポット用
+// =========================================================
+function create3DPinLayer(mapInstance) {
+    const PIN_HEIGHT_PX = 42;
+    const ROTATION_DURATION = 1500;
+    const ROTATION_ANGLE = Math.PI * 4;
+
+    return {
+        id: "spot-pins-3d",
+        type: "custom",
+        renderingMode: "3d",
+
+        map: null,
+        camera: null,
+        scene: null,
+        renderer: null,
+
+        markers: [],
+        models: new Map(),
+
+        ready: false,
+        visible: false,
+
+        scaleMatrix: null,
+        rotateXMatrix: null,
+
+        onAdd(map, gl) {
+            this.map = map;
+            this.camera = new THREE.Camera();
+            this.scene = new THREE.Scene();
+
+            this.scene.add(
+                new THREE.AmbientLight(0xffffff, 1.2)
+            );
+
+            const light = new THREE.DirectionalLight(
+                0xffffff,
+                1.8
+            );
+
+            light.position.set(-3, -2, 4);
+            this.scene.add(light);
+
+            // Mapboxと同じWebGLキャンバスを使用
+            this.renderer = new THREE.WebGLRenderer({
+                canvas: map.getCanvas(),
+                context: gl,
+                antialias: true
+            });
+
+            this.renderer.autoClear = false;
+
+            this.scaleMatrix = new THREE.Matrix4();
+            this.rotateXMatrix =
+                new THREE.Matrix4().makeRotationX(
+                    Math.PI / 2
+                );
+
+            this.ready = true;
+
+            this.rebuildModels();
+            this.refreshVisibility(true);
+        },
+
+        // 現在のMapboxマーカーから3Dピンを生成
+        setMarkers(markers) {
+            this.markers = (markers || []).filter(
+                marker => {
+                    return marker
+                        ?.getElement()
+                        ?.dataset
+                        ?.spotId;
+                }
+            );
+
+            this.rebuildModels();
+            this.refreshVisibility(true);
+        },
+
+        disposeModels() {
+            this.models.forEach(model => {
+                this.scene?.remove(model.anchor);
+
+                model.body.geometry.dispose();
+                model.body.material.dispose();
+
+                model.dot.geometry.dispose();
+                model.dot.material.dispose();
+            });
+
+            this.models.clear();
+        },
+
+        rebuildModels() {
+            if (!this.scene) return;
+
+            this.disposeModels();
+
+            this.markers.forEach(marker => {
+                const element = marker.getElement();
+                const spotId = element.dataset.spotId;
+
+                if (!spotId) return;
+
+                const color =
+                    element.dataset.pinColor || "#0b3c5d";
+
+                // ピン先端を原点 (0, 0, 0) とする
+                const shape = new THREE.Shape();
+
+                shape.moveTo(0, 0);
+
+                shape.bezierCurveTo(
+                    -0.10, 0.15,
+                    -0.36, 0.38,
+                    -0.36, 0.60
+                );
+
+                shape.bezierCurveTo(
+                    -0.36, 0.81,
+                    -0.20, 0.96,
+                    0, 0.96
+                );
+
+                shape.bezierCurveTo(
+                    0.20, 0.96,
+                    0.36, 0.81,
+                    0.36, 0.60
+                );
+
+                shape.bezierCurveTo(
+                    0.36, 0.38,
+                    0.10, 0.15,
+                    0, 0
+                );
+
+                shape.closePath();
+
+                // 厚みのあるピン本体
+                const geometry = new THREE.ExtrudeGeometry(
+                    shape,
+                    {
+                        depth: 0.08,
+                        bevelEnabled: true,
+                        bevelSegments: 3,
+                        bevelSize: 0.018,
+                        bevelThickness: 0.02,
+                        curveSegments: 16
+                    }
+                );
+
+                const material =
+                    new THREE.MeshStandardMaterial({
+                        color,
+                        roughness: 0.42,
+                        metalness: 0.03,
+                        side: THREE.DoubleSide
+                    });
+
+                const body = new THREE.Mesh(
+                    geometry,
+                    material
+                );
+
+                // 白い中心部分
+                // 白い中心部分（ちらつき対策）
+const dot = new THREE.Mesh(
+    new THREE.CircleGeometry(0.125, 32),
+    new THREE.MeshBasicMaterial({
+        color: "#ffffff",
+        side: THREE.DoubleSide,
+        depthTest: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2
+    })
+);
+
+dot.position.set(0, 0.62, 0.16);
+dot.renderOrder = 10;
+
+
+                // 方向調整用と回転用のグループを分離
+                const anchor = new THREE.Group();
+                anchor.matrixAutoUpdate = false;
+
+                const facing = new THREE.Group();
+                const spin = new THREE.Group();
+
+                spin.add(body);
+                spin.add(dot);
+
+                facing.add(spin);
+                anchor.add(facing);
+
+                this.scene.add(anchor);
+
+                this.models.set(String(spotId), {
+                    marker,
+                    anchor,
+                    facing,
+                    spin,
+                    body,
+                    dot,
+                    animationStart: null
+                });
+            });
+        },
+
+        // 2D/3D状態に合わせて表示を切り替える
+        refreshVisibility(force = false) {
+            const nextVisible =
+                this.ready &&
+                is3D &&
+                this.map.getZoom() > 10;
+
+            const changed =
+                nextVisible !== this.visible;
+
+            this.visible = nextVisible;
+
+            // 3D表示中は元のHTMLマーカーを隠す
+            this.markers.forEach(marker => {
+                const element = marker.getElement();
+
+                element.style.visibility =
+                    nextVisible ? "hidden" : "";
+
+                element.style.pointerEvents =
+                    nextVisible ? "none" : "";
+            });
+
+            // 3D表示が終了した場合は回転も停止
+            if (!nextVisible) {
+                this.models.forEach(model => {
+                    model.animationStart = null;
+                    model.spin.rotation.y = 0;
+                });
+            }
+
+            if (this.map && (changed || force)) {
+                this.map.triggerRepaint();
+            }
+        },
+
+        // クリックされた位置に3Dピンがあるか判定
+        handleClick(point) {
+            if (!this.visible) return false;
+
+            let nearest = null;
+            let bestDistance = Infinity;
+
+            this.markers.forEach(marker => {
+                const projected = this.map.project(
+                    marker.getLngLat()
+                );
+
+                const dx = point.x - projected.x;
+                const dy = point.y - projected.y;
+
+                // 先端を基準に、ピンの表示範囲を判定
+                const hit =
+                    Math.abs(dx) <= 26 &&
+                    dy >= -PIN_HEIGHT_PX - 8 &&
+                    dy <= 8;
+
+                if (!hit) return;
+
+                const distance = Math.hypot(
+                    dx,
+                    dy + PIN_HEIGHT_PX * 0.48
+                );
+
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    nearest = marker;
+                }
+            });
+
+            if (!nearest) return false;
+
+            const spotId =
+                nearest.getElement().dataset.spotId;
+
+            const model = this.models.get(String(spotId));
+
+            if (!model) return false;
+
+            // 回転中のアニメーション重複を防ぐ
+            if (model.animationStart !== null) {
+                return true;
+            }
+
+            model.animationStart = performance.now();
+
+            // 既存のスポット詳細ポップアップを開く
+            if (nearest.getPopup()) {
+                nearest.togglePopup();
+            }
+
+            this.map.triggerRepaint();
+
+            return true;
+        },
+
+        render(gl, matrix) {
+            if (!this.ready || !this.visible) return;
+
+            this.camera.projectionMatrix.fromArray(matrix);
+
+            const zoom = this.map.getZoom();
+            const worldSize = 512 * Math.pow(2, zoom);
+
+            // ピンの見た目の大きさをズームに合わせて調整
+            const scale =
+                PIN_HEIGHT_PX / (worldSize * 0.96);
+
+            this.scaleMatrix.makeScale(
+                scale,
+                -scale,
+                scale
+            );
+
+            const now = performance.now();
+            let animating = false;
+
+            this.models.forEach(model => {
+                const lngLat = model.marker.getLngLat();
+
+                const coord =
+                    mapboxgl.MercatorCoordinate.fromLngLat(
+                        [lngLat.lng, lngLat.lat],
+                        0
+                    );
+
+                // 地図座標に3Dピンを配置
+                model.anchor.matrix.makeTranslation(
+                    coord.x,
+                    coord.y,
+                    coord.z
+                );
+
+                model.anchor.matrix
+                    .multiply(this.scaleMatrix)
+                    .multiply(this.rotateXMatrix);
+
+                model.anchor.matrixWorldNeedsUpdate = true;
+
+                // 地図の回転に合わせてピンの正面を調整
+                model.facing.rotation.y =
+                    -this.map.getBearing() * Math.PI / 180;
+
+                // 2回転のアニメーション
+                if (model.animationStart !== null) {
+                    const progress = Math.min(
+                        (now - model.animationStart) /
+                            ROTATION_DURATION,
+                        1
+                    );
+
+                    // 徐々に減速する
+                    const eased =
+                        1 - Math.pow(1 - progress, 3);
+
+                    model.spin.rotation.y =
+                        ROTATION_ANGLE * eased;
+
+                    if (progress >= 1) {
+                        model.spin.rotation.y = 0;
+                        model.animationStart = null;
+                    } else {
+                        animating = true;
+                    }
+                }
+            });
+
+            this.scene.updateMatrixWorld(true);
+
+            // MapboxとWebGL状態を共有する
+            this.renderer.resetState();
+            this.renderer.render(
+                this.scene,
+                this.camera
+            );
+
+            // アニメーション中だけ再描画
+            if (animating) {
+                this.map.triggerRepaint();
+            }
+        },
+
+        onRemove() {
+            this.markers.forEach(marker => {
+                const element = marker.getElement();
+
+                element.style.visibility = "";
+                element.style.pointerEvents = "";
+            });
+
+            this.disposeModels();
+
+            if (this.renderer) {
+                this.renderer.dispose();
+            }
+
+            this.renderer = null;
+            this.scene = null;
+            this.camera = null;
+            this.ready = false;
+            this.visible = false;
+        }
+    };
+}
+// =========================================================
+// GLB 3Dピンレイヤー
+// =========================================================
+
+const pin3DLayer = createGLBPinLayer(map, {
+    modelUrl: new URL(
+        "../models/Pin.glb",
+        import.meta.url
+    ).href,
+
+    is3D: () => is3D,
+
+    targetHeightPx: 42
+});
+
+// Mapboxのスタイル読み込み後に登録
+map.on("style.load", () => {
+    if (!map.getLayer(pin3DLayer.id)) {
+        map.addLayer(pin3DLayer);
+    }
+
+    pin3DLayer.refreshVisibility();
+});
+
+// 3Dピンのクリック
+map.on("click", event => {
+    pin3DLayer.handleClick(event.point);
+});
+
+// ズーム・地図移動への対応
+map.on("zoom", () => {
+    pin3DLayer.refreshVisibility();
+});
+
+map.on("moveend", () => {
+    pin3DLayer.refreshVisibility();
+});
 
 
 // =========================================================
@@ -1667,40 +2133,57 @@ let drawnMarkerMode = null;
 let drawnMarkerList = null;
 
 function drawMarkers(list) {
+
+    // 最後に描画した状態を記録
     drawnMarkerMode = getMarkerMode();
     drawnMarkerList = list;
 
-    spotMarkers.forEach(
-        function (spotMarker) {
-            spotMarker.remove();
-        }
-    );
+    spotMarkers.forEach(function (spotMarker) {
+        spotMarker.remove();
+    });
 
-    spotMarkers = [];
+spotMarkers = [];
 
-    const zoom =
-        map.getZoom();
+// 3Dレイヤーにも古いマーカーを残さない
+pin3DLayer.setMarkers([]);
+
+const zoom = map.getZoom();
+
+
+    // drawnMarkerMode = getMarkerMode();
+    // drawnMarkerList = list;
+
+    // spotMarkers.forEach(
+    //     function (spotMarker) {
+    //         spotMarker.remove();
+    //     }
+    // );
+
+    // spotMarkers = [];
+
+    // const zoom =
+    //     map.getZoom();
 
 
     // =====================================================
     // ズーム10以下はスポットをまとめて表示
     // =====================================================
-    if (zoom <= 10) {
-        clusterSpots(list).forEach(
-            function (group) {
-                const marker =
-                    group.length === 1
-                        ? createSingleDotMarker(group[0])
-                        : createClusterMarker(group);
+if (zoom <= 10) {
+    clusterSpots(list).forEach(function (group) {
+        const marker =
+            group.length === 1
+                ? createSingleDotMarker(group[0])
+                : createClusterMarker(group);
 
-                if (marker) {
-                    spotMarkers.push(marker);
-                }
-            }
-        );
+        if (marker) {
+            spotMarkers.push(marker);
+        }
+    });
 
-        return;
-    }
+    pin3DLayer.setMarkers(spotMarkers);
+
+    return;
+}
 
 
     // =====================================================
@@ -1920,6 +2403,11 @@ function drawMarkers(list) {
                 .dataset
                 .spotId =
                     String(data.id);
+            
+            spotMarker
+              .getElement()
+               .dataset
+                 .pinColor = titleColor;
 
 
             if (
@@ -1944,6 +2432,8 @@ function drawMarkers(list) {
             );
         }
     );
+    // 生成した個別マーカーを3Dレイヤーと同期する
+pin3DLayer.setMarkers(spotMarkers);
 }
 
 
@@ -2449,6 +2939,7 @@ window.toggleView =
             );
 
             is3D = true;
+            pin3DLayer.refreshVisibility(true);
         } else {
             map.touchPitch.disable();
 
@@ -2471,6 +2962,7 @@ window.toggleView =
             );
 
             is3D = false;
+            pin3DLayer.refreshVisibility(true);
         }
     };
 
