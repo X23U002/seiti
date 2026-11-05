@@ -55,21 +55,35 @@ test("作品で絞り込む時に、何期の何話か（劇場版なども）�
     await expect(pins(page)).toHaveCount(SPOTS.length);
 });
 
-test("聖地の詳細の話の札（EP6 など）を押すと、その作品のその話の聖地だけにする", async ({ page }) => {
+test("聖地の詳細の話の札（EP6 など）を押すと、作品ページでその話の聖地の一覧を出す", async ({ page }) => {
     const AOBUTA = "青春ブタ野郎はバニーガール先輩の夢を見ない";
     const spot = spotNamed("御所ヶ谷公園");
-    const ep3 = ["御所ヶ谷公園", "藤沢駅北口 黄金の像前\n", "七里ヶ浜海岸"].map((name) => SPOTS.find((item) => item.spot_name === name).id).sort();
+    const ep3 = ["御所ヶ谷公園", "藤沢駅北口 黄金の像前", "七里ヶ浜海岸"];
+    const all = SPOTS.filter((item) => item.title_name === AOBUTA).length;
     await seed(page);
     await page.goto("html/map.html?spot=" + spot.id);
-    const badge = page.locator(".popup-meta .popup-ep-filter");
+    const badge = page.locator(".popup-meta .popup-ep-link");
     await expect(badge).toHaveText("1期 EP3");
     await badge.click();
 
-    await expect(pins(page)).toHaveCount(ep3.length);
-    const shown = await pins(page).evaluateAll((list) => list.map((pin) => pin.dataset.spotId).sort());
-    expect(shown).toEqual(ep3);
-    await expect(page.locator("#filter-chips .filter-chip")).toHaveText([`${AOBUTA}1期 EP3×`]);
-    await expect(page.locator("#toast")).toContainText("1期 EP3の聖地（3か所）で絞り込みました");
+    // 作品ページに移り、1期 EP3 の聖地だけを出す（地図は絞り込まない）
+    await expect(page).toHaveURL(/work\.html\?title=.*&ep=1-3#work-spots-section$/);
+    await expect(page.locator("#work-title")).toHaveText(AOBUTA);
+    const spots = page.locator("#work-spots .work-spot h3");
+    await expect(spots).toHaveCount(ep3.length);
+    expect((await spots.allTextContents()).map((name) => name.trim()).sort()).toEqual(ep3.slice().sort());
+    await expect(page.locator("#work-spots-note")).toHaveText("（1期 EP3）");
+    await expect(page.locator(".work-episode[aria-pressed=true]")).toHaveText("1期 EP3（3）");
+    await expect(page.locator("#work-spots-section")).toBeInViewport();
+
+    // 別の話・すべてに切りかえられる（アドレスも合わせる）
+    await page.locator(".work-episode", { hasText: "劇場版" }).click();
+    await expect(spots).toHaveCount(2);
+    await expect(page).toHaveURL(/ep=%E5%8A%87%E5%A0%B4%E7%89%88/);
+    await page.locator(".work-episode", { hasText: "すべて" }).click();
+    await expect(spots).toHaveCount(all);
+    await expect(page.locator("#work-spots-note")).toHaveText("（話数の順）");
+    expect(new URL(page.url()).searchParams.has("ep")).toBe(false);
 });
 
 test("地図の文字（地名・ボタンの説明）は日本語", async ({ page }) => {

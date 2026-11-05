@@ -4,12 +4,26 @@
 // 「地図で見る」「このルートで巡る」は地図画面を開いて、その状態にする
 // ==========================================
 import { getTitleColor, getTitleName } from "./title-colors.js?v=5c634da9";
-import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=9a2ff22f";
+import { compareEpisodeKeys, formatEpisodeKey, getSpotEpisodeKey, getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=9a2ff22f";
 import { getSpotImageSrc } from "./spot-image.js?v=59165daf";
 import { courseDistance, formatCourseLength } from "./course.js?v=5729311e";
 import { loadCourses, loadMyStampCounts, loadSpots, loadWorkDescriptions, readCachedSpots } from "./public-data.js?v=0ba43cde";
 
 const title = new URLSearchParams(location.search).get("title") || "";
+
+// 聖地一覧で選んでいる話（episode.js の getSpotEpisodeKey。null ならすべて）
+// 地図の聖地の詳細の話の札から来た時は work.html?title=…&ep=1-3 で選んだ状態にする
+// （話数の分からない聖地は ep=- ）
+const EP_UNKNOWN = "-";
+let selectedEpisode = (function () {
+    const ep = new URLSearchParams(location.search).get("ep");
+    if (ep === null) return null;
+    return ep === EP_UNKNOWN ? "" : ep;
+})();
+
+// 話を選び直した時に、一覧を作り直すための今のデータ
+let shownSpots = [];
+let shownStampCounts = null;
 
 function showNotice(icon, text, link) {
     const notice = document.getElementById("work-notice");
@@ -137,11 +151,70 @@ function renderRoutes(courses, spotById) {
     });
 }
 
+// 話の札（「すべて」「1期 EP1（2）」…）。話が2つ以上分かる作品だけ出す
+function renderEpisodeChips(spots) {
+    const area = document.getElementById("work-episodes");
+    const counts = {};
+    spots.forEach(function (spot) {
+        const key = getSpotEpisodeKey(spot);
+        counts[key] = (counts[key] || 0) + 1;
+    });
+    const keys = Object.keys(counts).sort(compareEpisodeKeys);
+
+    // 選んでいた話がもう無ければ、すべてに戻す
+    if (selectedEpisode !== null && !counts[selectedEpisode]) selectedEpisode = null;
+
+    area.innerHTML = "";
+    area.hidden = keys.filter(function (key) { return key !== ""; }).length < 2;
+    if (area.hidden) {
+        selectedEpisode = null;
+        return;
+    }
+
+    const addChip = function (key, label) {
+        const chip = el("button", "work-episode", label);
+        chip.type = "button";
+        chip.setAttribute("aria-pressed", String(key === selectedEpisode));
+        chip.addEventListener("click", function () {
+            selectEpisode(key);
+        });
+        area.appendChild(chip);
+    };
+
+    addChip(null, "すべて（" + spots.length + "）");
+    keys.forEach(function (key) {
+        addChip(key, formatEpisodeKey(key) + "（" + counts[key] + "）");
+    });
+}
+
+// 話を選び直す（アドレスも合わせて、戻る・共有でも同じ表示にする）
+function selectEpisode(key) {
+    selectedEpisode = key;
+    const params = new URLSearchParams(location.search);
+    if (key === null) {
+        params.delete("ep");
+    } else {
+        params.set("ep", key === "" ? EP_UNKNOWN : key);
+    }
+    history.replaceState(null, "", "?" + params.toString() + "#work-spots-section");
+    renderSpots(shownSpots, shownStampCounts);
+}
+
 function renderSpots(spots, stampCounts) {
+    shownSpots = spots;
+    shownStampCounts = stampCounts;
+    renderEpisodeChips(spots);
+
     const list = document.getElementById("work-spots");
     list.innerHTML = "";
 
-    spots.slice().sort(compareEpisode).forEach(function (spot) {
+    document.getElementById("work-spots-note").textContent = selectedEpisode === null
+        ? "（話数の順）"
+        : "（" + formatEpisodeKey(selectedEpisode) + "）";
+
+    spots.slice().sort(compareEpisode).filter(function (spot) {
+        return selectedEpisode === null || getSpotEpisodeKey(spot) === selectedEpisode;
+    }).forEach(function (spot) {
         const li = el("li", "card work-spot");
 
         const imageSrc = getSpotImageSrc(spot.image_url);
@@ -225,4 +298,9 @@ function render(allSpots, courses, stampCounts) {
     }
 
     render(spots, courses, counts);
+
+    // 地図の話の札から来た時は、聖地一覧まで送る
+    if (location.hash === "#work-spots-section") {
+        document.getElementById("work-spots-section").scrollIntoView({ block: "start" });
+    }
 })();

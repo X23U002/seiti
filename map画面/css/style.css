@@ -1769,14 +1769,13 @@ body {
     white-space: nowrap;
 }
 
-/* 押すと、その作品のその話で絞り込む */
-.popup-ep-filter {
-    cursor: pointer;
-    font-family: inherit;
+/* 押すと、作品ページでその話の聖地の一覧を出す */
+.popup-ep-link {
+    text-decoration: none;
 }
 
-.popup-ep-filter:hover,
-.popup-ep-filter:focus-visible {
+.popup-ep-link:hover,
+.popup-ep-link:focus-visible {
     transform: none;
     background: #0b3c5d;
     color: white;

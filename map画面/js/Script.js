@@ -194,6 +194,48 @@ import("./walker.js?v=27d32a9f")
 
 
 // =========================================================
+// 3D表示の時の立体のピン（pin-3d-layer.js・models/Pin.glb）
+// 3D表示でズーム11以上の時は、聖地のピンを立体のピンにする（押すと回って詳細が開く）
+// three.js を読み込めなくても地図は使えるよう、別に読み込む（読めなければ今のピンのまま）
+// =========================================================
+let pin3DLayer = null;
+
+import("./pin-3d-layer.js?v=3b5816aa")
+    .then(function (module) {
+        pin3DLayer = module.createGLBPinLayer(map, {
+            modelUrl: new URL("../models/Pin.glb", import.meta.url).href,
+            is3D: function () {
+                return is3D;
+            },
+            targetHeightPx: 42
+        });
+        pin3DLayer.setMarkers(spotMarkers);
+        pin3DLayer.refreshVisibility();
+    })
+    .catch(function (error) {
+        console.warn(
+            "立体のピンを表示できませんでした（今のピンで表示します）:",
+            error
+        );
+    });
+
+// 立体のピンを押した時・ズームや移動で見え方が変わった時
+map.on("click", function (event) {
+    if (pin3DLayer) {
+        pin3DLayer.handleClick(event.point);
+    }
+});
+
+["zoom", "moveend", "style.load"].forEach(function (type) {
+    map.on(type, function () {
+        if (pin3DLayer) {
+            pin3DLayer.refreshVisibility();
+        }
+    });
+});
+
+
+// =========================================================
 // 3. データの取得
 // =========================================================
 // 作品名が無いスポットは「その他」として扱う
@@ -968,8 +1010,8 @@ function goToSpot(spotId) {
 }
 
 
-// asButton：押すと、その作品のその話で地図を絞り込む（聖地の詳細の札）
-function getEpisodeBadgeHTML(spot, asButton) {
+// asLink：押すと作品ページを開き、その話の聖地の一覧を出す（聖地の詳細の札）
+function getEpisodeBadgeHTML(spot, asLink) {
     const label =
         getSpotEpisodeLabel(spot);
 
@@ -977,9 +1019,14 @@ function getEpisodeBadgeHTML(spot, asButton) {
         return "";
     }
 
-    if (asButton) {
-        return `<button type="button" class="popup-ep popup-ep-filter" data-spot-id="${escapeHTML(String(spot.id))}"
-            title="「${escapeHTML(getTitleName(spot))}」の${escapeHTML(label)}の聖地で絞り込む">${escapeHTML(label)}</button>`;
+    if (asLink) {
+        const title = getTitleName(spot);
+        const href =
+            "work.html?title=" + encodeURIComponent(title) +
+            "&ep=" + encodeURIComponent(getSpotEpisodeKey(spot)) +
+            "#work-spots-section";
+        return `<a class="popup-ep popup-ep-link" href="${escapeHTML(href)}"
+            title="「${escapeHTML(title)}」の${escapeHTML(label)}の聖地を作品ページで見る">${escapeHTML(label)}</a>`;
     }
 
     return `<span class="popup-ep">${escapeHTML(label)}</span>`;
@@ -1854,6 +1901,11 @@ function drawMarkers(list) {
             }
         );
 
+        // まとめて表示している間は、立体のピンは出さない
+        if (pin3DLayer) {
+            pin3DLayer.setMarkers(spotMarkers);
+        }
+
         return;
     }
 
@@ -2076,6 +2128,13 @@ function drawMarkers(list) {
                 .spotId =
                     String(data.id);
 
+            // 立体のピンの色（作品の色）
+            spotMarker
+                .getElement()
+                .dataset
+                .pinColor =
+                    titleColor;
+
             if (!droppedPinIds.has(String(data.id))) {
                 droppedPinIds.add(String(data.id));
                 const element = spotMarker.getElement();
@@ -2119,6 +2178,11 @@ function drawMarkers(list) {
     );
 
     showRouteOrderOnMarkers();
+
+    // 3D表示の時の立体のピンにも、今のピンを渡す
+    if (pin3DLayer) {
+        pin3DLayer.setMarkers(spotMarkers);
+    }
 }
 
 // ルート案内に入れた聖地のピンに、回る順番の番号を出す（入れかえ・削除のたびに付け直す）
@@ -2660,6 +2724,10 @@ window.toggleView =
             );
 
             is3D = true;
+
+            if (pin3DLayer) {
+                pin3DLayer.refreshVisibility();
+            }
         } else {
             map.touchPitch.disable();
 
@@ -2682,6 +2750,10 @@ window.toggleView =
             );
 
             is3D = false;
+
+            if (pin3DLayer) {
+                pin3DLayer.refreshVisibility();
+            }
         }
     };
 
@@ -3247,34 +3319,6 @@ function fitFilteredSpots() {
         })
     );
 }
-
-// 聖地の詳細の話の札（「EP6」など）を押すと、その作品のその話の聖地だけにする
-document.addEventListener(
-    "click",
-    function (event) {
-        const badge = event.target.closest(".popup-ep-filter[data-spot-id]");
-        if (!badge) {
-            return;
-        }
-
-        const spot = findSpot(badge.dataset.spotId);
-        if (!spot) {
-            return;
-        }
-
-        const title = getTitleName(spot);
-        activeFilter.titles = [title];
-        activeFilter.episodes = {};
-        activeFilter.episodes[title] = [getSpotEpisodeKey(spot)];
-        activeFilter.keyword = "";
-        applyActiveFilter();
-        fitFilteredSpots();
-
-        window.showToast(
-            `「${title}」の${getSpotEpisodeLabel(spot)}の聖地（${currentSpots.length}か所）で絞り込みました`
-        );
-    }
-);
 
 // =========================================================
 // 絞り込みリセット
