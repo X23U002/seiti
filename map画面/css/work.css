@@ -207,6 +207,41 @@
     margin-top: 24px;
 }
 
+/* 話で絞り込む札 */
+.work-episodes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 12px;
+}
+
+.work-episodes[hidden] {
+    display: none;
+}
+
+.work-episode {
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 17px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.work-episode[aria-pressed="true"] {
+    border-color: var(--work-color, var(--color-primary));
+    background: var(--work-color, var(--color-primary));
+    color: #fff;
+    font-weight: bold;
+}
+
+#work-spots-section {
+    scroll-margin-top: 72px;
+}
+
 .work-section-title {
     margin: 0 0 10px;
     font-size: 16px;

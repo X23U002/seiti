@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>作品 - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css?v=c79053d9">
-    <link rel="stylesheet" href="../css/work.css?v=f13315d6">
+    <link rel="stylesheet" href="../css/work.css?v=60361a68">
 </head>
 <body>
 
@@ -47,14 +47,16 @@
             </section>
 
             <!-- 聖地一覧（何期の何話の順） -->
-            <section class="work-section">
-                <h2 class="work-section-title">聖地一覧 <span class="work-section-note">（話数の順）</span></h2>
+            <section class="work-section" id="work-spots-section">
+                <h2 class="work-section-title">聖地一覧 <span class="work-section-note" id="work-spots-note">（話数の順）</span></h2>
+                <!-- 話で絞り込む（押した話の聖地だけを出す） -->
+                <div class="work-episodes" id="work-episodes" role="group" aria-label="話で絞り込む" hidden></div>
                 <ul class="work-spots" id="work-spots"></ul>
             </section>
         </div>
     </main>
 
     <script src="../js/common.js?v=bdcf06ca"></script>
-    <script type="module" src="../js/work.js?v=2219febe"></script>
+    <script type="module" src="../js/work.js?v=83cf6397"></script>
 </body>
 </html>

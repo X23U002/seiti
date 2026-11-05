@@ -968,8 +968,8 @@ function goToSpot(spotId) {
 }
 
 
-// asButton：押すと、その作品のその話で地図を絞り込む（聖地の詳細の札）
-function getEpisodeBadgeHTML(spot, asButton) {
+// asLink：押すと作品ページを開き、その話の聖地の一覧を出す（聖地の詳細の札）
+function getEpisodeBadgeHTML(spot, asLink) {
     const label =
         getSpotEpisodeLabel(spot);
 
@@ -977,9 +977,14 @@ function getEpisodeBadgeHTML(spot, asButton) {
         return "";
     }
 
-    if (asButton) {
-        return `<button type="button" class="popup-ep popup-ep-filter" data-spot-id="${escapeHTML(String(spot.id))}"
-            title="「${escapeHTML(getTitleName(spot))}」の${escapeHTML(label)}の聖地で絞り込む">${escapeHTML(label)}</button>`;
+    if (asLink) {
+        const title = getTitleName(spot);
+        const href =
+            "work.html?title=" + encodeURIComponent(title) +
+            "&ep=" + encodeURIComponent(getSpotEpisodeKey(spot)) +
+            "#work-spots-section";
+        return `<a class="popup-ep popup-ep-link" href="${escapeHTML(href)}"
+            title="「${escapeHTML(title)}」の${escapeHTML(label)}の聖地を作品ページで見る">${escapeHTML(label)}</a>`;
     }
 
     return `<span class="popup-ep">${escapeHTML(label)}</span>`;
@@ -3247,34 +3252,6 @@ function fitFilteredSpots() {
         })
     );
 }
-
-// 聖地の詳細の話の札（「EP6」など）を押すと、その作品のその話の聖地だけにする
-document.addEventListener(
-    "click",
-    function (event) {
-        const badge = event.target.closest(".popup-ep-filter[data-spot-id]");
-        if (!badge) {
-            return;
-        }
-
-        const spot = findSpot(badge.dataset.spotId);
-        if (!spot) {
-            return;
-        }
-
-        const title = getTitleName(spot);
-        activeFilter.titles = [title];
-        activeFilter.episodes = {};
-        activeFilter.episodes[title] = [getSpotEpisodeKey(spot)];
-        activeFilter.keyword = "";
-        applyActiveFilter();
-        fitFilteredSpots();
-
-        window.showToast(
-            `「${title}」の${getSpotEpisodeLabel(spot)}の聖地（${currentSpots.length}か所）で絞り込みました`
-        );
-    }
-);
 
 // =========================================================
 // 絞り込みリセット
