@@ -3544,9 +3544,9 @@ window.removeSpotFromRoute =
                 index,
                 1
             );
-            // 道に沿ったルートを出している時は、残りの聖地で作り直す（1か所になったら解除）
+            // 道に沿ったルートを出している時は、残りの聖地で作り直す（無くなったら解除）
             if (isMapboxRouteActive) {
-                if (selectedSpots.length >= 2) {
+                if (selectedSpots.length >= 1) {
                     generateMapboxRoute();
                 } else {
                     unsetMapboxRoute(false);
@@ -3779,7 +3779,7 @@ function updateRouteList() {
 const TRANSIT_SUGGEST_METERS = 2000;
 
 // 「地図上にルートを生成」で Mapbox から返ってきた、区間ごとの実際の道のりと時間
-// キーは「前の聖地のID>次の聖地のID」、値は { distance: メートル, duration: 秒 }
+// キーは「前の聖地のID>次の聖地のID」（現在地からの区間は「current>次の聖地のID」）、値は { distance: メートル, duration: 秒 }
 // （ルートを解除したら消す。並べ替えて区間が変わったら、その区間は目安に戻る）
 const mapboxRouteLegs = new Map();
 
@@ -3791,7 +3791,7 @@ function routeLegColor(index) {
 }
 
 function routeLegKey(from, to) {
-    return String(from.id) + ">" + String(to.id);
+    return (from ? String(from.id) : "current") + ">" + String(to.id);
 }
 
 // 「57分」「1時間」「27時間48分」（1時間以上は時間と分で出す）
@@ -3878,8 +3878,20 @@ function createRouteLeg(from, to) {
             `徒歩 ${walk.distanceText}・${walk.timeText}` +
             (notes.length > 0 ? "（" + notes.join("・") + "）" : "");
     } else {
-        info.textContent =
-            "現在地から";
+        // 現在地から生成したルートなら、その道のりと時間も出す
+        const actual =
+            mapboxRouteLegs.get(routeLegKey(null, to));
+
+        if (actual) {
+            const walk = formatWalk(actual.distance, actual.duration / 60);
+            leg.classList.add("has-route-color");
+            leg.style.setProperty("--leg-color", actual.color);
+            info.textContent =
+                `現在地から 徒歩 ${walk.distanceText}・${walk.timeText}`;
+        } else {
+            info.textContent =
+                "現在地から";
+        }
     }
 
     const transit =
@@ -4649,15 +4661,40 @@ async function fetchWalkingRoute(coordinates, withSteps) {
     return response.json();
 }
 
+// 現在地から歩くルートにする距離の上限（これより1か所目が遠ければ、1か所目から作る）
+const ROUTE_ORIGIN_MAX_METERS = 20000;
+
+// ルートの出発地にする現在地（取れなければ null。地図の現在地ボタンで取った位置を先に使う）
+function getRouteOrigin() {
+    const last = geolocate && geolocate._lastKnownPosition;
+    if (last && last.coords) {
+        return Promise.resolve({ latitude: last.coords.latitude, longitude: last.coords.longitude });
+    }
+    if (!navigator.geolocation) {
+        return Promise.resolve(null);
+    }
+    return new Promise(function (resolve) {
+        navigator.geolocation.getCurrentPosition(
+            function (position) {
+                resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+            },
+            function () {
+                resolve(null);
+            },
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+        );
+    });
+}
+
 // Mapbox Directions APIでルートを生成
 async function generateMapboxRoute() {
     const button = document.getElementById(
         "generate-mapbox-route"
     );
 
-    if (selectedSpots.length < 2) {
+    if (selectedSpots.length === 0) {
         window.showToast(
-            "ルート生成には2か所以上のスポットが必要です",
+            "行きたい場所を追加してください",
             "error"
         );
         return;
@@ -4691,6 +4728,34 @@ async function generateMapboxRoute() {
     button.textContent = "ルート生成中…";
 
     try {
+        // 現在地から歩くルートにする（取れない・1か所目から遠すぎる時は、1か所目から作る）
+        const position = await getRouteOrigin();
+        if (request !== mapboxRouteRequest) {
+            return;
+        }
+        const origin =
+            position &&
+            getDistanceMeters(position, routeSpots[0]) <= ROUTE_ORIGIN_MAX_METERS
+                ? { id: "current", name: "現在地", latitude: position.latitude, longitude: position.longitude }
+                : null;
+
+        if (!origin && routeSpots.length < 2) {
+            // 前に作ったルートが出ていれば消す（消した聖地を通るルートを残さない）
+            if (isMapboxRouteActive) {
+                unsetMapboxRoute(false);
+            }
+            window.showToast(
+                position
+                    ? "現在地から遠いため、ルートを作れません。2か所以上追加してください"
+                    : "現在地を取得できないため、ルートを作れません。2か所以上追加してください",
+                "error"
+            );
+            return;
+        }
+
+        // 回る地点（現在地 → 1か所目 → 2か所目…）
+        const routePoints = origin ? [origin].concat(routeSpots) : routeSpots;
+
         // 地図のスタイル読み込みが終わるまで待つ
         if (!map.isStyleLoaded()) {
             await new Promise(function (resolve) {
@@ -4702,7 +4767,7 @@ async function generateMapboxRoute() {
 
         // ルート案内リストの順番をそのまま使用
         // Mapboxの座標形式は「経度,緯度」
-        const coordinates = routeSpots.map(function (spot) {
+        const coordinates = routePoints.map(function (spot) {
             return `${spot.longitude},${spot.latitude}`;
         }).join(";");
 
@@ -4784,9 +4849,10 @@ async function generateMapboxRoute() {
         // 区間ごとの道のりと時間を、ルート案内の区間の表示に使う
         mapboxRouteLegs.clear();
         (route.legs || []).forEach(function (leg, index) {
-            const from = routeSpots[index];
-            const to = routeSpots[index + 1];
-            if (from && to) {
+            // 現在地からの区間は from を null にする（ルート案内の「現在地から」の区間）
+            const from = origin && index === 0 ? null : routePoints[index];
+            const to = routePoints[index + 1];
+            if (to) {
                 mapboxRouteLegs.set(routeLegKey(from, to), {
                     distance: leg.distance,
                     duration: leg.duration,
@@ -4799,7 +4865,7 @@ async function generateMapboxRoute() {
         const distanceKm = (route.distance / 1000).toFixed(1);
 
         window.showToast(
-            `ルートを生成しました（約${distanceKm}km・徒歩約${formatMinutes(route.duration / 60)}）` +
+            `${origin ? "現在地からの" : ""}ルートを生成しました（約${distanceKm}km・徒歩約${formatMinutes(route.duration / 60)}）` +
             (usesFerry ? "。歩いて渡れない所があるため、船の区間を含みます" : "")
         );
 
