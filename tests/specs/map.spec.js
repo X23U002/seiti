@@ -97,6 +97,34 @@ test("地図の文字（地名・ボタンの説明）は日本語", async ({ pa
     await expect(page.locator(".mapboxgl-ctrl-geocoder--button")).toHaveAttribute("aria-label", "入力を消す");
 });
 
+test("軽くする：聖地の画像は詳細を開くまで読まない。3D表示の部品（three.js・キャラクター）は3Dにするまで読まない", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    const station = spotNamed("京阪宇治駅");
+    const data = withSpots();
+    data.spot[bridge.id].image_url = "images/spots/eupho/eupho_s0701.jpg";
+    data.spot[station.id].image_url = "images/spots/eupho/eupho_s0702.jpg";
+    const requests = [];
+    page.on("request", (request) => requests.push(request.url()));
+    await seed(page, { data });
+    await page.goto("html/map.html");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+    await page.waitForTimeout(500);
+    expect(requests.filter((url) => url.includes("/images/spots/"))).toEqual([]);
+    expect(requests.filter((url) => /three|walker\.js|pin-3d-layer|walking/.test(url))).toEqual([]);
+
+    // 詳細を開くと、その聖地の画像だけ読む
+    await page.goto("html/map.html?spot=" + bridge.id);
+    await expect(page.locator(".popup-card .popup-image img")).toHaveAttribute("src", /eupho_s0701/);
+    await page.waitForTimeout(300);
+    const images = requests.filter((url) => url.includes("/images/spots/"));
+    expect(images.length).toBeGreaterThan(0);
+    expect(images.every((url) => url.includes("eupho_s0701"))).toBe(true);
+
+    // 3D表示にすると読み込みを始める（スマホの幅では詳細を開いている間ボタンが隠れるので、直接切りかえる）
+    await page.evaluate(() => window.toggleView());
+    await expect.poll(() => requests.filter((url) => /walker\.js|pin-3d-layer/.test(url)).length).toBe(2);
+});
+
 test("Firestore の通信が止められても、Web API から聖地を読む", async ({ page, restCalls }) => {
     await seed(page, { local: { mockFsHang: "1" } });
     await page.goto("html/map.html");
