@@ -17,6 +17,12 @@ const ROTATION_RADIANS = Math.PI * 4;
 const DEFAULT_HEIGHT_PX = 48;
 const DEFAULT_YAW_DEGREES = 20;
 
+// 詳細を開いているピンの強調（2D表示の .is-selected と同じ見せ方。style.css）
+// ・ピンを大きくする・手前に描く・足元に広がる輪を出す・ほかのピンを薄くする
+const SELECTED_SCALE = 1.45;
+const DIMMED_OPACITY = 0.45;
+const RING_PULSE_MS = 1600;
+
 export function createGLBPinLayer(map, options = {}) {
     if (!map || typeof map.getContainer !== "function") {
         throw new TypeError("createGLBPinLayerには初期化済みのMapbox mapが必要です。");
@@ -134,7 +140,9 @@ export function createGLBPinLayer(map, options = {}) {
                 color: isBody ? (colour || "#0b3c5d") : "#ffffff",
                 roughness: isBody ? 0.38 : 0.5,
                 metalness: isBody ? 0.03 : 0,
-                side: THREE.DoubleSide
+                side: THREE.DoubleSide,
+                // ほかのピンの詳細を開いている間は薄くする
+                transparent: true
             });
             object.material = material;
             object.castShadow = false;
@@ -182,7 +190,25 @@ export function createGLBPinLayer(map, options = {}) {
         scaleRoot.add(visual);
         spin.add(scaleRoot);
         facing.add(spin);
-        anchor.add(facing);
+
+        // 詳細を開いている時に、ピンの先（地面）に広がる輪（横長の楕円にして地面に置いたように見せる）
+        const ringMaterial = new THREE.MeshBasicMaterial({
+            color: "#0b3c5d",
+            transparent: true,
+            depthTest: false
+        });
+        const ring = new THREE.Mesh(
+            new THREE.RingGeometry(12, 15, 40),
+            ringMaterial
+        );
+        ring.scale.set(1, 0.4, 1);
+        ring.visible = false;
+        ring.renderOrder = -1;
+
+        const emphasis = new THREE.Group();
+        emphasis.add(facing);
+        anchor.add(ring);
+        anchor.add(emphasis);
         scene.add(anchor);
 
         return {
@@ -190,7 +216,11 @@ export function createGLBPinLayer(map, options = {}) {
             anchor,
             facing,
             spin,
-            ownedMaterials,
+            emphasis,
+            ring,
+            ownedMaterials: ownedMaterials.concat(ringMaterial),
+            pinMaterials: ownedMaterials,
+            scale: 1,
             animationStart: null,
             spotId: String(spotId)
         };
@@ -254,6 +284,14 @@ export function createGLBPinLayer(map, options = {}) {
         const width = lastWidth;
         const height = lastHeight;
 
+        // 詳細を開いているピン（Script.js が元のピンに is-selected を付ける）
+        const isSelected = (model) => Boolean(model.marker.getElement()?.classList.contains("is-selected"));
+        let anySelected = false;
+        models.forEach((model) => {
+            if (isSelected(model)) anySelected = true;
+        });
+        const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
         models.forEach((model) => {
             const lngLat = model.marker.getLngLat();
             const point = map.project(lngLat);
@@ -268,6 +306,35 @@ export function createGLBPinLayer(map, options = {}) {
 
             // Slight yaw reveals the model's actual side thickness while keeping its face readable.
             model.facing.rotation.y = yawRadians;
+
+            // 詳細を開いているピンを強調する（大きく・手前に・足元に輪）。ほかのピンは薄くする
+            const selected = isSelected(model);
+            const targetScale = selected ? SELECTED_SCALE : 1;
+            model.scale = reduceMotion
+                ? targetScale
+                : model.scale + (targetScale - model.scale) * 0.25;
+            if (Math.abs(model.scale - targetScale) < 0.01) {
+                model.scale = targetScale;
+            } else {
+                animating = true;
+            }
+            model.emphasis.scale.setScalar(model.scale);
+            model.anchor.position.z = selected ? 500 : 0;
+
+            const opacity = anySelected && !selected ? DIMMED_OPACITY : 1;
+            model.pinMaterials.forEach((material) => {
+                material.opacity = opacity;
+            });
+
+            model.ring.visible = selected;
+            if (selected) {
+                // 輪は広がりながら薄くなるのを繰り返す（動きを減らす設定の人には止めて出す）
+                const phase = reduceMotion ? 0.3 : (now % RING_PULSE_MS) / RING_PULSE_MS;
+                const ringScale = 0.6 + phase * 1.6;
+                model.ring.scale.set(ringScale, ringScale * 0.4, 1);
+                model.ring.material.opacity = reduceMotion ? 0.9 : 0.95 * (1 - phase);
+                if (!reduceMotion) animating = true;
+            }
 
             if (model.animationStart !== null) {
                 const progress = Math.min(

@@ -175,22 +175,42 @@ map.addControl(
 window.geolocate = geolocate;
 
 // =========================================================
-// 現在地に歩く3Dキャラクターを表示（walker.js）
+// 3D表示の時だけ使うもの（現在地に歩く3Dキャラクター・立体のピン）
+// three.js とキャラクターのモデル（約10MB）は重いので、初めて3D表示にした時に読み込む
+// （2D表示のまま使う人は読み込まない。動作テストの map.html?walktest の時は最初から読み込む）
 // 読み込みに失敗しても地図は使えるよう、別に読み込む
 // =========================================================
-import("./walker.js?v=27d32a9f")
-    .then(function (walker) {
-        walker.initWalker(
-            map,
-            geolocate
-        );
-    })
-    .catch(function (error) {
-        console.warn(
-            "3Dキャラクターを表示できませんでした:",
-            error
-        );
-    });
+let threeDExtrasLoaded = false;
+
+function loadThreeDExtras() {
+    if (threeDExtrasLoaded) {
+        return;
+    }
+    threeDExtrasLoaded = true;
+    loadWalker();
+    loadPin3DLayer();
+}
+
+// 現在地に歩く3Dキャラクター（walker.js）
+function loadWalker() {
+    import("./walker.js?v=27d32a9f")
+        .then(function (walker) {
+            walker.initWalker(
+                map,
+                geolocate
+            );
+        })
+        .catch(function (error) {
+            console.warn(
+                "3Dキャラクターを表示できませんでした:",
+                error
+            );
+        });
+}
+
+if (new URLSearchParams(location.search).has("walktest")) {
+    loadThreeDExtras();
+}
 
 
 // =========================================================
@@ -200,24 +220,26 @@ import("./walker.js?v=27d32a9f")
 // =========================================================
 let pin3DLayer = null;
 
-import("./pin-3d-layer.js?v=3b5816aa")
-    .then(function (module) {
-        pin3DLayer = module.createGLBPinLayer(map, {
-            modelUrl: new URL("../models/Pin.glb", import.meta.url).href,
-            is3D: function () {
-                return is3D;
-            },
-            targetHeightPx: 42
+function loadPin3DLayer() {
+    import("./pin-3d-layer.js?v=d9c36930")
+        .then(function (module) {
+            pin3DLayer = module.createGLBPinLayer(map, {
+                modelUrl: new URL("../models/Pin.glb", import.meta.url).href,
+                is3D: function () {
+                    return is3D;
+                },
+                targetHeightPx: 42
+            });
+            pin3DLayer.setMarkers(spotMarkers);
+            pin3DLayer.refreshVisibility();
+        })
+        .catch(function (error) {
+            console.warn(
+                "立体のピンを表示できませんでした（今のピンで表示します）:",
+                error
+            );
         });
-        pin3DLayer.setMarkers(spotMarkers);
-        pin3DLayer.refreshVisibility();
-    })
-    .catch(function (error) {
-        console.warn(
-            "立体のピンを表示できませんでした（今のピンで表示します）:",
-            error
-        );
-    });
+}
 
 // 立体のピンを押した時・ズームや移動で見え方が変わった時
 map.on("click", function (event) {
@@ -1577,19 +1599,35 @@ function setSelectedMarker(spotId, selected) {
         "has-selected",
         Boolean(document.querySelector(".mapboxgl-marker.is-selected"))
     );
+
+    // 3D表示の立体のピンも、同じように強調し直す（pin-3d-layer.js）
+    if (pin3DLayer) {
+        pin3DLayer.render();
+        map.triggerRepaint();
+    }
 }
 
-function createSpotPopup(html, data, longitude, latitude) {
+// buildHTML：詳細の中身を作る関数。全部のピンの詳細を先に作ると、
+// 登録した画像を全部読み込んでしまって重いので、初めて開いた時に作る
+function createSpotPopup(buildHTML, data, longitude, latitude) {
+    let built = false;
     const popup =
         new mapboxgl.Popup({
             offset: 25
         }).setHTML(
-            html
+            '<div class="popup-card"></div>'
         );
 
     popup.on(
         "open",
         function () {
+            if (!built) {
+                built = true;
+                popup.setHTML(
+                    buildHTML()
+                );
+            }
+
             // 閉じている間にルートやお気に入りが変わっていることがあるので合わせ直す
             syncRouteButtons(
                 popup.getElement()
@@ -1980,122 +2018,125 @@ function drawMarkers(list) {
                     : "";
 
 
-            // =============================================
-            // stampsyori.jsからスタンプ取得ボタンを受け取る
-            // =============================================
-            const stampHTML =
-                typeof window
-                    .getStampPopupHTML ===
-                "function"
+            // 詳細の中身は、初めて開いた時に作る（画像も開くまで読み込まない。createSpotPopup）
+            const buildPopupHTML = function () {
+                // =============================================
+                // stampsyori.jsからスタンプ取得ボタンを受け取る
+                // =============================================
+                const stampHTML =
+                    typeof window
+                        .getStampPopupHTML ===
+                    "function"
 
-                    ? window
-                        .getStampPopupHTML(
-                            data
-                        )
+                        ? window
+                            .getStampPopupHTML(
+                                data
+                            )
 
-                    : "";
+                        : "";
 
 
-            // =============================================
-            // ポップアップ
-            // =============================================
-            // ルートに追加済みなら、描き直した後も「追加済み」のままにする
-            const isInRoute =
-                selectedSpots.some(
-                    function (item) {
-                        return item.id === data.id;
-                    }
-                );
-            const popupHTML = `
-                <div class="popup-card">
+                // =============================================
+                // ポップアップ
+                // =============================================
+                // ルートに追加済みなら、描き直した後も「追加済み」のままにする
+                const isInRoute =
+                    selectedSpots.some(
+                        function (item) {
+                            return item.id === data.id;
+                        }
+                    );
+                return `
+                    <div class="popup-card">
 
-                    <div class="popup-meta">
-                        <a
-                            class="popup-title"
-                            style="background:${titleColor};"
-                            href="work.html?title=${encodeURIComponent(titleName)}"
-                            title="「${escapeHTML(titleName)}」の作品ページを開く"
-                        >
-                            ${escapeHTML(titleName)}
-                        </a>
-                        ${getEpisodeBadgeHTML(data, true)}
-                        <div class="popup-actions">
-                            <button
-                                type="button"
-                                class="popup-icon-btn popup-fav"
-                                data-spot-id="${escapeHTML(String(data.id))}"
-                                aria-pressed="${favoriteIds.has(String(data.id))}"
-                                aria-label="お気に入り"
-                                title="お気に入り"
+                        <div class="popup-meta">
+                            <a
+                                class="popup-title"
+                                style="background:${titleColor};"
+                                href="work.html?title=${encodeURIComponent(titleName)}"
+                                title="「${escapeHTML(titleName)}」の作品ページを開く"
                             >
-                                ${HEART_ICON}
-                            </button>
-                            <button
-                                type="button"
-                                class="popup-icon-btn popup-share"
-                                data-spot-id="${escapeHTML(String(data.id))}"
-                                aria-label="この聖地を共有"
-                                title="共有"
-                            >
-                                ${SHARE_ICON}
-                            </button>
+                                ${escapeHTML(titleName)}
+                            </a>
+                            ${getEpisodeBadgeHTML(data, true)}
+                            <div class="popup-actions">
+                                <button
+                                    type="button"
+                                    class="popup-icon-btn popup-fav"
+                                    data-spot-id="${escapeHTML(String(data.id))}"
+                                    aria-pressed="${favoriteIds.has(String(data.id))}"
+                                    aria-label="お気に入り"
+                                    title="お気に入り"
+                                >
+                                    ${HEART_ICON}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="popup-icon-btn popup-share"
+                                    data-spot-id="${escapeHTML(String(data.id))}"
+                                    aria-label="この聖地を共有"
+                                    title="共有"
+                                >
+                                    ${SHARE_ICON}
+                                </button>
+                            </div>
                         </div>
-                    </div>
 
-                    <h2 class="popup-spot">
-                        ${escapeHTML(spotName)}
-                    </h2>
+                        <h2 class="popup-spot">
+                            ${escapeHTML(spotName)}
+                        </h2>
 
-                    <div class="popup-section">
-                        <strong>
-                            登場シーン
-                        </strong>
+                        <div class="popup-section">
+                            <strong>
+                                登場シーン
+                            </strong>
 
-                        <p>
-                            ${escapeHTML(
-                                data.scene ||
-                                data.spot_info ||
-                                "情報がありません"
-                            )}
-                        </p>
-                    </div>
+                            <p>
+                                ${escapeHTML(
+                                    data.scene ||
+                                    data.spot_info ||
+                                    "情報がありません"
+                                )}
+                            </p>
+                        </div>
 
-                    ${imageSrc
-                        ? `<div class="popup-image">
-                            <img
-                                src="${escapeHTML(imageSrc)}"
-                                alt="スポット画像"
-                                onerror="this.parentNode.classList.add('no-image')"
+                        ${imageSrc
+                            ? `<div class="popup-image">
+                                <img
+                                    src="${escapeHTML(imageSrc)}"
+                                    alt="スポット画像"
+                                    onerror="this.parentNode.classList.add('no-image')"
+                                >
+                            </div>`
+                            : '<div class="popup-image no-image"></div>'}
+
+                        <!-- スタンプ取得ボタン -->
+                        ${stampHTML}
+
+                        <div class="popup-buttons">
+
+                            ${homeButtonHTML}
+
+                            <button
+                                type="button"
+                                id="route-btn-${data.id}"
+                                onclick="addSpotToRouteById('${data.id}')"
+                                ${isInRoute ? "disabled" : ""}
                             >
-                        </div>`
-                        : '<div class="popup-image no-image"></div>'}
+                                ${getRouteButtonHTML(isInRoute)}
+                            </button>
 
-                    <!-- スタンプ取得ボタン -->
-                    ${stampHTML}
+                        </div>
 
-                    <div class="popup-buttons">
+                        <!-- この作品のおすすめルート（開いた時に作る） -->
+                        <div class="popup-section popup-courses" data-spot-id="${escapeHTML(String(data.id))}" hidden></div>
 
-                        ${homeButtonHTML}
-
-                        <button
-                            type="button"
-                            id="route-btn-${data.id}"
-                            onclick="addSpotToRouteById('${data.id}')"
-                            ${isInRoute ? "disabled" : ""}
-                        >
-                            ${getRouteButtonHTML(isInRoute)}
-                        </button>
+                        <!-- 近くの聖地（開いた時に作る） -->
+                        <div class="popup-section popup-nearby" hidden></div>
 
                     </div>
-
-                    <!-- この作品のおすすめルート（開いた時に作る） -->
-                    <div class="popup-section popup-courses" data-spot-id="${escapeHTML(String(data.id))}" hidden></div>
-
-                    <!-- 近くの聖地（開いた時に作る） -->
-                    <div class="popup-section popup-nearby" hidden></div>
-
-                </div>
-            `;
+                `;
+            };
 
 
             const spotMarker =
@@ -2109,7 +2150,7 @@ function drawMarkers(list) {
                     ])
                     .setPopup(
                         createSpotPopup(
-                            popupHTML,
+                            buildPopupHTML,
                             data,
                             longitude,
                             latitude
@@ -2724,6 +2765,9 @@ window.toggleView =
             );
 
             is3D = true;
+
+            // 3D表示の時だけ使うもの（キャラクター・立体のピン）を、初めての時に読み込む
+            loadThreeDExtras();
 
             if (pin3DLayer) {
                 pin3DLayer.refreshVisibility();
