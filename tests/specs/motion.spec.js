@@ -62,10 +62,12 @@ test("ルートの線は、1番目の聖地から順に伸びていく", async (
         const source = window.__map.getSource("selected-spots-route");
         const result = [];
         const start = performance.now();
-        while (performance.now() - start < 2500) {
+        // 2区間とも出るまで（最長10秒）、毎フレーム記録する
+        while (performance.now() - start < 10000) {
             const features = source._data.features;
             result.push(features.length);
-            await new Promise((resolve) => setTimeout(resolve, 50));
+            if (features.length === 2) break;
+            await new Promise((resolve) => requestAnimationFrame(resolve));
         }
         return result;
     });
