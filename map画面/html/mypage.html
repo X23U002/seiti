@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="../css/common.css?v=c79053d9">
     <link rel="stylesheet" href="../css/tab-bar.css?v=77603899">
     <link rel="stylesheet" href="../css/stamp-rank.css?v=966a0ec6">
-    <link rel="stylesheet" href="../css/mypage.css?v=c6b5dfba">
+    <link rel="stylesheet" href="../css/mypage.css?v=333df5a9">
     <!-- アプリとして使う（ホーム画面に追加・オフライン。pwa.js） -->
     <link rel="manifest" href="../manifest.webmanifest">
     <meta name="theme-color" content="#0b3c5d">
@@ -54,6 +54,14 @@
                 <span class="stat-value"><strong id="progress-rate">—</strong>%</span>
                 <span class="stat-label">聖地の達成率</span>
             </div>
+        </section>
+
+        <!-- 実績・バッジ（スタンプの記録から決める。badges.js） -->
+        <section class="panel">
+            <div class="panel-head">
+                <h2>バッジ <span class="badge-count" id="badge-count"></span></h2>
+            </div>
+            <ul class="badge-list" id="badge-list"></ul>
         </section>
 
         <!-- 作品ごとの達成度 -->
@@ -171,10 +179,11 @@
     <script src="../js/common.js?v=bdcf06ca"></script>
     <script src="../js/tab-bar.js?v=48498a21"></script>
     <script src="../js/stamp-rank.js?v=c4ce732e"></script>
-    <script src="../js/mypage.js?v=c72d6269"></script>
+    <script src="../js/badges.js?v=5a082dfc"></script>
+    <script src="../js/mypage.js?v=278719c8"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
-        import { loadStampBook } from "../js/stamp-db.js?v=1e4afed3";
+        import { loadStampBook } from "../js/stamp-db.js?v=58a20739";
 
         loadStampBook().then(function (book) {
             renderRecord(book.stamps || [], book.stamps === null ? "guest" : "ready", book.summary);

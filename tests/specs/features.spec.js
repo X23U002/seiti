@@ -73,3 +73,23 @@ test.describe("ルート案内の聖地に近づいた時", () => {
         expect(await page.evaluate(() => window.__vibrations.length)).toBe(1);
     });
 });
+
+test("マイページに、スタンプの記録から決めたバッジを出す（まだのものは、あといくつか）", async ({ page }) => {
+    const [a, b, c] = ["京阪宇治駅", "宇治橋", "大吉山展望台"].map(spotNamed);
+    // 日本時間 2026/11/01 の 10時・11時・12時
+    const day = Date.UTC(2026, 10, 1, 1, 0, 0);
+    const mine = (spot, ms) => ({ user_id: { __ref: "user/uid2" }, spot_id: { __ref: "spot/" + spot.id }, time_stamp: { __ts: ms } });
+    await seed(page, {
+        user: "uid2",
+        data: withSpots({
+            user: { uid2: PROFILE("巡礼者", "p@x.jp") },
+            stamp: { t1: mine(a, day), t2: mine(b, day + 3600e3), t3: mine(c, day + 7200e3) }
+        })
+    });
+    await page.goto("html/mypage.html");
+    const earned = page.locator(".badge-item.is-earned .badge-name");
+    await expect(earned).toHaveText(["はじめの一歩", "巡礼の一日"]);
+    await expect(page.locator("#badge-count")).toHaveText("2 / 11");
+    await expect(page.locator(".badge-item", { hasText: "聖地ハンター" })).toContainText("あと 7");
+    await expect(page.locator(".badge-item", { hasText: "健脚" })).toContainText("あと 2");
+});
