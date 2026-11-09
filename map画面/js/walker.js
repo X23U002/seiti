@@ -45,12 +45,15 @@ const MAX_MOVE_DURATION_MS = 2000;
 // 体の向きを変える速さ（大きいほど素早く向く。8で約0.3秒）
 const TURN_SPEED = 8;
 
-// 歩き出す時に、足の動きが普通の速さになるまでの時間（秒）
+// 歩き出す時に、立ち姿から歩く姿へ切りかえる時間（秒）
 const WALK_START_SECONDS = 0.3;
 
-// 止まる時は、足がそろう瞬間まで足の動きをゆるめながら進めて止める。
-// ゆるめ始める残りの時間（アニメーションの秒。これより残りが少ないと遅くなる）
-const WALK_SETTLE_SECONDS = 0.35;
+// 止まる時に、歩く姿から立ち姿へ切りかえる時間（秒）。足の動きもゆるめながら切りかえる
+const WALK_STOP_SECONDS = 0.45;
+
+// 立ち姿で、モデル本来の姿勢（まっすぐ立った脚）にする骨
+// （歩くアニメーションのどのコマで止めても、片足が上がっていたり、足が開いていたりするため）
+const STAND_BONES = /(Hips|UpLeg|Leg|Foot|ToeBase)\.(quaternion|position)$/;
 
 const LAYER_ID = "walker-3d";
 
@@ -227,12 +230,10 @@ function createWalkerLayer(map) {
     let character = null;
     let mixer = null;
     let walkAction = null;
-    // 足がそろう瞬間（アニメーションの秒。止まる時にここで止める）
-    let standTimes = [];
-    // 足の動きの速さ（0〜1。歩き出しで少しずつ上げる）
-    let walkSpeed = 0;
-    // 止まる途中なら、足がそろうまでに進める残りの時間（秒）。止まる途中でなければ null
-    let settleRemaining = null;
+    // 立ち姿（1コマだけのアニメーション）
+    let standAction = null;
+    // 歩く姿の割合（0＝立ち姿、1＝歩く姿）。歩き出し・止まる時に少しずつ変える
+    let walkBlend = 0;
     let modelLoaded = false;
     let lastFrameTime = performance.now();
 
@@ -249,13 +250,29 @@ function createWalkerLayer(map) {
                 const clip = model.animations[0];
 
                 if (clip) {
+                    // モデル本来の姿勢（アニメーションを当てる前の骨の向き・位置）
+                    const bindPose = {};
+                    model.traverse(function (object) {
+                        if (object.isBone) {
+                            bindPose[object.name] = {
+                                quaternion: object.quaternion.toArray(),
+                                position: object.position.toArray()
+                            };
+                        }
+                    });
+
                     removeRootMotion(clip, model);
                     mixer = new THREE.AnimationMixer(model);
+
                     walkAction = mixer.clipAction(clip);
                     walkAction.play();
-                    walkAction.paused = true;
-                    standTimes = findStandTimes(clip);
-                    walkAction.time = standTimes[0];
+                    walkAction.setEffectiveWeight(0);
+
+                    standAction = mixer.clipAction(
+                        createStandClip(clip, findStandTimes(clip)[0], bindPose)
+                    );
+                    standAction.play();
+                    standAction.setEffectiveWeight(1);
                     mixer.update(0);
                 }
 
@@ -376,15 +393,19 @@ function createWalkerLayer(map) {
         return times.length > 0 ? times : fallback;
     }
 
-    // 今のアニメーションの時刻から、次に足がそろう瞬間までの時間（秒）
-    function timeToNextStand(time, duration) {
-        let best = Infinity;
-        standTimes.forEach(function (stand) {
-            let wait = stand - time;
-            while (wait < 0.001) wait += duration;
-            best = Math.min(best, wait);
+    // 立ち姿：上半身は歩くアニメーションの腕が体の横にある瞬間（足がそろう瞬間）、
+    // 腰と脚はモデル本来の姿勢（まっすぐ立った脚）にした1コマのアニメーション
+    function createStandClip(clip, time, bindPose) {
+        const tracks = clip.tracks.map(function (track) {
+            const boneName = track.name.replace(/\.(quaternion|position|scale)$/, "");
+            const property = track.name.slice(boneName.length + 1);
+            const bind = bindPose[boneName];
+            const values = STAND_BONES.test(track.name) && bind && bind[property]
+                ? bind[property]
+                : Array.from(track.createInterpolant().evaluate(time));
+            return new track.constructor(track.name, [0], values);
         });
-        return Number.isFinite(best) ? best : 0;
+        return new THREE.AnimationClip("stand", 0, tracks);
     }
 
     function removeRootMotion(clip, model) {
@@ -477,32 +498,25 @@ function createWalkerLayer(map) {
             if (!visible) {
                 return;
             }
-            // 移動中だけ歩くアニメーションを再生する
-            // ・歩き出しは足の動きを少しずつ速く
-            // ・止まる時はピタッと止めず、足の動きをゆるめながら足がそろう瞬間まで進めて止める
+            // 移動中は歩く姿、止まったら立ち姿。ピタッと切りかえず、少しずつ混ぜて切りかえる
+            // （止まる時は足の動きもゆるめながら、まっすぐ立った脚へ戻す）
             const step = Math.min(delta, 0.1);
-            if (!walkAction) {
-                // アニメーションの無いモデルは何もしない
-            } else if (moving) {
-                walkAction.paused = false;
-                settleRemaining = null;
-                walkSpeed = Math.min(1, walkSpeed + step / WALK_START_SECONDS);
-                mixer.update(step * (0.3 + 0.7 * walkSpeed));
-            } else if (!walkAction.paused) {
-                if (settleRemaining === null) {
-                    settleRemaining = timeToNextStand(walkAction.time, walkAction.getClip().duration);
-                }
-                const speed = Math.max(0.25, Math.min(1, settleRemaining / WALK_SETTLE_SECONDS));
-                const advance = Math.min(settleRemaining, step * speed);
-                mixer.update(advance);
-                settleRemaining -= advance;
-                if (settleRemaining <= 0.001) {
-                    walkAction.paused = true;
-                    settleRemaining = null;
-                    walkSpeed = 0;
+            let settling = false;
+            if (walkAction && standAction) {
+                walkBlend = moving
+                    ? Math.min(1, walkBlend + step / WALK_START_SECONDS)
+                    : Math.max(0, walkBlend - step / WALK_STOP_SECONDS);
+                settling = !moving && walkBlend > 0;
+
+                if (moving || settling) {
+                    // なめらかに混ぜる（はじめと終わりをゆっくり）
+                    const weight = walkBlend * walkBlend * (3 - 2 * walkBlend);
+                    walkAction.setEffectiveWeight(weight);
+                    standAction.setEffectiveWeight(1 - weight);
+                    walkAction.timeScale = 0.4 + 0.6 * weight;
+                    mixer.update(step);
                 }
             }
-            const settling = settleRemaining !== null;
 
             // 体の向きを少しずつ進行方向へ（描画の速さに関係なく同じ時間で向く）
             const turn = angleDiff(state.targetHeading, state.heading);
