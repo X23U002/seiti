@@ -931,13 +931,16 @@ function notifyStamp(
 // スタンプ取得
 // ==========================================
 async function collectStamp(spotId) {
-    // 未ログインならログイン画面へ
+    // 未ログインならログイン画面へ（ログインしたら、この聖地の詳細に戻る）
     if (
         stampStorageState ===
         "guest"
     ) {
         window.location.href =
-            "login.html";
+            "login.html?next=" +
+            encodeURIComponent(
+                "map.html?spot=" + spotId
+            );
 
         return;
     }

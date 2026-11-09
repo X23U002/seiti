@@ -1639,6 +1639,23 @@ body {
     margin-top: 10px;
 }
 
+/* スタンプ・ルートに追加のボタンは、詳細の一番下に固定して、いつでも押せるようにする
+   （詳細の中をスクロールしても、下に残る） */
+.popup-action-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin: 12px -16px -16px;
+    padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
+    border-top: 1px solid #e3e8ec;
+    background: #fff;
+    box-shadow: 0 -8px 16px -12px rgba(0, 0, 0, .35);
+}
+
+.popup-action-bar .stamp-popup-area {
+    margin-top: 0 !important;
+}
+
 .popup-home {
     flex-shrink: 0;
     width: 48px;
@@ -1893,6 +1910,30 @@ body {
 
 #toast.toast-error {
     background: rgba(192, 57, 43, .95);
+}
+
+/* ボタン付き（元に戻す・ログインする など）の時は押せるようにする */
+#toast.has-action.show {
+    pointer-events: auto;
+}
+
+.toast-action {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 4px 12px;
+    border: 1.5px solid rgba(255, 255, 255, .85);
+    border-radius: 14px;
+    background: transparent;
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.toast-action:hover {
+    transform: none;
+    background: rgba(255, 255, 255, .15);
 }
 
 /* =========================================================
@@ -3513,4 +3554,169 @@ a.popup-title:focus-visible {
 
 #save-route {
     margin-top: 8px;
+}
+
+/* =========================================================
+   はじめての人への使い方の説明・現在地を使うかの確認（onboarding.js）
+========================================================= */
+.onboarding {
+    position: fixed;
+    inset: 0;
+    z-index: 10002;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, .45);
+    animation: backdrop-in .25s ease;
+}
+
+.onboarding-card {
+    width: min(360px, 100%);
+    padding: 28px 22px 20px;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .25);
+    text-align: center;
+    animation: stamp-card-in .25s ease;
+}
+
+.onboarding-icon {
+    font-size: 52px;
+    line-height: 1;
+}
+
+.onboarding-title {
+    margin: 14px 0 8px;
+    font-size: 20px;
+    color: #0b3c5d;
+}
+
+.onboarding-text {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.8;
+    color: #2c3e50;
+    text-align: left;
+}
+
+.onboarding-dots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin: 18px 0 16px;
+}
+
+.onboarding-dots span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #dcdde1;
+}
+
+.onboarding-dots span.is-current {
+    width: 20px;
+    border-radius: 4px;
+    background: #0b3c5d;
+}
+
+.onboarding-buttons,
+.location-card-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.onboarding-primary,
+.onboarding-secondary {
+    flex: 1;
+    min-height: 46px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.onboarding-primary {
+    background: #0b3c5d;
+    color: #fff;
+}
+
+.onboarding-secondary {
+    background: #eef1f3;
+    color: #2c3e50;
+}
+
+.onboarding-primary:hover,
+.onboarding-secondary:hover {
+    transform: none;
+}
+
+/* 2回目からの小さな案内（地図の下に出し、地図は使えるまま） */
+.location-card {
+    position: fixed;
+    left: 50%;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    z-index: 9000;
+    width: min(420px, calc(100vw - 32px));
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+    transform: translateX(-50%);
+    animation: route-panel-in .3s cubic-bezier(.2, .9, .3, 1);
+}
+
+.location-card-text {
+    margin: 0 0 10px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: #2c3e50;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .onboarding,
+    .onboarding-card,
+    .location-card {
+        animation: none;
+    }
+}
+
+/* =========================================================
+   スマホの画面下のタブ（tab-bar.css）がある時は、地図の下のボタン・パネルをその上へ
+========================================================= */
+@media (max-width: 600px) {
+    body.has-tab-bar {
+        padding-bottom: 0;
+    }
+
+    body.has-tab-bar #routePanel {
+        bottom: calc(16px + var(--tab-bar-height));
+        max-height: calc(45vh - var(--tab-bar-height));
+    }
+
+    body.has-tab-bar #location-btn {
+        bottom: calc(132px + var(--tab-bar-height));
+    }
+
+    body.has-tab-bar #toggle-view-btn,
+    body.has-tab-bar #toggle-view-btn.mode3d {
+        bottom: calc(30px + var(--tab-bar-height));
+    }
+
+    body.has-tab-bar .mapboxgl-ctrl-bottom-left,
+    body.has-tab-bar .mapboxgl-ctrl-bottom-right {
+        bottom: var(--tab-bar-height);
+    }
+
+    body.has-tab-bar .location-card {
+        bottom: calc(12px + var(--tab-bar-height));
+    }
+
+    body.has-tab-bar #walk-test-panel {
+        bottom: calc(40px + var(--tab-bar-height));
+    }
+
+    /* 聖地の詳細を開いている間は、詳細が画面の下を使うのでタブを隠す（ルート案内などと同じ） */
+    body:has(.mapboxgl-popup .popup-card) .tab-bar {
+        display: none;
+    }
 }

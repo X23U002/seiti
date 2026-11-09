@@ -36,6 +36,9 @@ import {
     formatCourseLength
 } from "./course.js?v=5729311e";
 
+// はじめての人への使い方の説明と、現在地を使ってよいかの確認
+import { startOnboarding } from "./onboarding.js?v=1d90b903";
+
 // AI でつくるマイプラン（おすすめルートの画面の下）
 import { refreshMyPlan, setupMyPlan } from "./my-plan.js?v=dfdb3f4b";
 
@@ -1241,13 +1244,22 @@ function burstHeart(button) {
     );
 }
 
+// ログインが必要な機能を押された時：「ログインする」ボタン付きで知らせ、
+// ログインしたら back（地図のアドレス）へ戻ってくる（login.js の next）
+function showLoginPrompt(message, back) {
+    window.showToast(message, "", {
+        label: "ログインする",
+        href: "login.html?next=" + encodeURIComponent(back)
+    });
+}
+
 async function toggleFavorite(button) {
     const spotId = button.dataset.spotId;
 
     if (!(await getCurrentUser())) {
-        window.showToast(
+        showLoginPrompt(
             "お気に入りはログインすると使えます",
-            "error"
+            "map.html?spot=" + encodeURIComponent(spotId)
         );
         return;
     }
@@ -1900,6 +1912,43 @@ function getMarkerMode() {
 let drawnMarkerMode = null;
 let drawnMarkerList = null;
 
+// ピンの白い丸に、作品名の1文字目（「【推しの子】」なら「推」）を入れる
+// （色の見分けが苦手な人にも、どの作品のピンか分かるように。ピンを大きくすると一緒に大きくなる）
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function getTitleInitial(title) {
+    const name = String(title || "").replace(/^[【「『（(\[〔\s]+/, "");
+    return Array.from(name)[0] || "";
+}
+
+function addPinInitial(element, title, color) {
+    const svg = element.querySelector("svg");
+    const initial = getTitleInitial(title);
+    if (!svg || !initial || title === "その他") {
+        return;
+    }
+
+    const circle = document.createElementNS(SVG_NS, "circle");
+    circle.setAttribute("cx", "13.5");
+    circle.setAttribute("cy", "13.5");
+    circle.setAttribute("r", "8.5");
+    circle.setAttribute("fill", "white");
+
+    const text = document.createElementNS(SVG_NS, "text");
+    text.setAttribute("x", "13.5");
+    text.setAttribute("y", "13.5");
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("dominant-baseline", "central");
+    text.setAttribute("font-size", "11");
+    text.setAttribute("font-weight", "bold");
+    text.setAttribute("fill", color);
+    text.setAttribute("class", "pin-initial");
+    text.textContent = initial;
+
+    svg.append(circle, text);
+    element.setAttribute("aria-label", title + "の聖地");
+}
+
 // 一度出したピン（初めて出す時だけ、上から落ちてくる動きを付ける。ズームや絞り込みで描き直しても繰り返さない）
 const droppedPinIds = new Set();
 
@@ -2110,29 +2159,35 @@ function drawMarkers(list) {
                             </div>`
                             : '<div class="popup-image no-image"></div>'}
 
-                        <!-- スタンプ取得ボタン -->
-                        ${stampHTML}
-
-                        <div class="popup-buttons">
-
-                            ${homeButtonHTML}
-
-                            <button
-                                type="button"
-                                id="route-btn-${data.id}"
-                                onclick="addSpotToRouteById('${data.id}')"
-                                ${isInRoute ? "disabled" : ""}
-                            >
-                                ${getRouteButtonHTML(isInRoute)}
-                            </button>
-
-                        </div>
-
                         <!-- この作品のおすすめルート（開いた時に作る） -->
                         <div class="popup-section popup-courses" data-spot-id="${escapeHTML(String(data.id))}" hidden></div>
 
                         <!-- 近くの聖地（開いた時に作る） -->
                         <div class="popup-section popup-nearby" hidden></div>
+
+                        <!-- よく使うボタン（スタンプ・ルートに追加）は、下までスクロールしなくても押せるよう、
+                             詳細の一番下に固定する（style.css の .popup-action-bar） -->
+                        <div class="popup-action-bar">
+
+                            <!-- スタンプ取得ボタン -->
+                            ${stampHTML}
+
+                            <div class="popup-buttons">
+
+                                ${homeButtonHTML}
+
+                                <button
+                                    type="button"
+                                    id="route-btn-${data.id}"
+                                    onclick="addSpotToRouteById('${data.id}')"
+                                    ${isInRoute ? "disabled" : ""}
+                                >
+                                    ${getRouteButtonHTML(isInRoute)}
+                                </button>
+
+                            </div>
+
+                        </div>
 
                     </div>
                 `;
@@ -2175,6 +2230,13 @@ function drawMarkers(list) {
                 .dataset
                 .pinColor =
                     titleColor;
+
+            // 色だけでなく文字でも作品が分かるよう、ピンの丸に作品名の1文字目を入れる
+            addPinInitial(
+                spotMarker.getElement(),
+                titleName,
+                titleColor
+            );
 
             if (!droppedPinIds.has(String(data.id))) {
                 droppedPinIds.add(String(data.id));
@@ -2422,8 +2484,9 @@ function initializeSearchBox() {
             marker:
                 true,
 
+            // スマホの幅でも切れずに読める長さにする
             placeholder:
-                "場所・住所・駅名・スポットを検索",
+                "聖地・駅・住所で検索",
 
             localGeocoder:
                 searchCustomSpots,
@@ -2688,15 +2751,21 @@ map.on(
             );
         }
 
-        // 現在地取得
-        try {
-            if (!openedSpot) geolocate.trigger();
-        } catch (error) {
-            console.warn(
-                "現在地の取得に失敗:",
-                error
-            );
-        }
+        // 現在地取得（許可済みならすぐ取る。まだなら、使い方の説明や理由を出してから聞く。onboarding.js）
+        // 聖地を指定して開いた時は、地図がその聖地から動かないよう、現在地へは動かさない
+        startOnboarding(
+            function () {
+                try {
+                    geolocate.trigger();
+                } catch (error) {
+                    console.warn(
+                        "現在地の取得に失敗:",
+                        error
+                    );
+                }
+            },
+            !openedSpot
+        );
     }
 );
 
@@ -3575,6 +3644,51 @@ window.removeSpotFromRoute =
 // =========================================================
 // ルートを全削除
 // =========================================================
+// ---------- 消したルートを元に戻す ----------
+// 消す前のルート（聖地の並びと、道に沿ったルートを出していたか）
+function snapshotRoute() {
+    return {
+        spots: selectedSpots.map(function (spot) {
+            return Object.assign({}, spot);
+        }),
+        active: isMapboxRouteActive
+    };
+}
+
+function restoreRoute(snapshot) {
+    selectedSpots.length = 0;
+    snapshot.spots.forEach(function (spot) {
+        selectedSpots.push(spot);
+    });
+
+    document.getElementById("routePanel").style.display =
+        selectedSpots.length > 0 ? "flex" : "none";
+    updateRouteList();
+    syncRouteButtons();
+
+    // 道に沿ったルートを出していたら、作り直す
+    if (snapshot.active && selectedSpots.length > 0) {
+        generateMapboxRoute();
+    }
+
+    window.showToast("元に戻しました");
+}
+
+// ルート案内の「全削除」・「×」は、押し間違えても戻せるように「元に戻す」を出す
+function removeWithUndo(message, remove) {
+    const snapshot = snapshotRoute();
+    if (snapshot.spots.length === 0) {
+        return;
+    }
+    remove();
+    window.showToast(message, "", {
+        label: "元に戻す",
+        onClick: function () {
+            restoreRoute(snapshot);
+        }
+    });
+}
+
 window.clearSelectedSpots =
     function () {
         unsetMapboxRoute(false);
@@ -3740,8 +3854,13 @@ function updateRouteList() {
 
             removeButton.onclick =
                 function () {
-                    window.removeSpotFromRoute(
-                        spot.id
+                    removeWithUndo(
+                        `「${spot.name}」をルートから外しました`,
+                        function () {
+                            window.removeSpotFromRoute(
+                                spot.id
+                            );
+                        }
                     );
                 };
 
@@ -4924,7 +5043,12 @@ document
     )
     ?.addEventListener(
         "click",
-        window.clearSelectedSpots
+        function () {
+            removeWithUndo(
+                "ルートを全削除しました",
+                window.clearSelectedSpots
+            );
+        }
     );
 
 
@@ -4981,9 +5105,10 @@ document
             }
 
             if (!(await getCurrentUser())) {
-                window.showToast(
+                // ログインしたら、同じルートで地図に戻る（map.html?route=）
+                showLoginPrompt(
                     "ルートの保存はログインすると使えます",
-                    "error"
+                    "map.html?route=" + encodeURIComponent(getRouteKey())
                 );
                 return;
             }
