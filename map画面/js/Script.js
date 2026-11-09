@@ -1452,7 +1452,7 @@ function smoothMarker(marker) {
 
 // 詳細に隠れないよう、ピンを見えている部分の真ん中に置く
 // スマホ：詳細が画面下半分を覆うので上寄り／広い画面：詳細が左に出るので右寄り
-const SPOT_PANEL_SPACE = 360 + 16 * 2; // 左の詳細パネルの幅＋余白（style.css と合わせる）
+const SPOT_PANEL_SPACE = 440 + 16 * 2; // 左の詳細パネルの幅＋余白（style.css と合わせる）
 
 function getSpotPadding() {
     const isMobile =
@@ -5242,3 +5242,41 @@ map.on(
         };
     }
 );
+
+// ==========================================
+// 聖地の詳細の画像を押すと、画面いっぱいに大きく見る
+// ==========================================
+function openImageViewer(src, alt) {
+    const viewer = document.createElement("div");
+    viewer.className = "image-viewer";
+    viewer.setAttribute("role", "dialog");
+    viewer.setAttribute("aria-modal", "true");
+    viewer.setAttribute("aria-label", "画像を大きく表示");
+
+    const image = document.createElement("img");
+    image.src = src;
+    image.alt = alt || "";
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "image-viewer-close";
+    close.setAttribute("aria-label", "閉じる");
+    close.textContent = "×";
+    viewer.append(image, close);
+
+    function onKey(event) {
+        if (event.key === "Escape") closeViewer();
+    }
+    function closeViewer() {
+        viewer.remove();
+        document.removeEventListener("keydown", onKey);
+    }
+    viewer.addEventListener("click", closeViewer);
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(viewer);
+    close.focus();
+}
+
+document.addEventListener("click", function (event) {
+    const image = event.target.closest(".popup-image:not(.no-image) img");
+    if (image) openImageViewer(image.currentSrc || image.src, image.alt);
+});
