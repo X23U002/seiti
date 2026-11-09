@@ -39,3 +39,37 @@ test("管理ページで訪れる人への情報を入れると、聖地の詳�
     await page.locator("#spot-list .spot-item button", { hasText: "編集" }).first().click();
     await expect(page.locator("#ap-open_hours")).toHaveValue("24時間");
 });
+
+test.describe("ルート案内の聖地に近づいた時", () => {
+    const station = spotNamed("京阪宇治駅");
+    // 京阪宇治駅から南へ約1km
+    const FAR = { latitude: station.coord.latitude - 0.009, longitude: station.coord.longitude };
+    // 振動は、動きを減らす設定の人には出さないので、ここでは動きを付ける
+    test.use({ geolocation: FAR, permissions: ["geolocation"], motion: "no-preference" });
+
+    test("150m 以内に入ったら「もうすぐ」と知らせ、詳細も開ける。同じ聖地では1回だけ", async ({ page, context }) => {
+        await page.addInitScript(() => {
+            window.__vibrations = [];
+            navigator.vibrate = (pattern) => { window.__vibrations.push(pattern); return true; };
+        });
+        await seed(page);
+        await page.goto("html/map.html");
+        await expect(page.locator(".mapboxgl-user-location-dot").first()).toBeAttached();
+        // 2か所目は離れた聖地（大吉山展望台）にする
+        await page.evaluate((ids) => ids.forEach((id) => window.addSpotToRouteById(id, { silent: true })), [station.id, spotNamed("大吉山展望台").id]);
+        await expect(page.locator("#routeList .routeItem")).toHaveCount(2);
+
+        // 京阪宇治駅の約100m 南へ
+        await context.setGeolocation({ latitude: station.coord.latitude - 0.0009, longitude: station.coord.longitude });
+        const toast = page.locator("#toast");
+        await expect(toast).toContainText(`もうすぐ「${station.spot_name}」です（あと約100m）`);
+        await expect.poll(() => page.evaluate(() => window.__vibrations.length)).toBe(1);
+        await toast.locator(".toast-action", { hasText: "詳細を見る" }).click();
+        await expect(page.locator(".popup-card")).toBeVisible();
+
+        // 同じ聖地の近くで動いても、もう一度は知らせない
+        await context.setGeolocation({ latitude: station.coord.latitude - 0.0008, longitude: station.coord.longitude });
+        await page.waitForTimeout(800);
+        expect(await page.evaluate(() => window.__vibrations.length)).toBe(1);
+    });
+});

@@ -1560,6 +1560,66 @@ geolocate.on("trackuserlocationstart", stopOrbit);
 
 
 // =========================================================
+// ルート案内の聖地に近づいたら知らせる（地図を開いている間だけ）
+// 同じ聖地では1回だけ。ルートから外した聖地は、また入れたら知らせる
+// =========================================================
+const NEAR_ROUTE_SPOT_METERS = 150;
+const notifiedNearSpotIds = new Set();
+
+geolocate.on(
+    "geolocate",
+    function (event) {
+        const here = {
+            latitude: event.coords.latitude,
+            longitude: event.coords.longitude
+        };
+
+        // ルートから外した聖地は、また知らせられるようにする
+        const routeIds = new Set(
+            selectedSpots.map(function (spot) {
+                return String(spot.id);
+            })
+        );
+        notifiedNearSpotIds.forEach(function (id) {
+            if (!routeIds.has(id)) {
+                notifiedNearSpotIds.delete(id);
+            }
+        });
+
+        // ルートの順に、まだ知らせていない近くの聖地を探す
+        const near = selectedSpots.find(function (spot) {
+            return !notifiedNearSpotIds.has(String(spot.id)) &&
+                getDistanceMeters(here, spot) <= NEAR_ROUTE_SPOT_METERS;
+        });
+        if (!near) {
+            return;
+        }
+
+        notifiedNearSpotIds.add(String(near.id));
+        const meters = Math.round(getDistanceMeters(here, near) / 10) * 10;
+        window.showToast(
+            `もうすぐ「${near.name}」です（あと約${Math.max(10, meters)}m）`,
+            "",
+            {
+                label: "詳細を見る",
+                onClick: function () {
+                    goToSpot(near.id);
+                }
+            }
+        );
+
+        if (!prefersReducedMotion() && typeof navigator.vibrate === "function") {
+            try {
+                navigator.vibrate([60, 40, 60]);
+            } catch (error) {
+                // 震わせられない端末では何もしない
+            }
+        }
+    }
+);
+
+
+// =========================================================
 // ポップアップの「ルートに追加」ボタン
 // ルートに入っている間は「追加済み」にして押せなくする
 // =========================================================
