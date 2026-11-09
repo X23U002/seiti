@@ -54,6 +54,16 @@
     transition: width .5s ease;
 }
 
+/* 記録を画像にして共有 */
+.share-record {
+    width: 100%;
+    margin-top: 12px;
+}
+
+.share-record[hidden] {
+    display: none;
+}
+
 /* ---------- 作品の札と「獲得済みだけ表示」 ---------- */
 .toolbar {
     margin-bottom: 16px;

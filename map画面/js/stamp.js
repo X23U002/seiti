@@ -418,6 +418,44 @@ function showStamps(stamps, state, spotSummary) {
     renderOverall();
     renderTitlePicker();
     renderSections();
+
+    // スタンプが1つ以上あれば、記録を画像にして共有できる
+    document.getElementById("share-record").hidden =
+        !(state === "ready" && collected.length > 0);
+}
+
+// ---------- 記録を画像にして共有 ----------
+// 作品ごとの進み具合（多い順）と、取ったバッジを1枚の画像にする（share-card.js）
+async function shareRecord() {
+    const button = document.getElementById("share-record");
+    button.disabled = true;
+    try {
+        const got = allStamps.filter(function (s) { return s.earned; }).length;
+        const works = titles
+            .map(function (title) {
+                return { title: title, color: titleColor(title), got: earnedCount(title), total: countOf(title) };
+            })
+            .filter(function (work) { return work.got > 0; })
+            .sort(function (a, b) { return b.got / b.total - a.got / a.total || b.got - a.got; });
+        const badges = typeof window.getBadges === "function"
+            ? window.getBadges(collected, summary).filter(function (b) { return b.earned; }).map(function (b) { return b.icon; })
+            : [];
+
+        const blob = await window.drawShareCard({
+            heading: "わたしの聖地巡礼の記録",
+            big: got + (hasSpotList ? " / " + allStamps.length : "") + " 個",
+            sub: works.length + "作品の聖地でスタンプを集めました",
+            works: works,
+            badges: badges
+        });
+        const result = await window.shareImage(blob, "seichi-junrei-record.png",
+            "聖地巡礼NAVI でスタンプを " + got + " 個集めました！ #聖地巡礼NAVI");
+        if (result === "saved" && typeof window.showToast === "function") {
+            window.showToast("画像を保存しました。SNS に投稿してみよう");
+        }
+    } finally {
+        button.disabled = false;
+    }
 }
 
 // DBから読み込むまでは「読み込み中」と表示しておく

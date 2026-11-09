@@ -93,3 +93,32 @@ test("マイページに、スタンプの記録から決めたバッジを出�
     await expect(page.locator(".badge-item", { hasText: "聖地ハンター" })).toContainText("あと 7");
     await expect(page.locator(".badge-item", { hasText: "健脚" })).toContainText("あと 2");
 });
+
+test("スタンプ帳の記録を、SNS に載せられる画像（1080×1350）にできる", async ({ page }) => {
+    const [a, b] = ["京阪宇治駅", "宇治橋"].map(spotNamed);
+    const day = Date.UTC(2026, 10, 1, 1, 0, 0);
+    const mine = (spot, ms) => ({ user_id: { __ref: "user/uid2" }, spot_id: { __ref: "spot/" + spot.id }, time_stamp: { __ts: ms } });
+    await seed(page, {
+        user: "uid2",
+        data: withSpots({ user: { uid2: PROFILE("巡礼者", "p@x.jp") }, stamp: { t1: mine(a, day), t2: mine(b, day + 60e3) } })
+    });
+    await page.goto("html/stamp.html");
+    const button = page.locator("#share-record");
+    await expect(button).toBeVisible();
+
+    const [download] = await Promise.all([page.waitForEvent("download"), button.click()]);
+    expect(download.suggestedFilename()).toBe("seichi-junrei-record.png");
+    const file = await download.path();
+    const fs = await import("node:fs");
+    const png = fs.readFileSync(file);
+    // PNG の幅と高さ（IHDR）
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1080, 1350]);
+    if (process.env.SHARE_CARD_OUT) fs.copyFileSync(file, process.env.SHARE_CARD_OUT);
+});
+
+test("スタンプが無い時は、共有のボタンを出さない", async ({ page }) => {
+    await seed(page, { user: "uid2", data: withSpots({ user: { uid2: PROFILE("巡礼者", "p@x.jp") } }) });
+    await page.goto("html/stamp.html");
+    await expect(page.locator("#got-count")).toHaveText("0");
+    await expect(page.locator("#share-record")).toBeHidden();
+});

@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="../css/common.css?v=c79053d9">
     <link rel="stylesheet" href="../css/tab-bar.css?v=77603899">
     <link rel="stylesheet" href="../css/stamp-rank.css?v=966a0ec6">
-    <link rel="stylesheet" href="../css/stamp.css?v=6072c4ec">
+    <link rel="stylesheet" href="../css/stamp.css?v=3e6b2fc3">
     <!-- アプリとして使う（ホーム画面に追加・オフライン。pwa.js） -->
     <link rel="manifest" href="../manifest.webmanifest">
     <meta name="theme-color" content="#0b3c5d">
@@ -33,6 +33,8 @@
             <div class="overall-bar" role="progressbar" aria-label="スタンプ帳の達成度" aria-valuemin="0" id="overall-bar">
                 <span id="overall-fill"></span>
             </div>
+            <!-- 記録を画像にして SNS で共有（share-card.js） -->
+            <button type="button" class="btn btn-secondary share-record" id="share-record" onclick="shareRecord()" hidden>📤 記録を画像にして共有</button>
         </section>
 
         <!-- 作品の絞り込み（押すと作品の一覧が開く）と「獲得済みだけ表示」 -->
@@ -95,7 +97,9 @@
     <script src="../js/common.js?v=bdcf06ca"></script>
     <script src="../js/tab-bar.js?v=48498a21"></script>
     <script src="../js/stamp-rank.js?v=c4ce732e"></script>
-    <script src="../js/stamp.js?v=f0b94000"></script>
+    <script src="../js/badges.js?v=5a082dfc"></script>
+    <script src="../js/share-card.js?v=2da8df97"></script>
+    <script src="../js/stamp.js?v=c6142a77"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
         import { loadStampBook } from "../js/stamp-db.js?v=58a20739";

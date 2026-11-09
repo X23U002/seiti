@@ -3060,6 +3060,24 @@ body {
     background: #14537f;
 }
 
+/* コンプリートを画像にして共有 */
+.stamp-celebration-share {
+    width: 100%;
+    min-height: 46px;
+    margin-top: 14px;
+    border: 2px solid #f2c94c;
+    border-radius: 10px;
+    background: #fff4d6;
+    color: #94590a;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.stamp-celebration-share + .stamp-celebration-close {
+    margin-top: 8px;
+}
+
 /* コンプリートの時は金色の縁取り */
 .stamp-celebration.is-complete .stamp-celebration-card {
     box-shadow: 0 0 0 4px #fdd835, 0 12px 32px rgba(0, 0, 0, .25);

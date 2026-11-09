@@ -1163,6 +1163,9 @@ function showStampCelebration(
                 ? `<p class="stamp-celebration-complete">「${escapeStampHTML(completedTitle)}」の聖地を<br>すべて回りました！</p>`
                 : ""}
             <p class="stamp-celebration-next">${nextText}</p>
+            ${completedTitle && typeof window.drawShareCard === "function"
+                ? '<button type="button" class="stamp-celebration-share">📤 コンプリートを共有</button>'
+                : ""}
             <button type="button" class="stamp-celebration-close">OK</button>
         </div>
     `;
@@ -1189,6 +1192,30 @@ function showStampCelebration(
         if (event.key === "Escape") {
             close();
         }
+    }
+
+    // コンプリートを画像にして共有（share-card.js）
+    const shareButton = overlay.querySelector(".stamp-celebration-share");
+    if (shareButton) {
+        shareButton.addEventListener("click", async function () {
+            const total = getStampSpots().filter(function (item) {
+                return item.title_name === completedTitle;
+            }).length;
+            shareButton.disabled = true;
+            try {
+                const blob = await window.drawShareCard({
+                    heading: "「" + completedTitle + "」",
+                    big: "コンプリート！",
+                    sub: "聖地 " + total + " か所をすべて回りました",
+                    works: [{ title: completedTitle, color: color, got: total, total: total }],
+                    badges: ["🎉", "⛩️"]
+                });
+                await window.shareImage(blob, "seichi-junrei-complete.png",
+                    "「" + completedTitle + "」の聖地をコンプリートしました！ #聖地巡礼NAVI");
+            } finally {
+                shareButton.disabled = false;
+            }
+        });
     }
 
     overlay.addEventListener(
