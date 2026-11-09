@@ -96,7 +96,7 @@ export async function loadStampBook() {
         spots[spotDoc.id] = spotDoc.data();
     });
 
-    // スポットID → { 初めて取った時刻, 回数 }
+    // スポットID → { 初めて取った時刻, 回数, 取った時刻すべて（バッジの「1日で○か所」などに使う） }
     const bySpot = {};
     stampSnapshot.forEach(function (stampDoc) {
         const data = stampDoc.data();
@@ -107,9 +107,10 @@ export async function loadStampBook() {
             ? data.time_stamp.toMillis()
             : 0;
 
-        const entry = bySpot[spotId] || (bySpot[spotId] = { first: stampedAt, count: 0 });
+        const entry = bySpot[spotId] || (bySpot[spotId] = { first: stampedAt, count: 0, times: [] });
         entry.first = Math.min(entry.first, stampedAt);
         entry.count += 1;
+        entry.times.push(stampedAt);
     });
 
     // 削除された聖地のスタンプは出さない
@@ -127,7 +128,8 @@ export async function loadStampBook() {
                 episode: spot.episode || 0,
                 date: formatDate(bySpot[spotId].first),
                 stampedAt: bySpot[spotId].first,
-                count: bySpot[spotId].count
+                count: bySpot[spotId].count,
+                times: bySpot[spotId].times.slice().sort()
             };
         })
         .sort(function (a, b) { return a.stampedAt - b.stampedAt; });

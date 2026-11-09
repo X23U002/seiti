@@ -50,9 +50,11 @@ function restDocument(collectionName, id, data) {
     };
 }
 
-const json = (route, body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
-const script = (route, body) => route.fulfill({ status: 200, contentType: "application/javascript", body });
-const css = (route, body) => route.fulfill({ status: 200, contentType: "text/css", body });
+// 本物のサーバーと同じく、ほかのサイトから読めるようにする（オフライン用の service worker 経由でも読めるように）
+const CORS = { "Access-Control-Allow-Origin": "*" };
+const json = (route, body, status = 200) => route.fulfill({ status, contentType: "application/json", headers: CORS, body: JSON.stringify(body) });
+const script = (route, body) => route.fulfill({ status: 200, contentType: "application/javascript", headers: CORS, body });
+const css = (route, body) => route.fulfill({ status: 200, contentType: "text/css", headers: CORS, body });
 
 // Firestore REST（Web API）の代わり。data は seed() で入れたもの
 function answerRest(route, data, restCalls) {
@@ -114,7 +116,8 @@ export const test = base.extend({
             });
         });
 
-        await page.route(/^https:\/\//, (route) => {
+        // ページから直接でも、オフライン用の service worker 経由でも差しかえる（context.route は両方を受ける）
+        await page.context().route(/^https:\/\//, (route) => {
             const url = route.request().url();
             if (url.endsWith("firebase-app-compat.js")) return script(route, read(path.join(here, "mocks/compat.js")));
             if (url.endsWith("-compat.js")) return script(route, "");

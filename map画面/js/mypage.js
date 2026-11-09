@@ -199,6 +199,9 @@ function renderRecord(stamps, state, spotSummary) {
         setupProgressToggle(Object.keys(summary.titles).length);
     }
 
+    // --- 実績・バッジ（取ったものを先に。まだのものは、あとどれくらいかを出す） ---
+    renderBadges(state === "ready" ? stamps : [], summary);
+
     // --- 最近獲得したスタンプ（新しい順に3件） ---
     const recentList = document.getElementById("recent-list");
     recentList.innerHTML = "";
@@ -247,6 +250,40 @@ function renderRecord(stamps, state, spotSummary) {
             recentList.appendChild(li);
         });
     }
+}
+
+function renderBadges(stamps, summary) {
+    const list = document.getElementById("badge-list");
+    if (!list || typeof window.getBadges !== "function") return;
+
+    const badges = window.getBadges(stamps, summary);
+    const earned = badges.filter(function (badge) { return badge.earned; });
+    document.getElementById("badge-count").textContent = earned.length + " / " + badges.length;
+
+    list.innerHTML = "";
+    earned.concat(badges.filter(function (badge) { return !badge.earned; })).forEach(function (badge) {
+        const li = document.createElement("li");
+        li.className = "badge-item" + (badge.earned ? " is-earned" : "");
+
+        const icon = document.createElement("span");
+        icon.className = "badge-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = badge.icon;
+
+        const name = document.createElement("strong");
+        name.className = "badge-name";
+        name.textContent = badge.name;
+
+        const text = document.createElement("span");
+        text.className = "badge-text";
+        text.textContent = badge.earned
+            ? badge.text
+            : badge.text + (badge.progress.goal > 1 ? "（あと " + (badge.progress.goal - badge.progress.now) + "）" : "");
+
+        li.setAttribute("aria-label", badge.name + (badge.earned ? "（獲得）" : "（まだ）") + "：" + text.textContent);
+        li.append(icon, name, text);
+        list.appendChild(li);
+    });
 }
 
 // DBから読み込むまでは「読み込み中」と表示しておく

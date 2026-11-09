@@ -73,9 +73,14 @@ function hasKeys(data, required, optional = []) {
 const isMine = (data) => !!me() && data.user_id && data.user_id.__ref === "user/" + me();
 const isCount = (value, max) => value === undefined || (Number.isInteger(value) && value >= 0 && value <= max);
 
+// 訪れる人への情報（任意の文字。spot-info.js の VISIT_FIELDS と同じ上限）
+const VISIT_MAX = { open_hours: 100, closed_days: 100, fee: 100, access: 200, caution: 300 };
+const visitOk = (data) => Object.keys(VISIT_MAX).every((key) =>
+    data[key] === undefined || (typeof data[key] === "string" && data[key].length <= VISIT_MAX[key]));
+
 function spotOk(data) {
-    return hasKeys(data, ["coord", "geo_hash", "image_url", "spot_info", "spot_name", "title_name", "title_url"], ["season", "episode"]) &&
-        isCount(data.season, 99) && isCount(data.episode, 999);
+    return hasKeys(data, ["coord", "geo_hash", "image_url", "spot_info", "spot_name", "title_name", "title_url"], ["season", "episode", ...Object.keys(VISIT_MAX)]) &&
+        isCount(data.season, 99) && isCount(data.episode, 999) && visitOk(data);
 }
 
 function courseOk(data) {
@@ -151,7 +156,8 @@ export async function getDocs(ref) {
     await wait();
     const filters = ref.filters || [];
     const ownQuery = filters.some((f) => f.field === "user_id" && me() && f.value.__ref === "user/" + me());
-    if (["request_spot", "contact"].includes(ref.path) && !ownQuery && !isAdmin()) throw denied("read " + ref.path);
+    // 自分のものだけ読める（管理者は全部読める。スタンプ・お気に入りは管理ページの集計で使う）
+    if (["request_spot", "contact", "stamp", "favorite"].includes(ref.path) && !ownQuery && !isAdmin()) throw denied("read " + ref.path);
 
     const rows = Object.entries(load()[ref.path] || {})
         .filter(([, d]) => filters.every((f) => d[f.field] && d[f.field].__ref === f.value.__ref));

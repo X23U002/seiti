@@ -2,7 +2,7 @@
 // 聖地登録（申請を request_spot に送る。運営が確認してから地図に追加する）
 // 入力は管理ページの「聖地として地図に追加」とそろえている（作品名・スポット名・説明・期・話・場所）
 // ========================================
-import { getLoginUserId, getWaitSeconds, sendSpotRequest } from "./request-db.js?v=5a9b3f09";
+import { getLoginUserId, getWaitSeconds, sendSpotRequest } from "./request-db.js?v=4ba97301";
 import { createPinPicker } from "./pin-picker.js?v=ec675f7c";
 import { getTitleName } from "./title-colors.js?v=5c634da9";
 import { readCachedSpots } from "./public-data.js?v=0ba43cde";

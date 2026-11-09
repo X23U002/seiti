@@ -742,6 +742,21 @@ button:active {
    検索バーの虫眼鏡位置調整
 ===================================== */
 
+/* 入力を消す「×」は、文字が入っている間はいつも出す
+   （ライブラリは候補を選んだ後や候補が0件の時に消し、マウスを乗せた時だけ出すため、スマホでは消えたままになる） */
+.mapboxgl-ctrl-geocoder:has(input:not(:placeholder-shown)) .mapboxgl-ctrl-geocoder--button {
+    display: block !important;
+}
+
+.mapboxgl-ctrl-geocoder:has(input:placeholder-shown) .mapboxgl-ctrl-geocoder--button {
+    display: none !important;
+}
+
+/* 探している間は、同じ場所に出る読み込み中の印を見せる */
+.mapboxgl-ctrl-geocoder:has(.mapboxgl-ctrl-geocoder--icon-loading[style*="block"]) .mapboxgl-ctrl-geocoder--button {
+    display: none !important;
+}
+
 .mapboxgl-ctrl-geocoder--icon-search {
 
     top: 13px !important;
@@ -1496,8 +1511,52 @@ body {
 
 .popup-image img {
     display: block;
-    height: 110px;
+    /* 場面の写真（16:9）を上下を切らずに見せる。縦に長い写真は高さを抑える */
+    height: auto;
+    aspect-ratio: 16 / 9;
+    max-height: 38vh;
     border-radius: 0;
+    cursor: zoom-in;
+}
+
+/* 押すと画面いっぱいに大きく見る */
+.image-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, .88);
+    cursor: zoom-out;
+    animation: image-viewer-in .15s ease;
+}
+
+.image-viewer img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+.image-viewer-close {
+    position: absolute;
+    top: max(12px, env(safe-area-inset-top));
+    right: 12px;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .18);
+    color: #fff;
+    font-size: 24px;
+    cursor: pointer;
+}
+
+@keyframes image-viewer-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .popup-title {
@@ -1637,6 +1696,60 @@ body {
 .popup-buttons {
     gap: 10px;
     margin-top: 10px;
+}
+
+/* 訪れる前に（入れる時間・定休日など）とマナー */
+.popup-visit {
+    margin-top: 12px;
+}
+
+.popup-visit strong {
+    font-size: 13px;
+    color: #0b3c5d;
+}
+
+.popup-visit-list {
+    margin: 6px 0 0;
+}
+
+.popup-visit-item {
+    display: flex;
+    gap: 10px;
+    padding: 5px 0;
+    border-top: 1px solid #eef1f3;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.popup-visit-item:first-child {
+    border-top: none;
+}
+
+.popup-visit-item dt {
+    flex-shrink: 0;
+    width: 5.5em;
+    color: #6b7b8c;
+}
+
+.popup-visit-item dd {
+    margin: 0;
+    color: #2c3e50;
+    overflow-wrap: anywhere;
+}
+
+.popup-visit-item.is-caution dd {
+    color: #b9770e;
+    font-weight: bold;
+}
+
+.popup-manner {
+    margin: 8px 0 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #f6f8f9;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #6b7b8c;
 }
 
 /* スタンプ・ルートに追加のボタンは、詳細の一番下に固定して、いつでも押せるようにする
@@ -2554,7 +2667,7 @@ body {
         left: 16px !important;
         right: auto !important;
         bottom: auto !important;
-        width: 360px !important;
+        width: 440px !important;
         max-width: calc(100vw - 32px) !important;
         transform: none !important;
         /* 見ているピン（強調表示は z-index: 10）より前に出す */
@@ -2569,10 +2682,6 @@ body {
     .mapboxgl-popup:has(.popup-card) .mapboxgl-popup-content {
         max-height: calc(100vh - 148px);
         max-height: calc(100dvh - 148px);
-    }
-
-    .mapboxgl-popup:has(.popup-card) .popup-image img {
-        height: 160px;
     }
 }
 
@@ -3004,6 +3113,24 @@ body {
 
 .stamp-celebration-close:hover {
     background: #14537f;
+}
+
+/* コンプリートを画像にして共有 */
+.stamp-celebration-share {
+    width: 100%;
+    min-height: 46px;
+    margin-top: 14px;
+    border: 2px solid #f2c94c;
+    border-radius: 10px;
+    background: #fff4d6;
+    color: #94590a;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.stamp-celebration-share + .stamp-celebration-close {
+    margin-top: 8px;
 }
 
 /* コンプリートの時は金色の縁取り */

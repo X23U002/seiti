@@ -29,6 +29,9 @@ import {
 // 聖地の画像（GitHub の map画面/images/spots/ に置いたもの）
 import { getSpotImageSrc } from "./spot-image.js?v=59165daf";
 
+// 聖地を訪れる人への情報（入れる時間・定休日など）とマナー
+import { MANNER_NOTE, getVisitInfo } from "./spot-info.js?v=34e7c477";
+
 // おすすめ聖地巡礼ルート
 import {
     courseDistance,
@@ -1035,6 +1038,23 @@ function goToSpot(spotId) {
 }
 
 
+// 聖地の詳細の「訪れる前に」（入力されている項目と、聖地巡礼のマナー）
+function getVisitInfoHTML(spot) {
+    const items = getVisitInfo(spot);
+    return `
+        <section class="popup-section popup-visit" aria-label="訪れる前に">
+            <strong>訪れる前に</strong>
+            ${items.length > 0
+                ? `<dl class="popup-visit-list">${items.map(function (item) {
+                    return `<div class="popup-visit-item${item.key === "caution" ? " is-caution" : ""}">
+                        <dt>${escapeHTML(item.label)}</dt><dd>${escapeHTML(item.value)}</dd></div>`;
+                }).join("")}</dl>`
+                : ""}
+            <p class="popup-manner">${escapeHTML(MANNER_NOTE)}</p>
+        </section>
+    `;
+}
+
 // asLink：押すと作品ページを開き、その話の聖地の一覧を出す（聖地の詳細の札）
 function getEpisodeBadgeHTML(spot, asLink) {
     const label =
@@ -1432,7 +1452,7 @@ function smoothMarker(marker) {
 
 // 詳細に隠れないよう、ピンを見えている部分の真ん中に置く
 // スマホ：詳細が画面下半分を覆うので上寄り／広い画面：詳細が左に出るので右寄り
-const SPOT_PANEL_SPACE = 360 + 16 * 2; // 左の詳細パネルの幅＋余白（style.css と合わせる）
+const SPOT_PANEL_SPACE = 440 + 16 * 2; // 左の詳細パネルの幅＋余白（style.css と合わせる）
 
 function getSpotPadding() {
     const isMobile =
@@ -1537,6 +1557,66 @@ map.on(
 );
 
 geolocate.on("trackuserlocationstart", stopOrbit);
+
+
+// =========================================================
+// ルート案内の聖地に近づいたら知らせる（地図を開いている間だけ）
+// 同じ聖地では1回だけ。ルートから外した聖地は、また入れたら知らせる
+// =========================================================
+const NEAR_ROUTE_SPOT_METERS = 150;
+const notifiedNearSpotIds = new Set();
+
+geolocate.on(
+    "geolocate",
+    function (event) {
+        const here = {
+            latitude: event.coords.latitude,
+            longitude: event.coords.longitude
+        };
+
+        // ルートから外した聖地は、また知らせられるようにする
+        const routeIds = new Set(
+            selectedSpots.map(function (spot) {
+                return String(spot.id);
+            })
+        );
+        notifiedNearSpotIds.forEach(function (id) {
+            if (!routeIds.has(id)) {
+                notifiedNearSpotIds.delete(id);
+            }
+        });
+
+        // ルートの順に、まだ知らせていない近くの聖地を探す
+        const near = selectedSpots.find(function (spot) {
+            return !notifiedNearSpotIds.has(String(spot.id)) &&
+                getDistanceMeters(here, spot) <= NEAR_ROUTE_SPOT_METERS;
+        });
+        if (!near) {
+            return;
+        }
+
+        notifiedNearSpotIds.add(String(near.id));
+        const meters = Math.round(getDistanceMeters(here, near) / 10) * 10;
+        window.showToast(
+            `もうすぐ「${near.name}」です（あと約${Math.max(10, meters)}m）`,
+            "",
+            {
+                label: "詳細を見る",
+                onClick: function () {
+                    goToSpot(near.id);
+                }
+            }
+        );
+
+        if (!prefersReducedMotion() && typeof navigator.vibrate === "function") {
+            try {
+                navigator.vibrate([60, 40, 60]);
+            } catch (error) {
+                // 震わせられない端末では何もしない
+            }
+        }
+    }
+);
 
 
 // =========================================================
@@ -2158,6 +2238,9 @@ function drawMarkers(list) {
                                 >
                             </div>`
                             : '<div class="popup-image no-image"></div>'}
+
+                        <!-- 訪れる前に（入れる時間・定休日・料金・アクセス・注意と、マナー） -->
+                        ${getVisitInfoHTML(data)}
 
                         <!-- この作品のおすすめルート（開いた時に作る） -->
                         <div class="popup-section popup-courses" data-spot-id="${escapeHTML(String(data.id))}" hidden></div>
@@ -5159,3 +5242,41 @@ map.on(
         };
     }
 );
+
+// ==========================================
+// 聖地の詳細の画像を押すと、画面いっぱいに大きく見る
+// ==========================================
+function openImageViewer(src, alt) {
+    const viewer = document.createElement("div");
+    viewer.className = "image-viewer";
+    viewer.setAttribute("role", "dialog");
+    viewer.setAttribute("aria-modal", "true");
+    viewer.setAttribute("aria-label", "画像を大きく表示");
+
+    const image = document.createElement("img");
+    image.src = src;
+    image.alt = alt || "";
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "image-viewer-close";
+    close.setAttribute("aria-label", "閉じる");
+    close.textContent = "×";
+    viewer.append(image, close);
+
+    function onKey(event) {
+        if (event.key === "Escape") closeViewer();
+    }
+    function closeViewer() {
+        viewer.remove();
+        document.removeEventListener("keydown", onKey);
+    }
+    viewer.addEventListener("click", closeViewer);
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(viewer);
+    close.focus();
+}
+
+document.addEventListener("click", function (event) {
+    const image = event.target.closest(".popup-image:not(.no-image) img");
+    if (image) openImageViewer(image.currentSrc || image.src, image.alt);
+});

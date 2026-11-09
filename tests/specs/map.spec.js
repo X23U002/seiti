@@ -497,3 +497,55 @@ test("スマホの幅で、見ているピンが詳細パネルの下に来て�
     }, [box.x + box.width / 2, box.y + box.height / 2]);
     expect(onTop).toBe("panel");
 });
+
+test("聖地の詳細の画像は16:9で切らずに出し、押すと大きく見られる", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    const data = withSpots();
+    data.spot[bridge.id].image_url = "images/spots/eupho/eupho_s0701.jpg";
+    await seed(page, { data });
+    await page.goto("html/map.html?spot=" + bridge.id);
+    const image = page.locator(".popup-card .popup-image img");
+    await expect(image).toBeVisible();
+    const box = await image.boundingBox();
+    expect(box.width / box.height).toBeCloseTo(16 / 9, 1);
+
+    await image.click();
+    const viewer = page.locator(".image-viewer");
+    await expect(viewer.locator("img")).toHaveAttribute("src", /eupho_s0701/);
+    await page.keyboard.press("Escape");
+    await expect(viewer).toHaveCount(0);
+});
+
+test.describe("広い画面", () => {
+    test.use({ viewport: { width: 1280, height: 800 } });
+
+    test("聖地の詳細のパネルは幅を広くとる", async ({ page }) => {
+        const bridge = spotNamed("宇治橋");
+        await seed(page);
+        await page.goto("html/map.html?spot=" + bridge.id);
+        await expect(page.locator(".popup-card")).toBeVisible();
+        const box = await page.locator(".mapboxgl-popup").boundingBox();
+        expect(box.width).toBe(440);
+    });
+});
+
+test("検索の「×」は、候補を選んだ後も文字がある間は出ていて、押すと消せる", async ({ page }) => {
+    await seed(page);
+    await page.goto("html/map.html");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+    const input = page.locator(".mapboxgl-ctrl-geocoder--input");
+    const clear = page.locator(".mapboxgl-ctrl-geocoder--button");
+    await expect(clear).toBeHidden();
+
+    await input.click();
+    await input.pressSequentially("宇治橋", { delay: 20 });
+    await input.press("End");
+    await page.locator(".mapboxgl-ctrl-geocoder .suggestions li").first().click();
+    await expect(page.locator(".popup-meta")).toBeVisible();
+    await page.mouse.move(5, 700);
+    await expect(clear).toBeVisible();
+
+    await clear.click();
+    await expect(input).toHaveValue("");
+    await expect(clear).toBeHidden();
+});
