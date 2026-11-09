@@ -1639,6 +1639,60 @@ body {
     margin-top: 10px;
 }
 
+/* 訪れる前に（入れる時間・定休日など）とマナー */
+.popup-visit {
+    margin-top: 12px;
+}
+
+.popup-visit strong {
+    font-size: 13px;
+    color: #0b3c5d;
+}
+
+.popup-visit-list {
+    margin: 6px 0 0;
+}
+
+.popup-visit-item {
+    display: flex;
+    gap: 10px;
+    padding: 5px 0;
+    border-top: 1px solid #eef1f3;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.popup-visit-item:first-child {
+    border-top: none;
+}
+
+.popup-visit-item dt {
+    flex-shrink: 0;
+    width: 5.5em;
+    color: #6b7b8c;
+}
+
+.popup-visit-item dd {
+    margin: 0;
+    color: #2c3e50;
+    overflow-wrap: anywhere;
+}
+
+.popup-visit-item.is-caution dd {
+    color: #b9770e;
+    font-weight: bold;
+}
+
+.popup-manner {
+    margin: 8px 0 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #f6f8f9;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #6b7b8c;
+}
+
 /* スタンプ・ルートに追加のボタンは、詳細の一番下に固定して、いつでも押せるようにする
    （詳細の中をスクロールしても、下に残る） */
 .popup-action-bar {

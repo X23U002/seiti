@@ -26,6 +26,7 @@ import { isAiPlanAvailable, requestAiPlan } from "./ai-plan.js?v=13eabc22";
 import { getTitleColor } from "./title-colors.js?v=5c634da9";
 import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=9a2ff22f";
 import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=59165daf";
+import { VISIT_FIELDS } from "./spot-info.js?v=34e7c477";
 import {
     COURSE_COLLECTION,
     COURSE_MAX_SPOTS,
@@ -515,7 +516,24 @@ function setSubmitText(busy) {
     document.getElementById("ap-delete").hidden = formMode !== "edit";
 }
 
-// values：{ spotName, titleName, info, address, titleUrl, season, episode, coord }
+// 訪れる人への情報の入力欄（入れる時間・定休日・料金・アクセス・注意）
+VISIT_FIELDS.forEach(function (field) {
+    const group = document.createElement("div");
+    group.className = "form-group";
+    const label = document.createElement("label");
+    label.htmlFor = "ap-" + field.key;
+    label.textContent = field.label;
+    const input = document.createElement(field.key === "caution" ? "textarea" : "input");
+    input.id = "ap-" + field.key;
+    input.maxLength = field.max;
+    input.placeholder = field.placeholder;
+    if (field.key === "caution") input.rows = 2;
+    else input.type = "text";
+    group.append(label, input);
+    document.getElementById("ap-visit-fields").appendChild(group);
+});
+
+// values：{ spotName, titleName, info, address, titleUrl, season, episode, coord, visit: { open_hours, … } }
 function openSpotForm(mode, values) {
     formMode = mode;
     document.getElementById("approve-title").textContent = FORM_TEXT[mode].title;
@@ -531,6 +549,9 @@ function openSpotForm(mode, values) {
     updateImagePreview();
     document.getElementById("ap-season").value = values.season || "";
     document.getElementById("ap-episode").value = values.episode || "";
+    VISIT_FIELDS.forEach(function (field) {
+        document.getElementById("ap-" + field.key).value = (values.visit && values.visit[field.key]) || "";
+    });
 
     document.getElementById("approve-error").hidden = true;
     ["ap-spot-name", "ap-title-name", "ap-spot-info", "ap-address"].forEach(function (id) {
@@ -612,7 +633,8 @@ function openEditSpot(spot) {
         image: data.image_url,
         season: saved ? data.season : guess.season,
         episode: saved ? data.episode : guess.episode,
-        coord: data.coord
+        coord: data.coord,
+        visit: data
     });
 }
 
@@ -788,6 +810,10 @@ document.getElementById("approve-form").addEventListener("submit", async functio
         season: season,
         episode: episode
     };
+    // 訪れる人への情報（空欄は空の文字にする）
+    VISIT_FIELDS.forEach(function (field) {
+        fields[field.key] = document.getElementById("ap-" + field.key).value.trim();
+    });
 
     try {
         const batch = writeBatch(db);

@@ -73,9 +73,14 @@ function hasKeys(data, required, optional = []) {
 const isMine = (data) => !!me() && data.user_id && data.user_id.__ref === "user/" + me();
 const isCount = (value, max) => value === undefined || (Number.isInteger(value) && value >= 0 && value <= max);
 
+// 訪れる人への情報（任意の文字。spot-info.js の VISIT_FIELDS と同じ上限）
+const VISIT_MAX = { open_hours: 100, closed_days: 100, fee: 100, access: 200, caution: 300 };
+const visitOk = (data) => Object.keys(VISIT_MAX).every((key) =>
+    data[key] === undefined || (typeof data[key] === "string" && data[key].length <= VISIT_MAX[key]));
+
 function spotOk(data) {
-    return hasKeys(data, ["coord", "geo_hash", "image_url", "spot_info", "spot_name", "title_name", "title_url"], ["season", "episode"]) &&
-        isCount(data.season, 99) && isCount(data.episode, 999);
+    return hasKeys(data, ["coord", "geo_hash", "image_url", "spot_info", "spot_name", "title_name", "title_url"], ["season", "episode", ...Object.keys(VISIT_MAX)]) &&
+        isCount(data.season, 99) && isCount(data.episode, 999) && visitOk(data);
 }
 
 function courseOk(data) {

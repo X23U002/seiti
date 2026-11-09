@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex">
     <title>管理ページ - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css?v=c79053d9">
-    <link rel="stylesheet" href="../css/admin.css?v=5405f8ef">
+    <link rel="stylesheet" href="../css/admin.css?v=3dfc8b44">
 
     <!-- 位置の確認・調整に使う地図 -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
@@ -190,6 +190,11 @@
                     <input type="url" id="ap-title-url" placeholder="https://" maxlength="300">
                 </div>
 
+                <!-- 訪れる人への情報（任意。地図の聖地の詳細の「訪れる前に」に出す。admin.js で作る） -->
+                <fieldset class="visit-fields" id="ap-visit-fields">
+                    <legend>訪れる人への情報（任意）</legend>
+                </fieldset>
+
                 <div class="form-group">
                     <label for="ap-image">画像</label>
                     <input type="text" id="ap-image" placeholder="(例) real/s11.jpg" maxlength="300" aria-describedby="ap-image-help">
@@ -297,6 +302,6 @@
 
     <script src="../js/common.js?v=bdcf06ca"></script>
     <script src="../js/toast.js?v=49b42195"></script>
-    <script type="module" src="../js/admin.js?v=3dffda3d"></script>
+    <script type="module" src="../js/admin.js?v=0e988b30"></script>
 </body>
 </html>

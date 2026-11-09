@@ -29,6 +29,9 @@ import {
 // 聖地の画像（GitHub の map画面/images/spots/ に置いたもの）
 import { getSpotImageSrc } from "./spot-image.js?v=59165daf";
 
+// 聖地を訪れる人への情報（入れる時間・定休日など）とマナー
+import { MANNER_NOTE, getVisitInfo } from "./spot-info.js?v=34e7c477";
+
 // おすすめ聖地巡礼ルート
 import {
     courseDistance,
@@ -1034,6 +1037,23 @@ function goToSpot(spotId) {
     );
 }
 
+
+// 聖地の詳細の「訪れる前に」（入力されている項目と、聖地巡礼のマナー）
+function getVisitInfoHTML(spot) {
+    const items = getVisitInfo(spot);
+    return `
+        <section class="popup-section popup-visit" aria-label="訪れる前に">
+            <strong>訪れる前に</strong>
+            ${items.length > 0
+                ? `<dl class="popup-visit-list">${items.map(function (item) {
+                    return `<div class="popup-visit-item${item.key === "caution" ? " is-caution" : ""}">
+                        <dt>${escapeHTML(item.label)}</dt><dd>${escapeHTML(item.value)}</dd></div>`;
+                }).join("")}</dl>`
+                : ""}
+            <p class="popup-manner">${escapeHTML(MANNER_NOTE)}</p>
+        </section>
+    `;
+}
 
 // asLink：押すと作品ページを開き、その話の聖地の一覧を出す（聖地の詳細の札）
 function getEpisodeBadgeHTML(spot, asLink) {
@@ -2158,6 +2178,9 @@ function drawMarkers(list) {
                                 >
                             </div>`
                             : '<div class="popup-image no-image"></div>'}
+
+                        <!-- 訪れる前に（入れる時間・定休日・料金・アクセス・注意と、マナー） -->
+                        ${getVisitInfoHTML(data)}
 
                         <!-- この作品のおすすめルート（開いた時に作る） -->
                         <div class="popup-section popup-courses" data-spot-id="${escapeHTML(String(data.id))}" hidden></div>

@@ -353,6 +353,21 @@
     background: linear-gradient(transparent, var(--color-bg) 30%);
 }
 
+/* ---------- 訪れる人への情報（聖地のフォーム） ---------- */
+.visit-fields {
+    margin: 0 0 16px;
+    padding: 12px 12px 0;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.visit-fields legend {
+    padding: 0 6px;
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--color-text-sub);
+}
+
 /* ---------- 作品の説明 ---------- */
 .work-form-field {
     display: grid;
