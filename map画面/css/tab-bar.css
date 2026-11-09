@@ -1,0 +1,71 @@
+@charset "UTF-8";
+
+/* =========================================
+   スマホの画面下のタブ（tab-bar.js）
+   地図・作品・スタンプ・マイページへすぐ移れるようにする。広い画面では出さない
+========================================= */
+:root {
+    --tab-bar-height: 0px;
+}
+
+.tab-bar {
+    display: none;
+}
+
+@media (max-width: 600px) {
+    :root {
+        --tab-bar-height: calc(58px + env(safe-area-inset-bottom));
+    }
+
+    .tab-bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        /* 地図のピン（〜10）より手前、聖地の詳細（20）・メニューや各画面（それ以上）より後ろ */
+        z-index: 15;
+        display: flex;
+        height: var(--tab-bar-height);
+        padding-bottom: env(safe-area-inset-bottom);
+        border-top: 1px solid #e3e8ec;
+        background: rgba(255, 255, 255, .97);
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, .06);
+    }
+
+    .tab-bar-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        color: #6b7b8c;
+        font-size: 11px;
+        font-weight: bold;
+        text-decoration: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .tab-bar-icon {
+        width: 24px;
+        height: 24px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .tab-bar-item[aria-current="page"] {
+        color: #0b3c5d;
+    }
+
+    .tab-bar-item[aria-current="page"] .tab-bar-icon {
+        stroke-width: 2.4;
+    }
+
+    /* ページの一番下がタブに隠れないようにする */
+    body.has-tab-bar {
+        padding-bottom: var(--tab-bar-height);
+    }
+}

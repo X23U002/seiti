@@ -152,6 +152,9 @@ export async function seed(page, { data = withSpots(), user = null, users = {}, 
         localStorage.clear();
         localStorage.setItem("mockFs", JSON.stringify(fsData));
         localStorage.setItem("mockAuth", JSON.stringify(auth));
+        // 使い方の説明・現在地の確認は、もう見たことにしておく（見せるテストでは local で "" にする）
+        localStorage.setItem("seitiOnboarded", "1");
+        localStorage.setItem("seitiLocationAskedAt", String(Date.now()));
         Object.entries(extra).forEach(([key, value]) => localStorage.setItem(key, value));
     }, [data, { users, current: user }, local]);
 }
