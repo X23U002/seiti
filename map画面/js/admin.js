@@ -1182,6 +1182,134 @@ document.getElementById("episode-bulk").addEventListener("click", async function
     }
 });
 
+// ---------- よく使われている聖地の集計（stamp・favorite を全員分読む。押した時だけ） ----------
+function statsCell(tag, text) {
+    const cell = document.createElement(tag);
+    cell.textContent = text;
+    return cell;
+}
+
+document.getElementById("stats-load").addEventListener("click", async function () {
+    const button = this;
+    const errorBox = document.getElementById("stats-error");
+    button.disabled = true;
+    button.textContent = "集計中…";
+    errorBox.hidden = true;
+
+    try {
+        const [stampSnapshot, favoriteSnapshot] = await Promise.all([
+            getDocs(collection(db, "stamp")),
+            getDocs(collection(db, "favorite"))
+        ]);
+
+        // 聖地ごと：スタンプの数・回った人・お気に入りの数
+        const bySpot = {};
+        const entry = function (spotId) {
+            return bySpot[spotId] || (bySpot[spotId] = { stamps: 0, users: new Set(), favorites: 0 });
+        };
+        const allUsers = new Set();
+        let stampTotal = 0;
+        stampSnapshot.forEach(function (d) {
+            const data = d.data();
+            const spotId = data.spot_id && data.spot_id.id;
+            if (!spotId) return;
+            const userId = data.user_id && data.user_id.id;
+            entry(spotId).stamps += 1;
+            if (userId) {
+                entry(spotId).users.add(userId);
+                allUsers.add(userId);
+            }
+            stampTotal += 1;
+        });
+        let favoriteTotal = 0;
+        favoriteSnapshot.forEach(function (d) {
+            const data = d.data();
+            const spotId = data.spot_id && data.spot_id.id;
+            if (!spotId) return;
+            entry(spotId).favorites += 1;
+            favoriteTotal += 1;
+        });
+
+        // 全体
+        const summary = document.getElementById("stats-summary");
+        summary.innerHTML = "";
+        [["スタンプ", stampTotal + "回"], ["スタンプを取った人", allUsers.size + "人"], ["お気に入り", favoriteTotal + "件"]]
+            .forEach(function (item) {
+                const box = document.createElement("div");
+                box.className = "stats-box";
+                box.append(statsCell("strong", item[1]), statsCell("span", item[0]));
+                summary.appendChild(box);
+            });
+
+        // スタンプが多い聖地（同じ数ならお気に入りが多い方）
+        const spotList = document.getElementById("stats-spots");
+        spotList.innerHTML = "";
+        Object.keys(bySpot)
+            .map(function (spotId) {
+                const spot = findAdminSpot(spotId);
+                return { spot: spot, item: bySpot[spotId] };
+            })
+            .filter(function (row) { return row.spot && row.item.stamps > 0; })
+            .sort(function (a, b) { return b.item.stamps - a.item.stamps || b.item.favorites - a.item.favorites; })
+            .slice(0, 10)
+            .forEach(function (row) {
+                const li = document.createElement("li");
+                li.append(
+                    statsCell("strong", row.spot.data.spot_name || "無題のスポット"),
+                    statsCell("span", (row.spot.data.title_name || "その他") +
+                        "・スタンプ " + row.item.stamps + "回（" + row.item.users.size + "人）・お気に入り " + row.item.favorites)
+                );
+                spotList.appendChild(li);
+            });
+        if (!spotList.children.length) {
+            spotList.appendChild(statsCell("li", "まだスタンプがありません"));
+        }
+
+        // 作品ごと
+        const byWork = {};
+        spots.forEach(function (spot) {
+            const title = spot.data.title_name || "その他";
+            const work = byWork[title] || (byWork[title] = { stamps: 0, users: new Set(), favorites: 0, spots: 0, visited: 0 });
+            const item = bySpot[spot.id];
+            work.spots += 1;
+            if (!item) return;
+            work.stamps += item.stamps;
+            work.favorites += item.favorites;
+            item.users.forEach(function (user) { work.users.add(user); });
+            if (item.stamps > 0) work.visited += 1;
+        });
+        const tbody = document.getElementById("stats-works");
+        tbody.innerHTML = "";
+        Object.keys(byWork)
+            .sort(function (a, b) { return byWork[b].stamps - byWork[a].stamps || byWork[b].favorites - byWork[a].favorites; })
+            .forEach(function (title) {
+                const work = byWork[title];
+                const tr = document.createElement("tr");
+                tr.append(
+                    statsCell("th", title),
+                    statsCell("td", String(work.stamps)),
+                    statsCell("td", String(work.users.size)),
+                    statsCell("td", String(work.favorites)),
+                    statsCell("td", work.visited + " / " + work.spots)
+                );
+                tr.firstChild.scope = "row";
+                tbody.appendChild(tr);
+            });
+
+        document.getElementById("stats-result").hidden = false;
+        button.textContent = "集計し直す";
+    } catch (error) {
+        console.error(error);
+        errorBox.textContent = error && error.code === "permission-denied"
+            ? "全員のスタンプ・お気に入りを読む権限がありません。Firestore のルールで、管理者が stamp と favorite を読めるようにしてください。"
+            : "集計できませんでした。通信状況を確認して、もう一度お試しください。";
+        errorBox.hidden = false;
+        button.textContent = "集計する";
+    } finally {
+        button.disabled = false;
+    }
+});
+
 // ---------- 作品の説明（work コレクション。作品ページの見出しの下に出す） ----------
 const WORK_COLLECTION = "work";
 const WORK_DESCRIPTION_MAX = 1000;
@@ -1619,19 +1747,20 @@ document.getElementById("course-new").addEventListener("click", function () { op
 
 // ---------- タブ ----------
 function selectTab(name) {
-    ["requests", "contacts", "spots", "episodes", "works", "courses"].forEach(function (key) {
+    ["requests", "contacts", "spots", "episodes", "works", "courses", "stats"].forEach(function (key) {
         const selected = key === name;
         document.getElementById("tab-" + key).setAttribute("aria-selected", String(selected));
         document.getElementById("panel-" + key).hidden = !selected;
     });
     // 「対応済みも表示」は申請・お問い合わせの時だけ
-    document.getElementById("show-done-label").hidden = name === "spots" || name === "episodes" || name === "works" || name === "courses";
+    document.getElementById("show-done-label").hidden = name === "spots" || name === "episodes" || name === "works" || name === "courses" || name === "stats";
 }
 document.getElementById("tab-requests").addEventListener("click", function () { selectTab("requests"); });
 document.getElementById("tab-contacts").addEventListener("click", function () { selectTab("contacts"); });
 document.getElementById("tab-spots").addEventListener("click", function () { selectTab("spots"); });
 document.getElementById("tab-episodes").addEventListener("click", function () { selectTab("episodes"); });
 document.getElementById("tab-works").addEventListener("click", function () { selectTab("works"); });
+document.getElementById("tab-stats").addEventListener("click", function () { selectTab("stats"); });
 document.getElementById("tab-courses").addEventListener("click", function () { selectTab("courses"); });
 document.getElementById("show-done").addEventListener("change", render);
 

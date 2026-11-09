@@ -156,7 +156,8 @@ export async function getDocs(ref) {
     await wait();
     const filters = ref.filters || [];
     const ownQuery = filters.some((f) => f.field === "user_id" && me() && f.value.__ref === "user/" + me());
-    if (["request_spot", "contact"].includes(ref.path) && !ownQuery && !isAdmin()) throw denied("read " + ref.path);
+    // 自分のものだけ読める（管理者は全部読める。スタンプ・お気に入りは管理ページの集計で使う）
+    if (["request_spot", "contact", "stamp", "favorite"].includes(ref.path) && !ownQuery && !isAdmin()) throw denied("read " + ref.path);
 
     const rows = Object.entries(load()[ref.path] || {})
         .filter(([, d]) => filters.every((f) => d[f.field] && d[f.field].__ref === f.value.__ref));

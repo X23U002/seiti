@@ -122,3 +122,26 @@ test("スタンプが無い時は、共有のボタンを出さない", async ({
     await expect(page.locator("#got-count")).toHaveText("0");
     await expect(page.locator("#share-record")).toBeHidden();
 });
+
+test("管理ページの「集計」で、聖地・作品ごとのスタンプとお気に入りの数を見られる", async ({ page }) => {
+    const [a, b] = ["京阪宇治駅", "宇治橋"].map(spotNamed);
+    const stamp = (user, spot) => ({ user_id: { __ref: "user/" + user }, spot_id: { __ref: "spot/" + spot.id }, time_stamp: { __ts: 1 } });
+    const favorite = (user, spot) => ({ user_id: { __ref: "user/" + user }, spot_id: { __ref: "spot/" + spot.id }, time_stamp: { __ts: 1 } });
+    await seed(page, {
+        user: "uid1",
+        data: admin({
+            stamp: { t1: stamp("u2", a), t2: stamp("u2", a), t3: stamp("u3", a), t4: stamp("u3", b) },
+            favorite: { u2_a: favorite("u2", b), u3_b: favorite("u3", b) }
+        })
+    });
+    await page.goto("html/admin.html");
+    await page.click("#tab-stats");
+    await page.click("#stats-load");
+    await expect(page.locator("#stats-summary .stats-box strong")).toHaveText(["4回", "2人", "2件"]);
+    const ranking = page.locator("#stats-spots li");
+    await expect(ranking.nth(0)).toContainText(a.spot_name);
+    await expect(ranking.nth(0)).toContainText("スタンプ 3回（2人）・お気に入り 0");
+    await expect(ranking.nth(1)).toContainText("スタンプ 1回（1人）・お気に入り 2");
+    const eupho = page.locator("#stats-works tr", { hasText: a.title_name });
+    await expect(eupho.locator("td")).toHaveText(["4", "2", "2", "2 / " + SPOTS.filter((s) => s.title_name === a.title_name).length]);
+});

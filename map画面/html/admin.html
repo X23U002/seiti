@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex">
     <title>管理ページ - 聖地巡礼NAVI</title>
     <link rel="stylesheet" href="../css/common.css?v=c79053d9">
-    <link rel="stylesheet" href="../css/admin.css?v=3dfc8b44">
+    <link rel="stylesheet" href="../css/admin.css?v=44eb6997">
 
     <!-- 位置の確認・調整に使う地図 -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
@@ -53,6 +53,9 @@
                 </button>
                 <button type="button" class="admin-tab" role="tab" id="tab-courses" aria-selected="false" aria-controls="panel-courses">
                     ルート <span class="tab-count" id="count-courses">0</span>
+                </button>
+                <button type="button" class="admin-tab" role="tab" id="tab-stats" aria-selected="false" aria-controls="panel-stats">
+                    集計
                 </button>
             </div>
 
@@ -123,6 +126,28 @@
                         <button type="submit" class="btn btn-primary" id="work-save">保存する</button>
                     </div>
                 </form>
+            </section>
+
+            <!-- よく使われている聖地の集計（スタンプ・お気に入り） -->
+            <section id="panel-stats" role="tabpanel" aria-labelledby="tab-stats" hidden>
+                <p class="episode-lead">
+                    全員のスタンプとお気に入りの数を、聖地・作品ごとに数えます。どの聖地が人気か、どの作品の聖地を増やすか決めるのに使えます。
+                    （全員分を読むので、押した時だけ数えます）
+                </p>
+                <button type="button" class="btn btn-primary" id="stats-load">集計する</button>
+                <p class="form-alert" id="stats-error" role="alert" hidden></p>
+                <div id="stats-result" hidden>
+                    <div class="stats-summary" id="stats-summary"></div>
+                    <h3 class="stats-heading">スタンプが多い聖地（上位10）</h3>
+                    <ol class="stats-ranking" id="stats-spots"></ol>
+                    <h3 class="stats-heading">作品ごと</h3>
+                    <table class="stats-table">
+                        <thead>
+                            <tr><th scope="col">作品</th><th scope="col">スタンプ</th><th scope="col">回った人</th><th scope="col">お気に入り</th><th scope="col">スタンプのある聖地</th></tr>
+                        </thead>
+                        <tbody id="stats-works"></tbody>
+                    </table>
+                </div>
             </section>
 
             <!-- 作品ごとのおすすめ聖地巡礼ルート -->
@@ -302,6 +327,6 @@
 
     <script src="../js/common.js?v=bdcf06ca"></script>
     <script src="../js/toast.js?v=49b42195"></script>
-    <script type="module" src="../js/admin.js?v=0e988b30"></script>
+    <script type="module" src="../js/admin.js?v=55cb26d8"></script>
 </body>
 </html>
