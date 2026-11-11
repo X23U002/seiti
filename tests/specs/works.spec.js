@@ -76,7 +76,9 @@ test("管理ページの「作品」で書いた説明が、作品ページの�
     // 書き直すと、同じドキュメントを上書きする
     await page.fill("#work-description", "京都府宇治市が舞台の青春物語。");
     await page.click("#work-save");
-    await expect(page.locator("#toast")).toContainText("説明を保存しました");
+    // 1回目の「保存しました」がまだ出ていることがあるので、保存した中身が変わるまで待つ
+    await expect.poll(async () => Object.values((await readStore(page)).work)
+        .find((work) => work.title_name === EUPHO).description).toBe("京都府宇治市が舞台の青春物語。");
     expect(Object.values((await readStore(page)).work)).toHaveLength(2);
 
     await page.goto("html/work.html?title=" + encodeURIComponent(EUPHO));
