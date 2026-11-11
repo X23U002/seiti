@@ -36,7 +36,8 @@ import { MANNER_NOTE, getVisitInfo } from "./spot-info.js?v=34e7c477";
 import {
     courseDistance,
     distanceMeters,
-    formatCourseLength
+    formatCourseLength,
+    orderByNearest
 } from "./course.js?v=5729311e";
 
 // はじめての人への使い方の説明と、現在地を使ってよいかの確認
@@ -44,6 +45,9 @@ import { startOnboarding } from "./onboarding.js?v=1d90b903";
 
 // AI でつくるマイプラン（おすすめルートの画面の下）
 import { refreshMyPlan, setupMyPlan } from "./my-plan.js?v=dfdb3f4b";
+
+// スマホの聖地の詳細パネルを、なぞって閉じる・全画面に広げる
+import { enableSheetDrag } from "./sheet-drag.js?v=b4c8f0eb";
 
 // 聖地・おすすめルートの読み込み（他の画面と共通。通信が止められた時の予備の読み方あり）
 import {
@@ -429,17 +433,45 @@ function openSpotFromUrl() {
 // （「お気に入り・ルート・履歴」画面の保存したルートから使う）
 // =========================================================
 function openRouteFromUrl() {
-    const param =
+    const params =
         new URLSearchParams(
             location.search
-        ).get("route");
+        );
+    const param =
+        params.get("route");
 
     if (!param) {
         return false;
     }
 
-    param
-        .split(",")
+    // 名前付き（スタンプ帳の「まだの聖地をルートに入れる」など）の時は、回りやすいよう近い順に並べ直す
+    const routeName =
+        (params.get("name") || "").slice(0, 40);
+    let routeIds =
+        param.split(",");
+
+    if (routeName) {
+        routeIds =
+            orderByNearest(
+                routeIds
+                    .map(
+                        function (spotId) {
+                            return spots.find(
+                                function (spot) {
+                                    return String(spot.id) === String(spotId) && spot.coord;
+                                }
+                            );
+                        }
+                    )
+                    .filter(Boolean)
+            ).map(
+                function (spot) {
+                    return spot.id;
+                }
+            );
+    }
+
+    routeIds
         .forEach(
             function (spotId) {
                 window.addSpotToRouteById(
@@ -457,11 +489,18 @@ function openRouteFromUrl() {
         return false;
     }
 
+    fitRouteBounds();
+
+    if (routeName) {
+        window.showToast(
+            `「${routeName}」（${selectedSpots.length}か所）をルート案内に入れました`
+        );
+        return true;
+    }
+
     // 保存したルートを開いたばかりなので「保存済み」にしておく
     lastSavedRouteKey = getRouteKey();
     updateSaveRouteButton();
-
-    fitRouteBounds();
 
     window.showToast(
         `保存したルート（${selectedSpots.length}か所）を開きました`
@@ -1195,6 +1234,250 @@ function renderNearbySpots(container, spot) {
 
 
 // =========================================================
+// スタンプを押した後の「次の聖地」（stampsyori.js のお祝いの画面から使う）
+// ルート案内に入っている聖地なら、ルートでその後にある、まだスタンプを押していない聖地。
+// そうでなければ、同じ作品のまだの聖地のうち一番近いもの（歩いて行ける距離まで）
+// =========================================================
+const NEXT_SPOT_MAX_METERS = 5000;
+
+function isSpotCollected(spotId) {
+    return (
+        typeof window.hasCollectedStamp === "function" &&
+        window.hasCollectedStamp(spotId)
+    );
+}
+
+function findSpotById(spotId) {
+    return spots.find(
+        function (spot) {
+            return String(spot.id) === String(spotId);
+        }
+    );
+}
+
+function getNextPilgrimageSpot(spotId) {
+    const here = findSpotById(spotId);
+    if (!here || !here.coord) {
+        return null;
+    }
+
+    const index =
+        selectedSpots.findIndex(
+            function (item) {
+                return String(item.id) === String(spotId);
+            }
+        );
+
+    if (index !== -1) {
+        const nextInRoute =
+            selectedSpots
+                .slice(index + 1)
+                .map(
+                    function (item) {
+                        return findSpotById(item.id);
+                    }
+                )
+                .find(
+                    function (spot) {
+                        return spot && spot.coord && !isSpotCollected(spot.id);
+                    }
+                );
+
+        if (nextInRoute) {
+            return {
+                spot: nextInRoute,
+                distance: getDistanceMeters(here.coord, nextInRoute.coord),
+                reason: "route"
+            };
+        }
+    }
+
+    const titleName = getTitleName(here);
+    let best = null;
+
+    spots.forEach(
+        function (spot) {
+            if (
+                String(spot.id) === String(spotId) ||
+                !spot.coord ||
+                getTitleName(spot) !== titleName ||
+                isSpotCollected(spot.id)
+            ) {
+                return;
+            }
+
+            const distance = getDistanceMeters(here.coord, spot.coord);
+            if (
+                Number.isFinite(distance) &&
+                distance <= NEXT_SPOT_MAX_METERS &&
+                (!best || distance < best.distance)
+            ) {
+                best = { spot: spot, distance: distance, reason: "nearby" };
+            }
+        }
+    );
+
+    return best;
+}
+
+window.getNextPilgrimageSpot =
+    function (spotId) {
+        const next = getNextPilgrimageSpot(spotId);
+        if (!next) {
+            return null;
+        }
+
+        return {
+            id: String(next.spot.id),
+            name: next.spot.spot_name || "無題のスポット",
+            distanceText: formatDistance(next.distance),
+            reason: next.reason,
+            latitude: Number(next.spot.coord.latitude),
+            longitude: Number(next.spot.coord.longitude)
+        };
+    };
+
+window.goToSpot = goToSpot;
+
+
+// =========================================================
+// 近くの聖地の一覧（地図の「一覧」ボタンから開く、下から出るシート）
+// 現在地（分からなければ地図の真ん中）から近い順に、絞り込みどおりの聖地を並べる
+// =========================================================
+const SPOT_LIST_MAX = 50;
+
+function getSpotListOrigin() {
+    const last = geolocate && geolocate._lastKnownPosition;
+    if (last && last.coords) {
+        return {
+            coord: { latitude: last.coords.latitude, longitude: last.coords.longitude },
+            label: "現在地から近い順"
+        };
+    }
+
+    const center = map.getCenter();
+    return {
+        coord: { latitude: center.lat, longitude: center.lng },
+        label: "地図の真ん中から近い順"
+    };
+}
+
+function renderSpotList() {
+    const list = document.getElementById("spot-list");
+    const note = document.getElementById("spot-list-note");
+    const origin = getSpotListOrigin();
+
+    const items =
+        filterSpots()
+            .filter(
+                function (spot) {
+                    return spot.coord;
+                }
+            )
+            .map(
+                function (spot) {
+                    return {
+                        spot: spot,
+                        distance: getDistanceMeters(origin.coord, spot.coord)
+                    };
+                }
+            )
+            .filter(
+                function (item) {
+                    return Number.isFinite(item.distance);
+                }
+            )
+            .sort(
+                function (a, b) {
+                    return a.distance - b.distance;
+                }
+            )
+            .slice(0, SPOT_LIST_MAX);
+
+    note.textContent =
+        origin.label +
+        (items.length >= SPOT_LIST_MAX
+            ? `（近い ${SPOT_LIST_MAX} か所）`
+            : `（${items.length}か所）`) +
+        (activeFilter.titles.length || activeFilter.keyword ? "・絞り込み中の作品だけ" : "");
+
+    if (items.length === 0) {
+        list.innerHTML = '<li class="course-empty">表示できる聖地がありません</li>';
+        return;
+    }
+
+    list.innerHTML =
+        items.map(
+            function (item) {
+                const spot = item.spot;
+                const title = getTitleName(spot);
+                const color = titleColorMap[title] || getTitleColor(title);
+                const image = getSpotImageSrc(spot.image_url);
+                const episode = getSpotEpisodeLabel(spot);
+
+                return `
+                    <li>
+                        <button type="button" class="spot-list-item" data-spot-id="${escapeHTML(String(spot.id))}">
+                            <span class="spot-list-thumb" style="background:${escapeHTML(color)};" aria-hidden="true">
+                                <span class="spot-list-initial">${escapeHTML(getTitleInitial(title))}</span>
+                                ${image ? `<img src="${escapeHTML(image)}" alt="" loading="lazy" onerror="this.remove()">` : ""}
+                            </span>
+                            <span class="spot-list-body">
+                                <span class="spot-list-name">${escapeHTML(spot.spot_name || "無題のスポット")}</span>
+                                <span class="spot-list-meta">
+                                    <span class="spot-list-title">${escapeHTML(title)}</span>
+                                    ${episode ? `<span class="popup-ep">${escapeHTML(episode)}</span>` : ""}
+                                </span>
+                            </span>
+                            <span class="spot-list-side">
+                                <span class="spot-list-distance">${formatDistance(item.distance)}</span>
+                                ${isSpotCollected(spot.id) ? '<span class="spot-list-done" aria-label="スタンプ獲得済み">✓ 獲得済み</span>' : ""}
+                            </span>
+                        </button>
+                    </li>
+                `;
+            }
+        ).join("");
+}
+
+window.openSpotList =
+    function () {
+        if (document.getElementById("side-menu").classList.contains("open")) {
+            window.toggleMenu();
+        }
+
+        renderSpotList();
+
+        const sheet = document.getElementById("spot-list-modal");
+        sheet.style.display = "block";
+        sheet.scrollTop = 0;
+        sheet.querySelector(".filter-header button").focus();
+    };
+
+window.closeSpotList =
+    function () {
+        closeSheet(
+            document.getElementById("spot-list-modal")
+        );
+    };
+
+document
+    .getElementById("spot-list")
+    .addEventListener(
+        "click",
+        function (event) {
+            const item = event.target.closest(".spot-list-item");
+            if (!item) {
+                return;
+            }
+
+            document.getElementById("spot-list-modal").style.display = "none";
+            goToSpot(item.dataset.spotId);
+        }
+    );
+
+
+// =========================================================
 // お気に入り（ハート）
 // ログインしている人だけ使える。DB（favorite）に保存する
 // =========================================================
@@ -1727,6 +2010,9 @@ function createSpotPopup(buildHTML, data, longitude, latitude) {
             syncFavoriteButtons(
                 popup.getElement()
             );
+
+            // スマホでは、なぞって閉じる・全画面に広げる
+            enableSheetDrag(popup);
 
             // 近くの聖地は開いた時に作る（スタンプの✓も最新にするため）
             renderNearbySpots(
@@ -2689,23 +2975,40 @@ function initializeSearchBox() {
                     }
 
                     // 地図の移動（ズーム）が終わるとピンが描き直されて
-                    // 先に開いた吹き出しが消えるため、移動と描画が終わってから開く
+                    // 先に開いた吹き出しが消えるため、移動と描画が終わってから開く。
+                    // 地図の絵を全部読み終わる（idle）まで待つと、電波が弱い時になかなか開かないので、
+                    // 移動が終わって少ししたら、読み終わっていなくても開く
+                    const openSelectedPopup =
+                        function () {
+                            if (
+                                spotMarkers
+                                    .length > 0 &&
+                                spotMarkers[0].getPopup() &&
+                                !spotMarkers[0].getPopup().isOpen()
+                            ) {
+                                spotMarkers[0]
+                                    .togglePopup();
+                            }
+                        };
+
                     setTimeout(
                         function () {
                             map.once(
                                 "idle",
-                                function () {
-                                    if (
-                                        spotMarkers
-                                            .length > 0 &&
-                                        spotMarkers[0].getPopup() &&
-                                        !spotMarkers[0].getPopup().isOpen()
-                                    ) {
-                                        spotMarkers[0]
-                                            .togglePopup();
-                                    }
-                                }
+                                openSelectedPopup
                             );
+
+                            if (map.isMoving()) {
+                                map.once(
+                                    "moveend",
+                                    function () {
+                                        setTimeout(openSelectedPopup, 300);
+                                    }
+                                );
+                            } else {
+                                // 動きを減らす設定などで、移動がもう終わっている時
+                                setTimeout(openSelectedPopup, 300);
+                            }
                         },
                         100
                     );

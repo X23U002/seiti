@@ -510,3 +510,37 @@
 #stamp-notice {
     margin-bottom: 16px;
 }
+
+/* まだの聖地をルートに入れる（作品ごとの一覧の下） */
+.stamp-todo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed #d5dde3;
+}
+
+.stamp-todo-text {
+    margin: 0;
+    color: #4a5a6a;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.stamp-todo-route {
+    width: auto;
+    min-height: 44px;
+    padding: 10px 16px;
+    font-size: 14px;
+}
+
+.route-link {
+    margin-top: 10px;
+}
+
+.route-link[hidden] {
+    display: none;
+}

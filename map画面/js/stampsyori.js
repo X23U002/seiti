@@ -1121,6 +1121,27 @@ function showStampCelebration(
             ? `✨ ${rank.name}にランクアップ！`
             : "";
 
+    // 次に行く聖地（ルートの次、無ければ同じ作品の近くのまだの聖地。Script.js）
+    const nextSpot =
+        !completedTitle &&
+        typeof window.getNextPilgrimageSpot ===
+            "function"
+            ? window.getNextPilgrimageSpot(spot.id)
+            : null;
+
+    const nextSpotHTML =
+        nextSpot
+            ? `<div class="stamp-celebration-goto">
+                <p class="stamp-celebration-goto-label">${nextSpot.reason === "route" ? "ルートの次の聖地" : "近くのまだの聖地"}</p>
+                <p class="stamp-celebration-goto-name">${escapeStampHTML(nextSpot.name)}<small>約${escapeStampHTML(nextSpot.distanceText)}</small></p>
+                <div class="stamp-celebration-goto-buttons">
+                    <button type="button" class="stamp-celebration-goto-detail">詳細を見る</button>
+                    <a class="stamp-celebration-goto-walk" target="_blank" rel="noopener"
+                        href="https://www.google.com/maps/dir/?api=1&amp;destination=${nextSpot.latitude},${nextSpot.longitude}&amp;travelmode=walking">🚶 道案内</a>
+                </div>
+            </div>`
+            : "";
+
     const overlay =
         document.createElement(
             "div"
@@ -1163,6 +1184,7 @@ function showStampCelebration(
                 ? `<p class="stamp-celebration-complete">「${escapeStampHTML(completedTitle)}」の聖地を<br>すべて回りました！</p>`
                 : ""}
             <p class="stamp-celebration-next">${nextText}</p>
+            ${nextSpotHTML}
             ${completedTitle && typeof window.drawShareCard === "function"
                 ? '<button type="button" class="stamp-celebration-share">📤 コンプリートを共有</button>'
                 : ""}
@@ -1216,6 +1238,22 @@ function showStampCelebration(
                 shareButton.disabled = false;
             }
         });
+    }
+
+    // 次の聖地の詳細へ移る（道案内は Google マップを別のタブで開くので、お祝いはそのまま閉じる）
+    const gotoButton = overlay.querySelector(".stamp-celebration-goto-detail");
+    if (gotoButton) {
+        gotoButton.addEventListener("click", function () {
+            close();
+            if (typeof window.goToSpot === "function") {
+                window.goToSpot(nextSpot.id);
+            }
+        });
+    }
+
+    const walkLink = overlay.querySelector(".stamp-celebration-goto-walk");
+    if (walkLink) {
+        walkLink.addEventListener("click", close);
     }
 
     overlay.addEventListener(
@@ -1287,8 +1325,8 @@ function showStampCelebration(
         );
     }
 
-    // 普段は少しで自動的に閉じる（コンプリートの時はOKを押すまで残す）
-    if (!completedTitle) {
+    // 普段は少しで自動的に閉じる（コンプリートの時と、次の聖地を出した時はOKを押すまで残す）
+    if (!completedTitle && !nextSpot) {
         closeTimer =
             setTimeout(
                 close,
