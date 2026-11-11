@@ -158,6 +158,8 @@ export async function seed(page, { data = withSpots(), user = null, users = {}, 
         // 使い方の説明・現在地の確認は、もう見たことにしておく（見せるテストでは local で "" にする）
         localStorage.setItem("seitiOnboarded", "1");
         localStorage.setItem("seitiLocationAskedAt", String(Date.now()));
+        // 開いた時の巡礼の前の注意も、もう見たことにしておく（見せるテストでは sessionStorage から消す）
+        sessionStorage.setItem("seitiSafetyShown", "1");
         Object.entries(extra).forEach(([key, value]) => localStorage.setItem(key, value));
     }, [data, { users, current: user }, local]);
 }

@@ -3,9 +3,23 @@
 // ・はじめて開いた時だけ、使い方を3枚で説明し、最後に現在地を使うかを聞く
 // ・2回目からは、現在地を許可していなければ、理由を書いた小さな案内を出す（断られたら1週間は出さない）
 // ・何のアプリか分かる前に、いきなりブラウザの「位置情報を許可しますか？」を出さないため
+// ・アプリを開くたびに1回、巡礼の前の注意（歩きスマホ・私有地・撮影のマナーなど）を出す
+//   （同じ画面を開いている間は、ページを移っても出さない。はじめての人には説明の中の1枚として出す）
 // ==========================================
 
 const ONBOARDED_KEY = "seitiOnboarded";
+const SAFETY_SHOWN_KEY = "seitiSafetyShown";
+
+// 巡礼の前の注意
+const SAFETY_TITLE = "巡礼の前に";
+const SAFETY_ITEMS = [
+    ["🚶", "歩きスマホはやめましょう。地図を見る時は、安全な場所で立ち止まって"],
+    ["🚗", "道路や線路の近くでは、車や電車に気をつけて"],
+    ["🏠", "私有地や立入禁止の場所には入らない"],
+    ["🤫", "地元の方の迷惑にならないよう、大声や長居は控えめに"],
+    ["📷", "人が写る撮影は控え、通る人の邪魔にならないように"],
+    ["🗑️", "ゴミは持ち帰りましょう"]
+];
 const LOCATION_ASKED_KEY = "seitiLocationAskedAt";
 const ASK_AGAIN_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -26,6 +40,35 @@ const STEPS = [
         text: "聖地の近くまで行くと、スタンプが押せます。作品の聖地を全部回ってコンプリートを目指しましょう。"
     }
 ];
+
+// 今開いている間に、巡礼の前の注意を出したか（sessionStorage：アプリを閉じると消える）
+function wasSafetyShown() {
+    try {
+        return sessionStorage.getItem(SAFETY_SHOWN_KEY) === "1";
+    } catch (error) {
+        return false;
+    }
+}
+
+function markSafetyShown() {
+    try {
+        sessionStorage.setItem(SAFETY_SHOWN_KEY, "1");
+    } catch (error) {
+        // 保存できない環境では、ページを開くたびに出る
+    }
+}
+
+// 注意の一覧（説明の1枚と、開いた時の注意で共通）
+function createSafetyList() {
+    const list = el("ul", "safety-list");
+    SAFETY_ITEMS.forEach(function (item) {
+        const li = el("li");
+        li.appendChild(el("span", "safety-icon", item[0]));
+        li.appendChild(el("span", "", item[1]));
+        list.appendChild(li);
+    });
+    return list;
+}
 
 function readStorage(key) {
     try {
@@ -78,6 +121,7 @@ function showGuide(permission, useLocation) {
     overlay.appendChild(card);
 
     const steps = STEPS.concat(
+        [{ icon: "⚠️", title: SAFETY_TITLE, safety: true }],
         permission === "denied"
             ? [{
                 icon: "📍",
@@ -93,6 +137,8 @@ function showGuide(permission, useLocation) {
     );
 
     let index = 0;
+
+    markSafetyShown();
 
     function finish(allowLocation) {
         writeStorage(ONBOARDED_KEY, "1");
@@ -111,7 +157,11 @@ function showGuide(permission, useLocation) {
         const title = el("h2", "onboarding-title", step.title);
         title.id = "onboarding-title";
         card.appendChild(title);
-        card.appendChild(el("p", "onboarding-text", step.text));
+        if (step.safety) {
+            card.appendChild(createSafetyList());
+        } else {
+            card.appendChild(el("p", "onboarding-text", step.text));
+        }
 
         // 何枚目か（●○○○）
         const dots = el("div", "onboarding-dots");
@@ -140,8 +190,10 @@ function showGuide(permission, useLocation) {
         } else {
             const skip = el("button", "onboarding-secondary", "スキップ");
             skip.type = "button";
+            // 飛ばしても、巡礼の前の注意は見てもらう
             skip.addEventListener("click", function () {
-                index = steps.length - 1;
+                const safetyIndex = steps.findIndex(function (item) { return item.safety; });
+                index = index < safetyIndex ? safetyIndex : steps.length - 1;
                 render();
             });
             const next = el("button", "onboarding-primary", "次へ");
@@ -159,6 +211,51 @@ function showGuide(permission, useLocation) {
 
     document.body.appendChild(overlay);
     render();
+}
+
+// アプリを開いた時の、巡礼の前の注意（「わかった」で閉じる）
+function showSafetyNotice() {
+    markSafetyShown();
+
+    return new Promise(function (resolve) {
+        const overlay = el("div", "onboarding safety-notice");
+        overlay.setAttribute("role", "dialog");
+        overlay.setAttribute("aria-modal", "true");
+        overlay.setAttribute("aria-labelledby", "safety-title");
+
+        const card = el("div", "onboarding-card");
+        card.appendChild(el("div", "onboarding-icon", "⚠️"));
+        const title = el("h2", "onboarding-title", SAFETY_TITLE);
+        title.id = "safety-title";
+        card.appendChild(title);
+        card.appendChild(createSafetyList());
+
+        const buttons = el("div", "onboarding-buttons");
+        const ok = el("button", "onboarding-primary", "わかった");
+        ok.type = "button";
+        buttons.appendChild(ok);
+        card.appendChild(buttons);
+        overlay.appendChild(card);
+
+        function close() {
+            document.removeEventListener("keydown", onKey);
+            overlay.remove();
+            resolve();
+        }
+        function onKey(event) {
+            if (event.key === "Escape") close();
+        }
+        ok.addEventListener("click", close);
+        document.addEventListener("keydown", onKey);
+
+        document.body.appendChild(overlay);
+        ok.focus();
+    });
+}
+
+// 今開いている間にまだ出していなければ、巡礼の前の注意を出す
+function showSafetyOnce() {
+    return wasSafetyShown() ? Promise.resolve() : showSafetyNotice();
 }
 
 // 2回目からの、現在地を使うかの小さな案内（地図の上に出し、地図は使えるまま）
@@ -200,6 +297,7 @@ export async function startOnboarding(useLocation, askLocation) {
     if (permission === "granted") {
         if (askLocation) useLocation();
         if (!readStorage(ONBOARDED_KEY)) writeStorage(ONBOARDED_KEY, "1");
+        await showSafetyOnce();
         return;
     }
 
@@ -208,6 +306,9 @@ export async function startOnboarding(useLocation, askLocation) {
         showGuide(permission, askLocation ? useLocation : requestPermissionOnly);
         return;
     }
+
+    // 現在地の案内より先に、巡礼の前の注意を出す（重ならないように）
+    await showSafetyOnce();
 
     if (!askLocation || permission === "denied") {
         return;

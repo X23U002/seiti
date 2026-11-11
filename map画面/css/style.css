@@ -4148,3 +4148,38 @@ a.popup-title:focus-visible {
     background: white;
     color: #0b3c5d;
 }
+
+/* 巡礼の前の注意（アプリを開いた時と、はじめての説明の1枚。onboarding.js） */
+.safety-list {
+    margin: 4px 0 18px;
+    padding: 0;
+    list-style: none;
+    text-align: left;
+}
+
+.safety-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 7px 0;
+    color: #2c3e50;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.safety-list li + li {
+    border-top: 1px solid #eef1f3;
+}
+
+.safety-icon {
+    flex-shrink: 0;
+    width: 24px;
+    font-size: 18px;
+    line-height: 1.3;
+    text-align: center;
+}
+
+/* はじめての説明の中では、何枚目かの印との間を詰める */
+.onboarding-card .safety-list + .onboarding-dots {
+    margin-top: 0;
+}

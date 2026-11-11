@@ -41,7 +41,7 @@ import {
 } from "./course.js?v=5729311e";
 
 // はじめての人への使い方の説明と、現在地を使ってよいかの確認
-import { startOnboarding } from "./onboarding.js?v=1d90b903";
+import { startOnboarding } from "./onboarding.js?v=f6c278bc";
 
 // AI でつくるマイプラン（おすすめルートの画面の下）
 import { refreshMyPlan, setupMyPlan } from "./my-plan.js?v=dfdb3f4b";

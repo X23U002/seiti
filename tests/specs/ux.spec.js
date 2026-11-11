@@ -16,7 +16,11 @@ test("はじめて開いた時だけ、使い方を説明してから現在地�
     await expect(guide.locator(".onboarding-title")).toHaveText("聖地を探す");
     await guide.locator(".onboarding-primary", { hasText: "次へ" }).click();
     await expect(guide.locator(".onboarding-title")).toHaveText("ルートを作って巡る");
+    // 飛ばしても、巡礼の前の注意は見せる
     await guide.locator(".onboarding-secondary", { hasText: "スキップ" }).click();
+    await expect(guide.locator(".onboarding-title")).toHaveText("巡礼の前に");
+    await expect(guide.locator(".safety-list li").first()).toContainText("歩きスマホはやめましょう");
+    await guide.locator(".onboarding-primary", { hasText: "次へ" }).click();
     await expect(guide.locator(".onboarding-title")).toHaveText("現在地を使いますか？");
     await guide.locator(".onboarding-secondary", { hasText: "あとで" }).click();
     await expect(guide).toHaveCount(0);
@@ -133,4 +137,37 @@ test("ピンに作品名の1文字目が入り、検索欄の説明は切れな�
     const oshi = SPOTS.find((spot) => spot.title_name === "【推しの子】");
     await expect(page.locator(`.mapboxgl-marker[data-spot-id="${oshi.id}"] .pin-initial`)).toHaveText("推");
     await expect(page.locator(".mapboxgl-ctrl-geocoder input")).toHaveAttribute("placeholder", "聖地・駅・住所で検索");
+});
+
+test("アプリを開くたびに1回、巡礼の前の注意（歩きスマホなど）を出す。閉じたら、ほかのページへ移っても出さない", async ({ page }) => {
+    await seed(page);
+    await page.evaluate(() => sessionStorage.removeItem("seitiSafetyShown"));
+    await page.goto("html/map.html");
+    const notice = page.locator(".safety-notice");
+    await expect(notice.locator(".onboarding-title")).toHaveText("巡礼の前に");
+    await expect(notice.locator(".safety-list li")).toHaveCount(6);
+    await expect(notice.locator(".safety-list")).toContainText("歩きスマホはやめましょう");
+    await notice.locator("button", { hasText: "わかった" }).click();
+    await expect(notice).toHaveCount(0);
+
+    await page.goto("html/works.html");
+    await page.goto("html/map.html");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+    await expect(page.locator(".safety-notice")).toHaveCount(0);
+
+    // 次に開いた時（新しいタブ）は、また出す
+    const next = await page.context().newPage();
+    await next.goto("html/map.html");
+    await expect(next.locator(".safety-notice")).toBeVisible();
+});
+
+test("2回目からは、巡礼の前の注意を閉じてから現在地の案内を出す（重ねない）", async ({ page }) => {
+    await seed(page, { local: { seitiLocationAskedAt: "" } });
+    await page.evaluate(() => sessionStorage.removeItem("seitiSafetyShown"));
+    await page.goto("html/map.html");
+    await expect(page.locator(".safety-notice")).toBeVisible();
+    await expect(page.locator(".location-card")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".safety-notice")).toHaveCount(0);
+    await expect(page.locator(".location-card")).toBeVisible();
 });
