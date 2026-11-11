@@ -40,7 +40,7 @@
     <!-- 自作CSS -->
     <link
         rel="stylesheet"
-        href="../css/style.css?v=afb6f9e8"
+        href="../css/style.css?v=55c48814"
     >
 
     <!-- スタンプのランク（回数で枠の色が変わる） -->
@@ -59,7 +59,7 @@
     <link rel="manifest" href="../manifest.webmanifest">
     <meta name="theme-color" content="#0b3c5d">
     <link rel="apple-touch-icon" href="../images/icons/apple-touch-icon.png">
-    <script src="../js/pwa.js?v=99d6f0c1" defer></script>
+    <script src="../js/pwa.js?v=c08113cc" defer></script>
 </head>
 
 <body>
@@ -171,6 +171,17 @@
             作品で絞り込み
         </button>
 
+        <!-- 近くの聖地を一覧で見る -->
+        <button
+            id="spot-list-btn"
+            type="button"
+            onclick="openSpotList()"
+            aria-label="近くの聖地を一覧で見る"
+        >
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor"/></svg>
+            一覧
+        </button>
+
         <div
             id="filter-chips"
             aria-live="polite"
@@ -235,6 +246,40 @@
     <div
         id="filter-backdrop"
         onclick="closeFilter()"
+    ></div>
+
+
+    <!-- 近くの聖地の一覧（下から出るシート） -->
+    <div
+        id="spot-list-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="spot-list-heading"
+    >
+
+        <div class="filter-header">
+
+            <h2 id="spot-list-heading">近くの聖地</h2>
+
+            <button
+                type="button"
+                onclick="closeSpotList()"
+                aria-label="閉じる"
+            >
+                ✕
+            </button>
+
+        </div>
+
+        <p class="filter-note" id="spot-list-note"></p>
+
+        <ul id="spot-list" class="spot-list"></ul>
+
+    </div>
+
+    <div
+        id="spot-list-backdrop"
+        onclick="closeSpotList()"
     ></div>
 
 
@@ -422,7 +467,7 @@
     <!-- スタンプのランク（回数で枠の色が変わる） -->
     <script src="../js/stamp-rank.js?v=c4ce732e"></script>
 
-    <script src="../js/stampsyori.js?v=06ef5671"></script>
+    <script src="../js/stampsyori.js?v=ad9fbc55"></script>
 
 
     <!-- =====================================================
@@ -431,7 +476,7 @@
     ====================================================== -->
     <script
         type="module"
-        src="../js/Script.js?v=f642f7eb"
+        src="../js/Script.js?v=a06ffeb9"
     ></script>
 
 
@@ -456,6 +501,10 @@
 
             if (document.getElementById("course-modal").style.display === "block") {
                 window.closeCourses();
+            }
+
+            if (document.getElementById("spot-list-modal").style.display === "block") {
+                window.closeSpotList();
             }
         });
     </script>

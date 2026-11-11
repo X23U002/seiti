@@ -58,7 +58,9 @@ function buildStamps() {
                 image: spot.image || (stamp && stamp.image) || "",
                 earned: Boolean(stamp),
                 date: stamp ? stamp.date : "",
-                count: stamp ? stamp.count || 1 : 0
+                count: stamp ? stamp.count || 1 : 0,
+                season: Number(spot.season) || 0,
+                episode: Number(spot.episode) || 0
             };
         })
         // 聖地の一覧がまだ無い時は、獲得したスタンプだけを並べる
@@ -295,6 +297,15 @@ function renderSections() {
             });
 
         section.append(head, grid);
+
+        // まだの聖地を、次の巡礼のルートにすぐ入れられるようにする
+        const todo = allStamps.filter(function (s) {
+            return s.title === title && !s.earned;
+        });
+        if (hasSpotList && loadState === "ready" && todo.length > 0) {
+            section.appendChild(createTodoBar(title, todo));
+        }
+
         area.appendChild(section);
     });
 
@@ -304,6 +315,47 @@ function renderSections() {
             ? '<div class="card empty-state"><div class="empty-state-icon">⛩️</div><p>まだスタンプがありません</p><small>地図で聖地を訪れて、スタンプを集めよう</small><a href="map.html" class="btn btn-primary">地図を開く</a></div>'
             : '<div class="card empty-state"><div class="empty-state-icon">🔍</div><p>表示できるスタンプがありません</p></div>';
     }
+}
+
+// ---------- まだの聖地をルートに入れる ----------
+// 地図のルート案内に一度に入れる数（多すぎると回りきれないので、話の順に先から）
+const TODO_ROUTE_MAX = 10;
+
+// 地図の map.html?route=ID,ID&name=名前 で開く（地図側で近い順に並べ直す）
+function getRouteLink(ids, name) {
+    return "map.html?route=" + ids.map(encodeURIComponent).join(",") +
+        "&name=" + encodeURIComponent(name);
+}
+
+function createTodoBar(title, todo) {
+    const picked = todo
+        .slice()
+        .sort(function (a, b) {
+            // 何期・何話が分かる聖地を話の順に先に（分からない聖地は後）
+            const ka = a.season || a.episode ? a.season * 1000 + a.episode : Infinity;
+            const kb = b.season || b.episode ? b.season * 1000 + b.episode : Infinity;
+            return ka - kb;
+        })
+        .slice(0, TODO_ROUTE_MAX);
+
+    const bar = document.createElement("div");
+    bar.className = "stamp-todo";
+
+    const text = document.createElement("p");
+    text.className = "stamp-todo-text";
+    text.textContent = "まだの聖地 " + todo.length + " か所" +
+        (todo.length > TODO_ROUTE_MAX ? "（ルートには話の順に " + TODO_ROUTE_MAX + " か所）" : "");
+
+    const link = document.createElement("a");
+    link.className = "btn btn-primary stamp-todo-route";
+    link.href = getRouteLink(
+        picked.map(function (s) { return s.id; }),
+        "「" + title + "」のまだの聖地"
+    );
+    link.textContent = "🗺️ まだの聖地をルートに入れる";
+
+    bar.append(text, link);
+    return bar;
 }
 
 // 未ログイン・読み込み中・読み込み失敗の時は、一覧の上にお知らせを出す
@@ -394,6 +446,11 @@ function openStampModal(stamp) {
     // 地図でこの聖地を開く
     document.getElementById("modal-map-link").href =
         "map.html?spot=" + encodeURIComponent(stamp.id);
+
+    // まだの聖地は、そのままルート案内に入れられる
+    const routeLink = document.getElementById("modal-route-link");
+    routeLink.hidden = stamp.earned;
+    routeLink.href = getRouteLink([stamp.id], stamp.name || "聖地");
 
     document.getElementById("stamp-modal").style.display = "flex";
 }
