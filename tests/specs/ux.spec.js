@@ -129,13 +129,13 @@ test("スマホの画面下のタブで、地図・作品・スタンプ・マ�
     await expect(page.locator(".tab-bar")).toBeHidden();
 });
 
-test("ピンに作品名の1文字目が入り、検索欄の説明は切れない長さ", async ({ page }) => {
+test("ピンには文字を入れない（読み上げでは作品名が分かる）。検索欄の説明は切れない長さ", async ({ page }) => {
     await seed(page);
     await page.goto("html/map.html");
     await expect(pins(page)).toHaveCount(SPOTS.length);
-    await expect(page.locator(`.mapboxgl-marker[data-spot-id="${bridge.id}"] .pin-initial`)).toHaveText("響");
-    const oshi = SPOTS.find((spot) => spot.title_name === "【推しの子】");
-    await expect(page.locator(`.mapboxgl-marker[data-spot-id="${oshi.id}"] .pin-initial`)).toHaveText("推");
+    const pin = page.locator(`.mapboxgl-marker[data-spot-id="${bridge.id}"]`);
+    await expect(pin.locator("text")).toHaveCount(0);
+    await expect(pin).toHaveAttribute("aria-label", bridge.title_name + "の聖地");
     await expect(page.locator(".mapboxgl-ctrl-geocoder input")).toHaveAttribute("placeholder", "聖地・駅・住所で検索");
 });
 
