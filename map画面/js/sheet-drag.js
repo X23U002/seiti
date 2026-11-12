@@ -78,9 +78,20 @@ export function enableSheetDrag(popup) {
         }, 180);
     }
 
+    // 触った所から詳細の中までに、別にスクロールできる所（「訪れる前に」の欄など）があるか
+    function isInInnerScroller(target) {
+        for (let element = target; element && element !== content; element = element.parentElement) {
+            const overflow = getComputedStyle(element).overflowY;
+            if ((overflow === "auto" || overflow === "scroll") && element.scrollHeight > element.clientHeight + 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     content.addEventListener("touchstart", function (event) {
         startY = null;
-        if (!isMobile() || event.touches.length !== 1) {
+        if (!isMobile() || event.touches.length !== 1 || isInInnerScroller(event.target)) {
             return;
         }
         startY = event.touches[0].clientY;
@@ -98,10 +109,17 @@ export function enableSheetDrag(popup) {
             if (Math.abs(deltaY) < START_PX) {
                 return;
             }
+            // ブラウザがもうスクロールを始めている（止められない）時は、割り込まずにスクロールに任せる
+            // （止めようとすると、指が動くたびにコンソールに「Ignored attempt to cancel a touchmove」が出る）
             const atTop = content.scrollTop <= 0;
+            if (!event.cancelable) {
+                startY = null;
+                return;
+            }
             if (deltaY > 0 && atTop) {
                 mode = "down";
-            } else if (deltaY < 0 && !isExpanded()) {
+            } else if (deltaY < 0 && atTop && !isExpanded()) {
+                // 中が一番上の時だけ、上になぞると全画面に広げる（途中までスクロールしていれば、ふつうにスクロール）
                 mode = "up";
             } else {
                 // 中のスクロールに任せる
@@ -110,7 +128,9 @@ export function enableSheetDrag(popup) {
             }
         }
 
-        event.preventDefault();
+        if (event.cancelable) {
+            event.preventDefault();
+        }
 
         if (mode === "down") {
             setOffset(Math.max(0, deltaY), false);
