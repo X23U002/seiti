@@ -112,7 +112,7 @@ test("スマホの画面下のタブで、地図・作品・スタンプ・マ�
     await seed(page);
     await page.goto("html/map.html");
     const tabs = page.locator(".tab-bar .tab-bar-item");
-    await expect(tabs).toHaveText(["地図", "作品", "スタンプ", "マイページ"]);
+    await expect(tabs).toHaveText(["地図", "作品一覧", "スタンプ帳", "マイページ"]);
     await expect(tabs.first()).toHaveAttribute("aria-current", "page");
     // 地図の下のボタンは、タブに重ならない
     const bar = await page.locator(".tab-bar").boundingBox();
@@ -121,7 +121,7 @@ test("スマホの画面下のタブで、地図・作品・スタンプ・マ�
 
     await tabs.nth(1).click();
     await expect(page).toHaveURL(/works\.html$/);
-    await expect(page.locator(".tab-bar-item[aria-current=page]")).toHaveText("作品");
+    await expect(page.locator(".tab-bar-item[aria-current=page]")).toHaveText("作品一覧");
 
     // 聖地の詳細を開いている間は隠す
     await page.goto("html/map.html?spot=" + bridge.id);
@@ -181,4 +181,63 @@ test("ログインの準備では、ポップアップ用の Google の部品（
         persistence: window.__authOptions.persistence.length
     }));
     expect(options).toEqual({ resolver: false, persistence: 3 });
+});
+
+test("スマホのルート案内では、入れた聖地が見える。たたむと「次：○○」の1行になり、スタンプを押すと次へ進む", async ({ page }) => {
+    const third = spotNamed("大吉山展望台");
+    await seed(page, {
+        user: "uid2",
+        data: withSpots({
+            user: { uid2: PROFILE("巡礼者", "p@x.jp") },
+            course: { c3: { title_name: station.title_name, course_name: "3か所", description: "", spot_ids: [station.id, bridge.id, third.id], updated_at: { __ts: 1 } } }
+        })
+    });
+    await page.goto("html/map.html?course=c3");
+    const items = page.locator("#routeList .routeItem");
+    await expect(items).toHaveCount(3);
+    for (let i = 0; i < 3; i++) {
+        await expect(items.nth(i)).toBeInViewport();
+    }
+    // ボタンは「生成」と、小さい1段（Googleマップ・保存・送る）
+    const row = await Promise.all(["#open-google-route", "#save-route", "#share-route"].map((id) => page.locator(id).boundingBox()));
+    expect(new Set(row.map((box) => Math.round(box.y))).size).toBe(1);
+
+    await page.click("#route-toggle");
+    await expect(page.locator("#route-next")).toHaveText("次：" + station.spot_name);
+    await expect(page.locator("#route-next")).toBeVisible();
+    await expect(items.first()).toBeHidden();
+
+    await page.evaluate((id) => window.setStampTestLocation(id, 10), station.id);
+    await page.evaluate((id) => window.collectStamp(id), station.id);
+    await expect(page.locator("#route-next")).toHaveText("次：" + bridge.spot_name);
+});
+
+test("聖地の詳細の下の固定部分は小さく、スタンプとルートに追加は横に並ぶ（場面の説明が見える）", async ({ page }) => {
+    await seed(page, { user: "uid2", data: withSpots({ user: { uid2: PROFILE("巡礼者", "p@x.jp") } }) });
+    await page.goto("html/map.html?spot=" + bridge.id);
+    const bar = page.locator(".popup-action-bar");
+    await expect(bar).toBeVisible();
+    const stamp = await bar.locator(".stamp-button").boundingBox();
+    const route = await bar.locator("button[id^='route-btn-']").boundingBox();
+    expect(Math.abs(stamp.y - route.y)).toBeLessThan(2);
+    expect((await bar.boundingBox()).height).toBeLessThan(120);
+    await expect(page.locator(".popup-card .popup-section").first().locator("p")).toBeInViewport();
+});
+
+test("スマホでは、下のタブと同じ入り口（右上のマイページ・メニューの作品一覧など）は出さない。広い画面では出す", async ({ page }) => {
+    await seed(page);
+    await page.goto("html/map.html");
+    await expect(page.locator(".tab-bar")).toBeVisible();
+    await expect(page.locator("#profile-btn")).toBeHidden();
+    await page.evaluate(() => window.toggleMenu());
+    await expect(page.locator("#side-menu a", { hasText: "おすすめルート" })).toBeVisible();
+    await expect(page.locator("#side-menu .menu-in-tab-bar")).toHaveCount(3);
+    for (const item of await page.locator("#side-menu .menu-in-tab-bar").all()) {
+        await expect(item).toBeHidden();
+    }
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(page.locator(".tab-bar")).toBeHidden();
+    await expect(page.locator("#profile-btn")).toBeVisible();
+    await expect(page.locator("#side-menu a", { hasText: "スタンプ帳" })).toBeVisible();
 });

@@ -1850,6 +1850,41 @@ geolocate.on("trackuserlocationstart", stopOrbit);
 const NEAR_ROUTE_SPOT_METERS = 150;
 const notifiedNearSpotIds = new Set();
 
+// ルート案内をたたんだ時の1行（「次：宇治橋・あと約350m」）。
+// 次は、ルートの順でまだスタンプを押していない聖地。距離は現在地が分かる時だけ
+function updateRouteNext() {
+    const label = document.getElementById("route-next");
+    if (!label) {
+        return;
+    }
+
+    const next = selectedSpots.find(
+        function (spot) {
+            return !isSpotCollected(spot.id);
+        }
+    );
+
+    if (!next) {
+        label.textContent = selectedSpots.length > 0 ? "全部回りました" : "";
+        return;
+    }
+
+    const last = geolocate && geolocate._lastKnownPosition;
+    const meters =
+        last && last.coords
+            ? getDistanceMeters(
+                { latitude: last.coords.latitude, longitude: last.coords.longitude },
+                next
+            )
+            : NaN;
+
+    label.textContent =
+        "次：" + next.name +
+        (Number.isFinite(meters) ? "・あと約" + formatDistance(meters) : "");
+}
+
+window.updateRouteNext = updateRouteNext;
+
 geolocate.on(
     "geolocate",
     function (event) {
@@ -1857,6 +1892,8 @@ geolocate.on(
             latitude: event.coords.latitude,
             longitude: event.coords.longitude
         };
+
+        updateRouteNext();
 
         // ルートから外した聖地は、また知らせられるようにする
         const routeIds = new Set(
@@ -4094,8 +4131,11 @@ function updateRouteList() {
             selectedSpots.length;
     }
 
-    // ルートが変わったら「このルートを保存」を押せるようにする
+    // ルートが変わったら「保存」を押せるようにする
     updateSaveRouteButton();
+
+    // たたんだ時の「次：○○」
+    updateRouteNext();
 
     if (
         selectedSpots.length === 0
@@ -5514,7 +5554,7 @@ function updateSaveRouteButton() {
             ? "保存中…"
             : saved
                 ? "保存済み"
-                : "このルートを保存";
+                : "保存";
 }
 
 document
