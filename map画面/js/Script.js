@@ -444,13 +444,14 @@ function openRouteFromUrl() {
         return false;
     }
 
-    // 名前付き（スタンプ帳の「まだの聖地をルートに入れる」など）の時は、回りやすいよう近い順に並べ直す
+    // 名前付き（送られたルート・スタンプ帳の「まだの聖地をルートに入れる」）の時は、その名前で知らせる。
+    // order=near の時は、回りやすいよう近い順に並べ直す（送られたルートは送った人の順番のまま）
     const routeName =
         (params.get("name") || "").slice(0, 40);
     let routeIds =
         param.split(",");
 
-    if (routeName) {
+    if (params.get("order") === "near") {
         routeIds =
             orderByNearest(
                 routeIds
@@ -5424,6 +5425,73 @@ function getRouteKey() {
         )
         .join(",");
 }
+
+// =========================================================
+// ルートを人に送る（map.html?route=ID,ID&name=名前 のリンク。開いた人の地図に同じ順番で入る）
+// =========================================================
+function getRouteShareName() {
+    const titles =
+        [...new Set(
+            selectedSpots.map(
+                function (item) {
+                    const spot = findSpotById(item.id);
+                    return spot ? getTitleName(spot) : "";
+                }
+            )
+        )].filter(Boolean);
+
+    return titles.length === 1
+        ? `「${titles[0]}」の巡礼ルート`
+        : "聖地巡礼ルート";
+}
+
+function getRouteShareURL(name) {
+    const url = new URL("map.html", location.href);
+    url.searchParams.set("route", getRouteKey());
+    url.searchParams.set("name", name);
+    return url.href;
+}
+
+async function shareRoute() {
+    if (selectedSpots.length === 0) {
+        return;
+    }
+
+    const name = getRouteShareName();
+    const url = getRouteShareURL(name);
+    const text =
+        `${name}（${selectedSpots.length}か所：` +
+        selectedSpots.map(function (item) { return item.name; }).join("→") +
+        "）";
+
+    if (navigator.share) {
+        try {
+            await navigator.share({ title: name, text: text, url: url });
+            return;
+        } catch (error) {
+            // 共有メニューを閉じただけの時は何もしない
+            if (error && error.name === "AbortError") {
+                return;
+            }
+        }
+    }
+
+    try {
+        await navigator.clipboard.writeText(text + "\n" + url);
+        window.showToast("ルートのリンクをコピーしました。LINE などに貼って送れます");
+    } catch (error) {
+        window.prompt("このリンクをコピーしてください", url);
+    }
+}
+
+document
+    .getElementById(
+        "share-route"
+    )
+    ?.addEventListener(
+        "click",
+        shareRoute
+    );
 
 // 今のルートを保存済みなら「保存済み」にする
 function updateSaveRouteButton() {

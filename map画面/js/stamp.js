@@ -321,10 +321,10 @@ function renderSections() {
 // 地図のルート案内に一度に入れる数（多すぎると回りきれないので、話の順に先から）
 const TODO_ROUTE_MAX = 10;
 
-// 地図の map.html?route=ID,ID&name=名前 で開く（地図側で近い順に並べ直す）
+// 地図の map.html?route=ID,ID&name=名前&order=near で開く（地図側で近い順に並べ直す）
 function getRouteLink(ids, name) {
     return "map.html?route=" + ids.map(encodeURIComponent).join(",") +
-        "&name=" + encodeURIComponent(name);
+        "&name=" + encodeURIComponent(name) + "&order=near";
 }
 
 function createTodoBar(title, todo) {
