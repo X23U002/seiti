@@ -61,3 +61,22 @@ test("聖地の写真を同じ名前で差し替えたら、次に開いた時�
     expect(await load()).toBe("new");
     await context.setOffline(false);
 });
+
+test("どのページにもタブのアイコンがあり、読める（無いとブラウザがサイトの一番上の favicon.ico を探して 404 になる）", async ({ request, baseURL }) => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const htmlDir = path.join(process.cwd(), "..", "map画面", "html");
+    const pages = fs.readdirSync(htmlDir).filter((name) => name.endsWith(".html"));
+    expect(pages.length).toBeGreaterThan(10);
+    for (const name of pages) {
+        const html = fs.readFileSync(path.join(htmlDir, name), "utf8");
+        const href = html.match(/<link rel="icon"[^>]*href="([^"]+)"/)?.[1];
+        expect(href, name + " にタブのアイコンの指定がある").toBeTruthy();
+        const response = await request.get(new URL(href, new URL("html/" + name, baseURL)).href);
+        expect(response.ok(), name + " のアイコンが読める").toBe(true);
+    }
+    // トップページ（リポジトリの一番上の index.html）
+    const top = fs.readFileSync(path.join(process.cwd(), "..", "index.html"), "utf8");
+    const topIcon = top.match(/<link rel="icon"[^>]*href="([^"]+)"/)?.[1];
+    expect(fs.existsSync(path.join(process.cwd(), "..", topIcon))).toBe(true);
+});
