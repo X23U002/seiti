@@ -40,7 +40,7 @@
     <!-- 自作CSS -->
     <link
         rel="stylesheet"
-        href="../css/style.css?v=d95b29c8"
+        href="../css/style.css?v=74da3c7f"
     >
 
     <!-- スタンプのランク（回数で枠の色が変わる） -->
@@ -431,13 +431,26 @@
                 Googleマップで徒歩案内
             </button>
 
-            <!-- ログイン中は、マイページから開けるように保存できる -->
-            <button
-                id="save-route"
-                type="button"
-            >
-                このルートを保存
-            </button>
+            <!-- 保存と送るは横に並べる（スマホでルートの一覧が狭くならないように） -->
+            <div class="route-actions">
+
+                <!-- ログイン中は、マイページから開けるように保存できる -->
+                <button
+                    id="save-route"
+                    type="button"
+                >
+                    このルートを保存
+                </button>
+
+                <!-- リンクにして LINE などで送る（開いた人の地図に同じルートが入る） -->
+                <button
+                    id="share-route"
+                    type="button"
+                >
+                    ルートを送る
+                </button>
+
+            </div>
 
         </div>
 
@@ -467,7 +480,7 @@
     <!-- スタンプのランク（回数で枠の色が変わる） -->
     <script src="../js/stamp-rank.js?v=c4ce732e"></script>
 
-    <script src="../js/stampsyori.js?v=ad9fbc55"></script>
+    <script src="../js/stampsyori.js?v=539ee7c3"></script>
 
 
     <!-- =====================================================
@@ -476,7 +489,7 @@
     ====================================================== -->
     <script
         type="module"
-        src="../js/Script.js?v=1f65e117"
+        src="../js/Script.js?v=49c7664b"
     ></script>
 
 
