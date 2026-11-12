@@ -7,7 +7,7 @@ import {
 
 // Firebase の接続（ログイン）は他の画面と共通
 // （ブラウザに古い firebase-db.js が残っていても動くよう、前からある getCurrentUser だけを使う）
-import { getCurrentUser } from "./firebase-db.js?v=917161b9";
+import { getCurrentUser } from "./firebase-db.js?v=61accae5";
 
 // 作品名と作品ごとの色（スタンプ帳・マイページと共通）
 import {
@@ -44,7 +44,7 @@ import {
 import { startOnboarding } from "./onboarding.js?v=f6c278bc";
 
 // AI でつくるマイプラン（おすすめルートの画面の下）
-import { refreshMyPlan, setupMyPlan } from "./my-plan.js?v=dfdb3f4b";
+import { refreshMyPlan, setupMyPlan } from "./my-plan.js?v=4419a46f";
 
 // スマホの聖地の詳細パネルを、なぞって閉じる・全画面に広げる
 import { enableSheetDrag } from "./sheet-drag.js?v=b4c8f0eb";
@@ -54,14 +54,14 @@ import {
     loadCourses as fetchCourseList,
     loadSpots,
     readCachedSpots
-} from "./public-data.js?v=0ba43cde";
+} from "./public-data.js?v=e9b87d82";
 
 // お気に入り・保存したルート
 import {
     loadFavorites,
     saveRoute,
     setFavorite
-} from "./saved-db.js?v=c6cb832f";
+} from "./saved-db.js?v=e608198e";
 
 // stampsyori.js（スタンプ獲得の演出）からも同じ色を使う
 window.getTitleColor = getTitleColor;

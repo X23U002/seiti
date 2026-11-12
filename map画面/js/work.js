@@ -7,7 +7,7 @@ import { getTitleColor, getTitleName } from "./title-colors.js?v=5c634da9";
 import { compareEpisodeKeys, formatEpisodeKey, getSpotEpisodeKey, getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=9a2ff22f";
 import { getSpotImageSrc } from "./spot-image.js?v=59165daf";
 import { courseDistance, formatCourseLength } from "./course.js?v=5729311e";
-import { loadCourses, loadMyStampCounts, loadSpots, loadWorkDescriptions, readCachedSpots } from "./public-data.js?v=0ba43cde";
+import { loadCourses, loadMyStampCounts, loadSpots, loadWorkDescriptions, readCachedSpots } from "./public-data.js?v=e9b87d82";
 
 const title = new URLSearchParams(location.search).get("title") || "";
 

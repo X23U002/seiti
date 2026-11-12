@@ -3,10 +3,10 @@
 // 作品と条件（使える時間・出発地・希望）を選ぶと、その人向けのプランを AI が作る。
 // 「このプランで巡る」でルート案内に入れる（運営のおすすめルートと同じ使い方）
 // ==========================================
-import { getCurrentUser } from "./firebase-db.js?v=917161b9";
+import { getCurrentUser } from "./firebase-db.js?v=61accae5";
 import { getSpotEpisodeLabel } from "./episode.js?v=9a2ff22f";
 import { formatCourseLength } from "./course.js?v=5729311e";
-import { isAiPlanAvailable, readSavedPlan, requestAiPlan, savePlan } from "./ai-plan.js?v=13eabc22";
+import { isAiPlanAvailable, readSavedPlan, requestAiPlan, savePlan } from "./ai-plan.js?v=39fb6815";
 
 // 「約3時間10分」
 function formatMinutes(minutes) {

@@ -1,7 +1,7 @@
 // ========================================
 // お問い合わせ（contact に送る。運営が確認して、必要なら登録したメールアドレスへ返信する）
 // ========================================
-import { getLoginUserId, getWaitSeconds, sendContact } from "./request-db.js?v=4ba97301";
+import { getLoginUserId, getWaitSeconds, sendContact } from "./request-db.js?v=158b16dc";
 
 const MESSAGE_LIMIT = 2000;
 

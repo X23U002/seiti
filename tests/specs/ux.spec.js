@@ -171,3 +171,14 @@ test("2回目からは、巡礼の前の注意を閉じてから現在地の案�
     await expect(page.locator(".safety-notice")).toHaveCount(0);
     await expect(page.locator(".location-card")).toBeVisible();
 });
+
+test("ログインの準備では、ポップアップ用の Google の部品（api.js）を読み込まない（スタンプ用の compat 版とぶつかってエラーになり、スマホで読み込みが止まるため）", async ({ page }) => {
+    await seed(page);
+    await page.goto("html/map.html");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+    const options = await page.evaluate(() => ({
+        resolver: "popupRedirectResolver" in window.__authOptions,
+        persistence: window.__authOptions.persistence.length
+    }));
+    expect(options).toEqual({ resolver: false, persistence: 3 });
+});

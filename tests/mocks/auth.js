@@ -25,6 +25,12 @@ const auth = {
 };
 
 export function getAuth() { return auth; }
+// 渡された設定を残す（ポップアップ用の部品を読み込んでいないかをテストで確かめる）
+export function initializeAuth(_app, options) { window.__authOptions = options; return auth; }
+// 保存先（本物では initializeAuth の persistence に渡す）
+export const indexedDBLocalPersistence = { type: "LOCAL" };
+export const browserLocalPersistence = { type: "LOCAL" };
+export const browserSessionPersistence = { type: "SESSION" };
 
 export async function signInWithEmailAndPassword(_auth, email, password) {
     await wait();

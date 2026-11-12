@@ -10,7 +10,7 @@ import {
     setDoc
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-import { auth, db } from "./firebase-db.js?v=917161b9";
+import { auth, db } from "./firebase-db.js?v=61accae5";
 import { authErrorMessage, saveLoginState } from "./login-state.js?v=3858a481";
 
 // 新規登録入力画面に戻る

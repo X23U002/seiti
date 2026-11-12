@@ -16,7 +16,7 @@ import {
     where
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-import { db, getCurrentUser } from "./firebase-db.js?v=917161b9";
+import { db, getCurrentUser } from "./firebase-db.js?v=61accae5";
 import { COURSE_COLLECTION, sortCourses } from "./course.js?v=5729311e";
 
 const FIRESTORE_TIMEOUT_MS = 8000;
