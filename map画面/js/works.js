@@ -3,7 +3,7 @@
 // 作品を押すと作品ページ（work.html?title=作品名）を開く
 // ==========================================
 import { getTitleColor, getTitleName } from "./title-colors.js?v=5c634da9";
-import { loadCourses, loadMyStampCounts, loadSpots, readCachedSpots } from "./public-data.js?v=0ba43cde";
+import { loadCourses, loadMyStampCounts, loadSpots, readCachedSpots } from "./public-data.js?v=e9b87d82";
 
 let works = [];          // { title, color, spots: [...], routeCount }
 let stampCounts = null;  // スポットID → 回数（未ログインなら null）

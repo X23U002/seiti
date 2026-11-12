@@ -16,7 +16,7 @@ import {
     writeBatch
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-import { db, getCurrentUser } from "./firebase-db.js?v=917161b9";
+import { db, getCurrentUser } from "./firebase-db.js?v=61accae5";
 import { encodeGeohash } from "./geohash.js?v=fe42fce1";
 import { assignSpotIds, buildCsv, readLatLng, readSpotCsv } from "./spot-csv.js?v=96226090";
 

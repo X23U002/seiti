@@ -4,7 +4,7 @@
 // AI（Gemini）が選んだ聖地・滞在時間・見どころが返ってくる
 // ログインが必要（1人1日の回数はサーバーで数える）
 // ==========================================
-import { getCurrentUser } from "./firebase-db.js?v=917161b9";
+import { getCurrentUser } from "./firebase-db.js?v=61accae5";
 
 // 中継サーバーの URL（worker/README.md の手順で公開したもの。空にすると AI の欄を出さない）
 const AI_PLAN_ENDPOINT = "https://seiti-ai-plan.x23u002.workers.dev/plan";

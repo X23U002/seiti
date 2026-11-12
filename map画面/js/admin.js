@@ -20,9 +20,9 @@ import {
     writeBatch
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-import { db, getCurrentUser } from "./firebase-db.js?v=917161b9";
+import { db, getCurrentUser } from "./firebase-db.js?v=61accae5";
 import { encodeGeohash } from "./geohash.js?v=fe42fce1";
-import { isAiPlanAvailable, requestAiPlan } from "./ai-plan.js?v=13eabc22";
+import { isAiPlanAvailable, requestAiPlan } from "./ai-plan.js?v=39fb6815";
 import { getTitleColor } from "./title-colors.js?v=5c634da9";
 import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=9a2ff22f";
 import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=59165daf";
