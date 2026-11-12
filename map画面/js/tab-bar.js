@@ -13,13 +13,13 @@
         },
         {
             href: "works.html",
-            label: "作品",
+            label: "作品一覧",
             pages: ["works.html", "work.html"],
             icon: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="m10 8 5 3-5 3z"/><path d="M8 21h8"/>'
         },
         {
             href: "stamp.html",
-            label: "スタンプ",
+            label: "スタンプ帳",
             pages: ["stamp.html"],
             icon: '<circle cx="12" cy="9" r="5"/><path d="M8 13.5 7 21l5-3 5 3-1-7.5"/>'
         },

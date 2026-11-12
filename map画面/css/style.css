@@ -1769,6 +1769,64 @@ body {
     margin-top: 0 !important;
 }
 
+/* 下に固定する部分を小さくする：距離の文は上に小さく、
+   スタンプ・ルートに追加（・公式サイト）は横1段に並べる */
+.popup-action-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    align-items: stretch;
+    column-gap: 8px;
+    row-gap: 6px;
+    padding-top: 8px;
+}
+
+.popup-action-bar .stamp-popup-area,
+.popup-action-bar .popup-buttons {
+    display: contents;
+}
+
+.popup-action-bar .stamp-distance-message {
+    grid-column: 1 / -1;
+    display: -webkit-box;
+    margin: 0 !important;
+    overflow: hidden;
+    color: #4a5a6a !important;
+    font-size: 12px !important;
+    line-height: 1.5;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.popup-action-bar .stamp-button {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 46px !important;
+    padding: 6px 8px !important;
+    font-size: 13px !important;
+    line-height: 1.3;
+}
+
+.popup-action-bar .popup-buttons button[id^="route-btn-"] {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 46px;
+    padding: 6px 8px;
+    font-size: 13px;
+    line-height: 1.3;
+}
+
+.popup-action-bar .popup-home {
+    grid-column: 3;
+    grid-row: 2;
+    width: 46px;
+    height: 46px;
+}
+
+/* 公式サイトが無い聖地は、2つで横いっぱいに使う */
+.popup-action-bar:not(:has(.popup-home)) {
+    grid-template-columns: 1fr 1fr;
+}
+
 .popup-home {
     flex-shrink: 0;
     width: 48px;
@@ -2533,20 +2591,61 @@ body {
     transform: none;
 }
 
-/* 「保存」と「送る」は横に並べる */
+/* 「Googleマップ」「保存」「送る」は小さく1段に並べる（聖地の一覧を広く使う） */
 .route-actions {
     display: flex;
-    gap: 8px;
-    margin-top: 8px;
+    gap: 6px;
+    margin-top: 6px;
 }
 
 .route-actions > button {
     flex: 1;
+    width: auto !important;
     min-width: 0;
+    min-height: 38px;
     margin-top: 0 !important;
-    padding: 10px 6px !important;
-    font-size: 14px;
+    padding: 6px 4px !important;
+    border-radius: 8px;
+    font-size: 13px;
     white-space: nowrap;
+}
+
+.route-actions > #open-google-route {
+    flex: 1.4;
+}
+
+/* ルートを生成するボタンも少し低くする */
+#generate-mapbox-route {
+    min-height: 40px !important;
+    margin-bottom: 0 !important;
+    padding: 8px 12px !important;
+}
+
+#routeList {
+    margin-bottom: 10px;
+}
+
+/* たたんだ時だけ「次：○○・あと約Nm」を出す（見出しの「ルート案内」の代わり） */
+#route-toggle {
+    min-width: 0;
+}
+
+.route-next {
+    display: none;
+    min-width: 0;
+    overflow: hidden;
+    color: #2c3e50;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#routePanel.collapsed .route-next:not(:empty) {
+    display: block;
+}
+
+#routePanel.collapsed:has(.route-next:not(:empty)) .route-title {
+    display: none;
 }
 
 /* 「ルートを送る」も同じ控えめなボタンに */
@@ -2649,7 +2748,7 @@ body {
         left: 16px;
         right: 80px;
         width: auto;
-        max-height: 45vh;
+        max-height: 62vh;
     }
 
     /* ---------- スポット詳細：画面下からせり上がるパネル ---------- */
@@ -3860,9 +3959,20 @@ a.popup-title:focus-visible {
         padding-bottom: 0;
     }
 
+    /* 下のタブにあるもの（マイページ・作品一覧・スタンプ帳）は、右上のボタンとメニューに重ねて出さない。
+       右上のボタンが無い分、検索欄を広くする */
+    body.has-tab-bar #profile-btn,
+    body.has-tab-bar .menu-in-tab-bar {
+        display: none;
+    }
+
+    body.has-tab-bar #search-container {
+        right: 18px;
+    }
+
     body.has-tab-bar #routePanel {
         bottom: calc(16px + var(--tab-bar-height));
-        max-height: calc(45vh - var(--tab-bar-height));
+        max-height: calc(62vh - var(--tab-bar-height));
     }
 
     body.has-tab-bar #location-btn {

@@ -40,7 +40,7 @@
     <!-- 自作CSS -->
     <link
         rel="stylesheet"
-        href="../css/style.css?v=74da3c7f"
+        href="../css/style.css?v=2c0ee327"
     >
 
     <!-- スタンプのランク（回数で枠の色が変わる） -->
@@ -92,16 +92,17 @@
                 <a href="#" onclick="openCourses(); return false;"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16"/></svg>おすすめルート</a>
             </li>
 
-            <li>
+            <!-- 作品一覧・マイページ・スタンプ帳は、スマホでは下のタブにあるのでメニューには出さない -->
+            <li class="menu-in-tab-bar">
                 <a href="works.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16M3 9h5M3 14h5"/></svg>作品一覧</a>
             </li>
 
-            <li>
+            <li class="menu-in-tab-bar">
                 <a href="mypage.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>マイページ</a>
             </li>
 
-            <li>
-                <a href="stamp.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="6"/><path d="M8.5 14 7 22l5-3 5 3-1.5-8"/></svg>獲得スタンプ</a>
+            <li class="menu-in-tab-bar">
+                <a href="stamp.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="6"/><path d="M8.5 14 7 22l5-3 5 3-1.5-8"/></svg>スタンプ帳</a>
             </li>
 
             <li>
@@ -394,11 +395,16 @@
                 onclick="toggleRoutePanel()"
             >
                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16"/></svg>
-                <span>ルート案内</span>
+                <span class="route-title">ルート案内</span>
                 <span
                     id="route-count"
                     class="route-count"
                 >0</span>
+                <!-- たたんだ時だけ出す「次：○○・あと約Nm」 -->
+                <span
+                    id="route-next"
+                    class="route-next"
+                ></span>
                 <svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </button>
 
@@ -425,30 +431,32 @@
                 地図上にルートを生成
             </button>
 
-            <button
-                id="open-google-route"
-                type="button"
-            >
-                Googleマップで徒歩案内
-            </button>
-
-            <!-- 保存と送るは横に並べる（スマホでルートの一覧が狭くならないように） -->
+            <!-- Googleマップ・保存・送るは小さく1段に並べる（スマホで聖地の一覧が狭くならないように） -->
             <div class="route-actions">
+
+                <button
+                    id="open-google-route"
+                    type="button"
+                    title="Googleマップで徒歩案内"
+                >
+                    Googleマップ
+                </button>
 
                 <!-- ログイン中は、マイページから開けるように保存できる -->
                 <button
                     id="save-route"
                     type="button"
                 >
-                    このルートを保存
+                    保存
                 </button>
 
                 <!-- リンクにして LINE などで送る（開いた人の地図に同じルートが入る） -->
                 <button
                     id="share-route"
                     type="button"
+                    title="このルートを LINE などで送る"
                 >
-                    ルートを送る
+                    送る
                 </button>
 
             </div>
@@ -475,13 +483,13 @@
     ====================================================== -->
     <!-- 画面下の通知メッセージ（stampsyori.js・Script.jsから使う） -->
     <script src="../js/toast.js?v=49b42195"></script>
-    <script src="../js/tab-bar.js?v=48498a21"></script>
+    <script src="../js/tab-bar.js?v=f5e177d7"></script>
     <script src="../js/share-card.js?v=2da8df97"></script>
 
     <!-- スタンプのランク（回数で枠の色が変わる） -->
     <script src="../js/stamp-rank.js?v=c4ce732e"></script>
 
-    <script src="../js/stampsyori.js?v=539ee7c3"></script>
+    <script src="../js/stampsyori.js?v=8c42c74b"></script>
 
 
     <!-- =====================================================
@@ -490,7 +498,7 @@
     ====================================================== -->
     <script
         type="module"
-        src="../js/Script.js?v=bb8c0f9e"
+        src="../js/Script.js?v=61ff5a49"
     ></script>
 
 
@@ -500,6 +508,7 @@
             const panel = document.getElementById("routePanel");
             const collapsed = panel.classList.toggle("collapsed");
             document.getElementById("route-toggle").setAttribute("aria-expanded", String(!collapsed));
+            if (typeof window.updateRouteNext === "function") window.updateRouteNext();
         }
 
         document.addEventListener("keydown", function (event) {

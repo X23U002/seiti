@@ -1675,6 +1675,11 @@ function attachStampGeolocateListeners() {
 // ボタン・メッセージ更新
 // ==========================================
 function refreshStampUI() {
+    // ルート案内をたたんだ時の「次：○○」も、スタンプに合わせて変える（Script.js）
+    if (typeof window.updateRouteNext === "function") {
+        window.updateRouteNext();
+    }
+
     const spots =
         getStampSpots();
 
