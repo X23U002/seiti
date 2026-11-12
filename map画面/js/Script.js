@@ -2278,41 +2278,10 @@ function getMarkerMode() {
 let drawnMarkerMode = null;
 let drawnMarkerList = null;
 
-// ピンの白い丸に、作品名の1文字目（「【推しの子】」なら「推」）を入れる
-// （色の見分けが苦手な人にも、どの作品のピンか分かるように。ピンを大きくすると一緒に大きくなる）
-const SVG_NS = "http://www.w3.org/2000/svg";
-
+// 作品名の1文字目（「【推しの子】」なら「推」。近くの聖地の一覧で、写真が無い時に使う）
 function getTitleInitial(title) {
     const name = String(title || "").replace(/^[【「『（(\[〔\s]+/, "");
     return Array.from(name)[0] || "";
-}
-
-function addPinInitial(element, title, color) {
-    const svg = element.querySelector("svg");
-    const initial = getTitleInitial(title);
-    if (!svg || !initial || title === "その他") {
-        return;
-    }
-
-    const circle = document.createElementNS(SVG_NS, "circle");
-    circle.setAttribute("cx", "13.5");
-    circle.setAttribute("cy", "13.5");
-    circle.setAttribute("r", "8.5");
-    circle.setAttribute("fill", "white");
-
-    const text = document.createElementNS(SVG_NS, "text");
-    text.setAttribute("x", "13.5");
-    text.setAttribute("y", "13.5");
-    text.setAttribute("text-anchor", "middle");
-    text.setAttribute("dominant-baseline", "central");
-    text.setAttribute("font-size", "11");
-    text.setAttribute("font-weight", "bold");
-    text.setAttribute("fill", color);
-    text.setAttribute("class", "pin-initial");
-    text.textContent = initial;
-
-    svg.append(circle, text);
-    element.setAttribute("aria-label", title + "の聖地");
 }
 
 // 一度出したピン（初めて出す時だけ、上から落ちてくる動きを付ける。ズームや絞り込みで描き直しても繰り返さない）
@@ -2600,12 +2569,13 @@ function drawMarkers(list) {
                 .pinColor =
                     titleColor;
 
-            // 色だけでなく文字でも作品が分かるよう、ピンの丸に作品名の1文字目を入れる
-            addPinInitial(
-                spotMarker.getElement(),
-                titleName,
-                titleColor
-            );
+            // 読み上げでは、どの作品の聖地か分かるようにする
+            spotMarker
+                .getElement()
+                .setAttribute(
+                    "aria-label",
+                    titleName + "の聖地"
+                );
 
             if (!droppedPinIds.has(String(data.id))) {
                 droppedPinIds.add(String(data.id));
