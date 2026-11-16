@@ -549,3 +549,50 @@ test("検索の「×」は、候補を選んだ後も文字がある間は出て
     await expect(input).toHaveValue("");
     await expect(clear).toBeHidden();
 });
+
+test("3Dのキャラクターは、斜めから見た時も手前・奥で大きさが変わらない（画面上の高さがいつも同じ）", async ({ page }) => {
+    await seed(page);
+    await page.goto("html/map.html");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+    const bridge = spotNamed("宇治橋");
+    // 3D表示にして（2D表示では傾けられない）、キャラクターを表示する時と同じように斜めから見る
+    await page.evaluate(() => window.toggleView());
+    await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 18, pitch: 70, bearing: -20 }), [bridge.coord.longitude, bridge.coord.latitude]);
+    await expect.poll(() => page.evaluate(() => window.__map.getPitch())).toBeGreaterThan(60);
+
+    const result = await page.evaluate(async () => {
+        const map = window.__map;
+        const size = await import("../js/walker-size.js");
+
+        // 地図の描画と同じ行列で、地面から高さ h(m) の縦の棒が画面で何pxに写るか
+        const matrix = map.transform.customLayerMatrix ? map.transform.customLayerMatrix() : map.transform.mercatorMatrix;
+        const toScreenY = (x, y, z) => {
+            const m = matrix;
+            const cy = m[1] * x + m[5] * y + m[9] * z + m[13];
+            const cw = m[3] * x + m[7] * y + m[11] * z + m[15];
+            return ((1 - cy / cw) / 2) * map.getCanvas().clientHeight;
+        };
+        const screenHeight = (point, meters) => {
+            const mercator = window.mapboxgl.MercatorCoordinate.fromLngLat(point, 0);
+            const top = mercator.meterInMercatorCoordinateUnits() * meters;
+            return Math.abs(toScreenY(mercator.x, mercator.y, 0) - toScreenY(mercator.x, mercator.y, top));
+        };
+
+        // 画面の手前（下の方）と奥（上の方）
+        const near = map.unproject([195, 620]);
+        const far = map.unproject([195, 330]);
+        const now = (point) => screenHeight([point.lng, point.lat], size.heightMetersForScreen(map, point.lng, point.lat, 130));
+        // 前の決め方（画面の真ん中の縮尺）
+        const before = (point) => screenHeight([point.lng, point.lat], 130 * size.metersPerPixel(point.lat, map.getZoom()));
+        return { near: now(near), far: now(far), beforeNear: before(near), beforeFar: before(far) };
+    });
+
+    // 前の決め方では、手前の方がずっと大きく写っていた
+    expect(result.beforeNear / result.beforeFar).toBeGreaterThan(1.5);
+    // 今は手前でも奥でも、ほぼ 130px
+    for (const height of [result.near, result.far]) {
+        expect(height).toBeGreaterThan(105);
+        expect(height).toBeLessThan(155);
+    }
+    expect(Math.abs(result.near / result.far - 1)).toBeLessThan(0.2);
+});
