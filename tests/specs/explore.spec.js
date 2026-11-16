@@ -13,7 +13,7 @@ async function swipe(page, selector, dy, cancelable = true) {
         const element = document.querySelector(sel);
         const rect = element.getBoundingClientRect();
         const x = rect.left + rect.width / 2;
-        const y = rect.top + 60;
+        const y = rect.top + Math.min(60, rect.height / 2);
         const touch = (clientY) => new Touch({ identifier: 1, target: element, clientX: x, clientY });
         element.dispatchEvent(new TouchEvent("touchstart", { touches: [touch(y)], bubbles: true, cancelable: true }));
         for (let i = 1; i <= 6; i++) {
@@ -26,60 +26,66 @@ async function swipe(page, selector, dy, cancelable = true) {
 test.describe("スマホの聖地の詳細パネル", () => {
     test.use({ hasTouch: true });
 
-    test("上になぞると全画面に広がり、下になぞると元の高さに戻る・閉じる。少しだけなら閉じない", async ({ page }) => {
+    test("上の取っ手を上になぞると全画面に、下になぞると元の高さ・閉じる。少しだけなら閉じない。叩くと切りかわる", async ({ page }) => {
         await seed(page);
         await page.goto("html/map.html?spot=" + bridge.id);
         const popup = page.locator(".mapboxgl-popup");
+        const handle = ".sheet-handle";
         const content = ".mapboxgl-popup-content";
         await expect(page.locator(".popup-card .popup-meta")).toBeVisible();
-        await expect(page.locator(".sheet-handle")).toHaveCount(1);
+        await expect(page.locator(handle)).toBeVisible();
         const normal = (await page.locator(content).boundingBox()).height;
 
-        await swipe(page, content, -120);
+        await swipe(page, handle, -120);
         await expect(popup).toHaveClass(/is-sheet-expanded/);
         await expect.poll(async () => (await page.locator(content).boundingBox()).height).toBeGreaterThan(normal + 100);
 
-        await swipe(page, content, 150);
+        await swipe(page, handle, 150);
         await expect(popup).not.toHaveClass(/is-sheet-expanded/);
         await expect(popup).toBeVisible();
 
-        await swipe(page, content, 30);
+        await swipe(page, handle, 30);
         await expect(popup).toBeVisible();
 
-        await swipe(page, content, 150);
+        // 叩くと全画面と元の高さを切りかえる
+        await swipe(page, handle, 0);
+        await expect(popup).toHaveClass(/is-sheet-expanded/);
+        await swipe(page, handle, 0);
+        await expect(popup).not.toHaveClass(/is-sheet-expanded/);
+
+        await swipe(page, handle, 150);
         await expect(popup).toHaveCount(0);
         await expect(page.locator(`.mapboxgl-marker[data-spot-id="${bridge.id}"]`)).not.toHaveClass(/is-selected/);
     });
 
-    test("中を途中までスクロールしている時や、ブラウザがもうスクロールを始めている時は、割り込まない（コンソールに警告を出さない）", async ({ page }) => {
+    test("中のなぞりには割り込まない（スクロールはブラウザに任せる）。中を少しスクロールしたら全画面に広げる", async ({ page }) => {
         await page.addInitScript(() => {
-            // 止められないなぞりを止めようとした回数（Chrome はこの時「Ignored attempt to cancel a touchmove」を出す）
-            window.__ignoredCancels = 0;
+            // 中（取っ手以外）のなぞりを止めた回数
+            window.__contentCancels = 0;
             const original = Event.prototype.preventDefault;
             Event.prototype.preventDefault = function () {
-                if (this.type === "touchmove" && !this.cancelable) window.__ignoredCancels++;
+                if (this.type === "touchmove" && this.target.closest && !this.target.closest(".sheet-handle")) window.__contentCancels++;
                 return original.call(this);
             };
         });
-        await seed(page);
+        const data = withSpots();
+        data.spot[bridge.id].scene = "長い説明の文です。".repeat(60);
+        await seed(page, { data });
         await page.goto("html/map.html?spot=" + bridge.id);
         const popup = page.locator(".mapboxgl-popup");
         const content = ".mapboxgl-popup-content";
         await expect(page.locator(".popup-card .popup-meta")).toBeVisible();
 
-        // ブラウザがスクロールを始めている
+        await swipe(page, content, -120);
+        await swipe(page, content, 150);
         await swipe(page, content, -120, false);
-        await swipe(page, content, 150, false);
         await expect(popup).not.toHaveClass(/is-sheet-expanded/);
         await expect(popup).toBeVisible();
+        expect(await page.evaluate(() => window.__contentCancels)).toBe(0);
 
-        // 中を途中までスクロールしている時に上になぞっても、広げない（ふつうにスクロールする）
-        await page.locator(content).evaluate((element) => { element.scrollTop = 200; });
-        expect(await page.locator(content).evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
-        await swipe(page, content, -120);
-        await expect(popup).not.toHaveClass(/is-sheet-expanded/);
-
-        expect(await page.evaluate(() => window.__ignoredCancels)).toBe(0);
+        // 中をスクロールしたら全画面に広げる
+        await page.locator(content).evaluate((element) => { element.scrollTop = 100; });
+        await expect(popup).toHaveClass(/is-sheet-expanded/);
     });
 });
 
@@ -225,7 +231,7 @@ test.describe("スマホの指での操作（本物に近いタッチ）", () =>
         await page.waitForTimeout(400);
     }
 
-    test("長い説明も小さな枠に閉じこめず、上になぞって広げた後は、詳細のパネル全体をスクロールして読める", async ({ page }) => {
+    test("長い説明も小さな枠に閉じこめず、1回目のなぞりからすぐに詳細のパネル全体がスクロールする", async ({ page }) => {
         const data = withSpots();
         data.spot[bridge.id].scene = "長い説明の文です。".repeat(100);
         await seed(page, { data });
@@ -241,10 +247,12 @@ test.describe("スマホの指での操作（本物に近いタッチ）", () =>
 
         const cdp = await page.context().newCDPSession(page);
         const scrollTop = () => page.locator(".mapboxgl-popup-content").evaluate((element) => element.scrollTop);
-        await drag(page, cdp, 600, 400);
-        await expect(page.locator(".mapboxgl-popup")).toHaveClass(/is-sheet-expanded/);
+        // 1回目からすぐにスクロールする（広げるだけで止めない）。スクロールしたら全画面に広がる
         await drag(page, cdp, 600, 400);
         expect(await scrollTop()).toBeGreaterThan(100);
+        await expect(page.locator(".mapboxgl-popup")).toHaveClass(/is-sheet-expanded/);
+        await drag(page, cdp, 600, 400);
+        expect(await scrollTop()).toBeGreaterThan(250);
         // 下になぞると、まずスクロールして上に戻る（いきなり閉じない）
         await drag(page, cdp, 400, 650);
         await expect(page.locator(".mapboxgl-popup")).toBeVisible();

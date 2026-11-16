@@ -4010,21 +4010,26 @@ a.popup-title:focus-visible {
 }
 
 @media (max-width: 600px) {
-    /* なぞれることが分かる取っ手（画像の上に重ねる） */
+    /* 取っ手（画像の上に重ねる）。ここをなぞって閉じる・広げる（中はふつうにスクロールする）。
+       右上の閉じるボタンにかからないよう、真ん中だけにする */
     .sheet-handle {
         display: block;
         position: sticky;
         top: 0;
         z-index: 3;
-        height: 0;
+        width: 120px;
+        height: 28px;
+        margin: 0 auto -28px;
+        touch-action: none;
+        cursor: grab;
     }
 
     .sheet-handle::before {
         content: "";
         position: absolute;
-        top: 7px;
+        top: 9px;
         left: 50%;
-        width: 40px;
+        width: 44px;
         height: 5px;
         border-radius: 3px;
         background: rgba(255, 255, 255, .9);

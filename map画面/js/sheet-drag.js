@@ -1,14 +1,17 @@
 // ==========================================
-// スマホの聖地の詳細パネル（画面下から出るシート）を指でなぞって操作する
-// ・下になぞると閉じる（全画面に広げている時は、元の高さに戻す）
-// ・上になぞると全画面に広げる（広げた後は、中をふつうにスクロールできる）
-// 中をスクロールしている途中は邪魔しない（一番上にいる時だけ、下になぞると閉じる）
+// スマホの聖地の詳細パネル（画面下から出るシート）の操作
+// ・中はブラウザのふつうのスクロール（こちらからは割り込まない）。少しスクロールしたら全画面に広げる
+// ・上の取っ手（横棒）を下になぞると閉じる（全画面の時は元の高さに戻す）。上になぞると全画面に広げる
+// ・取っ手を軽く叩くと、全画面と元の高さを切りかえる
+// 中のなぞりを受け取って止める作りにすると、ブラウザはこちらの返事を待ってからスクロールを始めるので、
+// 地図の描画で忙しいスマホでは、すぐにスクロールが始まらない（長押ししないと動かない）
 // ==========================================
 
 const MOBILE_QUERY = "(max-width: 600px)";
-const START_PX = 8;      // これより動いたら、なぞり始めとみなす
-const CLOSE_PX = 90;     // これより下になぞって離すと閉じる（広げている時は元の高さに戻す）
-const EXPAND_PX = 50;    // これより上になぞると全画面に広げる
+const CLOSE_PX = 90;          // 取っ手をこれより下になぞって離すと閉じる（全画面の時は元の高さに戻す）
+const EXPAND_PX = 50;         // 取っ手をこれより上になぞると全画面に広げる
+const TAP_PX = 8;             // これより動かなければ「叩いた」とみなす
+const EXPAND_ON_SCROLL_PX = 24; // 中をこれより下までスクロールしたら全画面に広げる
 const EXPANDED_CLASS = "is-sheet-expanded";
 
 function isMobile() {
@@ -27,8 +30,7 @@ export function enableSheetDrag(popup) {
         return;
     }
 
-    // 開いた時に Mapbox が最初のリンクに注目を移すと、中が少しスクロールして写真の上が切れ、
-    // 下になぞっても閉じなくなるので、一番上に戻す
+    // 開いた時に Mapbox が最初のリンクに注目を移すと、中が少しスクロールして写真の上が切れるので、一番上に戻す
     content.scrollTop = 0;
     requestAnimationFrame(function () {
         content.scrollTop = 0;
@@ -39,15 +41,11 @@ export function enableSheetDrag(popup) {
     }
     content.dataset.sheetDrag = "1";
 
-    // なぞれることが分かる取っ手（スマホの幅の時だけ見せる。style.css）
+    // 取っ手（スマホの幅の時だけ見せる。style.css）
     const handle = document.createElement("div");
     handle.className = "sheet-handle";
     handle.setAttribute("aria-hidden", "true");
     content.prepend(handle);
-
-    let startY = null;
-    let deltaY = 0;
-    let mode = null; // "down"（閉じる・戻す） / "up"（広げる）
 
     function sheet() {
         return popup.getElement();
@@ -56,6 +54,13 @@ export function enableSheetDrag(popup) {
     function isExpanded() {
         const element = sheet();
         return Boolean(element && element.classList.contains(EXPANDED_CLASS));
+    }
+
+    function setExpanded(expanded) {
+        const element = sheet();
+        if (element) {
+            element.classList.toggle(EXPANDED_CLASS, expanded);
+        }
     }
 
     function setOffset(pixels, animate) {
@@ -78,65 +83,35 @@ export function enableSheetDrag(popup) {
         }, 180);
     }
 
-    // 触った所から詳細の中までに、別にスクロールできる所（「訪れる前に」の欄など）があるか
-    function isInInnerScroller(target) {
-        for (let element = target; element && element !== content; element = element.parentElement) {
-            const overflow = getComputedStyle(element).overflowY;
-            if ((overflow === "auto" || overflow === "scroll") && element.scrollHeight > element.clientHeight + 1) {
-                return true;
-            }
+    // 中をスクロールしたら全画面に広げる（スクロールはブラウザに任せたまま。passive）
+    content.addEventListener("scroll", function () {
+        if (isMobile() && !isExpanded() && content.scrollTop > EXPAND_ON_SCROLL_PX) {
+            setExpanded(true);
         }
-        return false;
-    }
-
-    content.addEventListener("touchstart", function (event) {
-        startY = null;
-        if (!isMobile() || event.touches.length !== 1 || isInInnerScroller(event.target)) {
-            return;
-        }
-        startY = event.touches[0].clientY;
-        deltaY = 0;
-        mode = null;
     }, { passive: true });
 
-    content.addEventListener("touchmove", function (event) {
+    // ---------- 取っ手のなぞり（取っ手はスクロールしないので、止めてもスクロールの邪魔にならない） ----------
+    let startY = null;
+    let deltaY = 0;
+
+    handle.addEventListener("touchstart", function (event) {
+        startY = isMobile() && event.touches.length === 1 ? event.touches[0].clientY : null;
+        deltaY = 0;
+    }, { passive: true });
+
+    handle.addEventListener("touchmove", function (event) {
         if (startY === null) {
             return;
         }
-        deltaY = event.touches[0].clientY - startY;
-
-        if (mode === null) {
-            if (Math.abs(deltaY) < START_PX) {
-                return;
-            }
-            // ブラウザがもうスクロールを始めている（止められない）時は、割り込まずにスクロールに任せる
-            // （止めようとすると、指が動くたびにコンソールに「Ignored attempt to cancel a touchmove」が出る）
-            const atTop = content.scrollTop <= 0;
-            if (!event.cancelable) {
-                startY = null;
-                return;
-            }
-            if (deltaY > 0 && atTop) {
-                mode = "down";
-            } else if (deltaY < 0 && atTop && !isExpanded()) {
-                // 中が一番上の時だけ、上になぞると全画面に広げる（途中までスクロールしていれば、ふつうにスクロール）
-                mode = "up";
-            } else {
-                // 中のスクロールに任せる
-                startY = null;
-                return;
-            }
-        }
-
         if (event.cancelable) {
             event.preventDefault();
         }
+        deltaY = event.touches[0].clientY - startY;
 
-        if (mode === "down") {
-            setOffset(Math.max(0, deltaY), false);
-        } else if (deltaY < -EXPAND_PX) {
-            sheet().classList.add(EXPANDED_CLASS);
-            mode = "done";
+        if (deltaY > 0) {
+            setOffset(deltaY, false);
+        } else if (deltaY < -EXPAND_PX && !isExpanded()) {
+            setExpanded(true);
         }
     }, { passive: false });
 
@@ -146,9 +121,16 @@ export function enableSheetDrag(popup) {
         }
         startY = null;
 
-        if (mode === "down" && deltaY > CLOSE_PX) {
+        if (Math.abs(deltaY) < TAP_PX) {
+            // 叩いた：全画面と元の高さを切りかえる
+            setOffset(0, false);
+            setExpanded(!isExpanded());
+            return;
+        }
+
+        if (deltaY > CLOSE_PX) {
             if (isExpanded()) {
-                sheet().classList.remove(EXPANDED_CLASS);
+                setExpanded(false);
                 setOffset(0, true);
             } else {
                 closeSheet();
@@ -156,11 +138,12 @@ export function enableSheetDrag(popup) {
             return;
         }
 
-        if (mode === "down") {
-            setOffset(0, true);
-        }
+        setOffset(0, true);
     }
 
-    content.addEventListener("touchend", finish);
-    content.addEventListener("touchcancel", finish);
+    handle.addEventListener("touchend", finish);
+    handle.addEventListener("touchcancel", function () {
+        startY = null;
+        setOffset(0, true);
+    });
 }
