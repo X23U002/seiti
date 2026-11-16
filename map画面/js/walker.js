@@ -12,6 +12,9 @@
 import * as THREE from "three";
 import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 
+// キャラクターの大きさ（画面上の高さを、キャラクターがいる場所の縮尺で決める）
+import { heightMetersForScreen, metersPerPixel } from "./walker-size.js?v=2f30df1d";
+
 // ---------------------------------------------------------
 // 設定
 // ---------------------------------------------------------
@@ -105,11 +108,6 @@ function bearingBetween(a, b) {
     const dLng = (b.lng - a.lng) * Math.cos(a.lat * Math.PI / 180);
     const dLat = b.lat - a.lat;
     return Math.atan2(dLng, dLat);
-}
-
-// 地図上で 1px が何mか（Mapboxのタイルは512px）
-function metersPerPixel(lat, zoom) {
-    return 40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * Math.pow(2, zoom));
 }
 
 // 角度の差を -π〜π に収める（遠回りして回転しないように）
@@ -527,9 +525,10 @@ function createWalkerLayer(map) {
             const lngLat = [state.position.lng, state.position.lat];
             const mercator = mapboxgl.MercatorCoordinate.fromLngLat(lngLat, 0);
 
-            // 画面上で screenHeightPx になる大きさ（m）
+            // 画面上で screenHeightPx になる大きさ（m）。キャラクターがいる場所の縮尺で決める
+            // （画面の真ん中の縮尺で決めると、斜めから見た時、手前に来ると巨大・奥では小さくなる）
             const heightMeters =
-                screenHeightPx * metersPerPixel(state.position.lat, zoom);
+                heightMetersForScreen(map, state.position.lng, state.position.lat, screenHeightPx);
             const scale = mercator.meterInMercatorCoordinateUnits() * heightMeters;
 
             // --- 向き ---
