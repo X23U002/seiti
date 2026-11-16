@@ -7,6 +7,9 @@
 // キャラクターが今いる場所の縮尺で決める
 // =========================================================
 
+// 画面上でのキャラクターの高さ（px）。ズームを寄せても引いても、この高さで一定
+export const MODEL_SCREEN_HEIGHT_PX = 130;
+
 // 地図上で 1px が何mか（Mapboxのタイルは512px。画面の真ん中・真上から見た時）
 export function metersPerPixel(lat, zoom) {
     return 40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * Math.pow(2, zoom));

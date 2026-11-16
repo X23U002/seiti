@@ -550,7 +550,7 @@ test("検索の「×」は、候補を選んだ後も文字がある間は出て
     await expect(clear).toBeHidden();
 });
 
-test("3Dのキャラクターは、斜めから見た時も手前・奥で大きさが変わらない（画面上の高さがいつも同じ）", async ({ page }) => {
+test("3Dのキャラクターは、ズームしても、斜めから見た時の手前・奥でも、画面上の高さがいつも同じ", async ({ page }) => {
     await seed(page);
     await page.goto("html/map.html");
     await expect(pins(page)).toHaveCount(SPOTS.length);
@@ -565,9 +565,9 @@ test("3Dのキャラクターは、斜めから見た時も手前・奥で大き
         const size = await import("../js/walker-size.js");
 
         // 地図の描画と同じ行列で、地面から高さ h(m) の縦の棒が画面で何pxに写るか
-        const matrix = map.transform.customLayerMatrix ? map.transform.customLayerMatrix() : map.transform.mercatorMatrix;
+        // （ズームを変えると行列も変わるので、測るたびに取り直す）
         const toScreenY = (x, y, z) => {
-            const m = matrix;
+            const m = map.transform.customLayerMatrix ? map.transform.customLayerMatrix() : map.transform.mercatorMatrix;
             const cy = m[1] * x + m[5] * y + m[9] * z + m[13];
             const cw = m[3] * x + m[7] * y + m[11] * z + m[15];
             return ((1 - cy / cw) / 2) * map.getCanvas().clientHeight;
@@ -584,7 +584,13 @@ test("3Dのキャラクターは、斜めから見た時も手前・奥で大き
         const now = (point) => screenHeight([point.lng, point.lat], size.heightMetersForScreen(map, point.lng, point.lat, 130));
         // 前の決め方（画面の真ん中の縮尺）
         const before = (point) => screenHeight([point.lng, point.lat], 130 * size.metersPerPixel(point.lat, map.getZoom()));
-        return { near: now(near), far: now(far), beforeNear: before(near), beforeFar: before(far) };
+        // ズームを寄せても引いても（画面の真ん中で）
+        const byZoom = [13, 16, 18, 20].map((zoom) => {
+            map.jumpTo({ zoom });
+            const center = map.unproject([195, 470]);
+            return screenHeight([center.lng, center.lat], size.heightMetersForScreen(map, center.lng, center.lat, size.MODEL_SCREEN_HEIGHT_PX));
+        });
+        return { near: now(near), far: now(far), beforeNear: before(near), beforeFar: before(far), byZoom };
     });
 
     // 前の決め方では、手前の方がずっと大きく写っていた
@@ -595,4 +601,9 @@ test("3Dのキャラクターは、斜めから見た時も手前・奥で大き
         expect(height).toBeLessThan(155);
     }
     expect(Math.abs(result.near / result.far - 1)).toBeLessThan(0.2);
+    // ズームを寄せても引いても、画面上の高さは同じ（巨大にも小さくもならない）
+    for (const height of result.byZoom) {
+        expect(height).toBeGreaterThan(110);
+        expect(height).toBeLessThan(150);
+    }
 });
