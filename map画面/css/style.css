@@ -4032,13 +4032,32 @@ a.popup-title:focus-visible {
         width: 44px;
         height: 5px;
         border-radius: 3px;
-        background: rgba(255, 255, 255, .9);
-        box-shadow: 0 0 0 1px rgba(0, 0, 0, .12), 0 1px 4px rgba(0, 0, 0, .25);
+        /* 写真の上でも白い背景の上でも見えるよう、灰色に白い縁 */
+        background: #9aa6b2;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, .85), 0 1px 4px rgba(0, 0, 0, .25);
         translate: -50% 0;
     }
 
     .mapboxgl-popup:has(.popup-card) .mapboxgl-popup-content {
         transition: max-height .25s ease;
+    }
+
+    /* 全画面に広げている間は、上の検索欄・メニュー・絞り込み・方角のボタンを隠す
+       （詳細は地図（#map の z-index: 1）の中にあり、これらより手前に出られないので、
+       隠さないと取っ手がその後ろになって触れず、下ろせなくなる） */
+    body:has(.mapboxgl-popup.is-sheet-expanded .popup-card) #search-container,
+    body:has(.mapboxgl-popup.is-sheet-expanded .popup-card) #hamburger-btn,
+    body:has(.mapboxgl-popup.is-sheet-expanded .popup-card) #filter-bar,
+    body:has(.mapboxgl-popup.is-sheet-expanded .popup-card) .mapboxgl-ctrl-top-right {
+        visibility: hidden;
+    }
+
+    /* 全画面の時は、閉じる × も中と一緒にスクロールさせず、右上に残す */
+    .mapboxgl-popup.is-sheet-expanded .mapboxgl-popup-content:has(.popup-card) .mapboxgl-popup-close-button {
+        position: fixed;
+        top: calc(20px + env(safe-area-inset-top));
+        right: 8px;
+        z-index: 4;
     }
 
     /* 全画面に広げた時 */
