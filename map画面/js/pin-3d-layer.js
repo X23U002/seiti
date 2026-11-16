@@ -14,7 +14,7 @@ import { GLTFLoader } from "https://esm.sh/three@0.160.0/examples/jsm/loaders/GL
 const ROTATION_DURATION_MS = 1500;
 const ROTATION_RADIANS = Math.PI * 4;
 const DEFAULT_HEIGHT_PX = 48;
-const DEFAULT_YAW_DEGREES = 20;
+const DEFAULT_YAW_DEGREES = 0;
 
 export function createGLBPinLayer(map, options = {}) {
     if (!map || typeof map.getContainer !== "function") {
