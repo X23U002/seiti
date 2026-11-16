@@ -210,3 +210,43 @@ test("スタンプ帳から、まだの聖地を地図のルート案内に入�
     await expect(page.locator("#routeList .routeItem")).toHaveCount(10);
     await expect(page.locator("#toast")).toContainText(`「「${EUPHO}」のまだの聖地」（10か所）をルート案内に入れました`);
 });
+
+test.describe("スマホの指での操作（本物に近いタッチ）", () => {
+    test.use({ hasTouch: true, isMobile: true });
+
+    // CDP でタッチを送る（ブラウザ本来のスクロールも起きる）
+    async function drag(page, cdp, from, to) {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 195, y: from }] });
+        for (let i = 1; i <= 12; i++) {
+            await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 195, y: from + ((to - from) * i) / 12 }] });
+            await page.waitForTimeout(16);
+        }
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+        await page.waitForTimeout(400);
+    }
+
+    test("長い説明も小さな枠に閉じこめず、上になぞって広げた後は、詳細のパネル全体をスクロールして読める", async ({ page }) => {
+        const data = withSpots();
+        data.spot[bridge.id].scene = "長い説明の文です。".repeat(100);
+        await seed(page, { data });
+        await page.goto("html/map.html?spot=" + bridge.id);
+        await expect(page.locator(".popup-card .popup-meta")).toBeVisible();
+        await page.waitForTimeout(600);
+
+        // 中に、別にスクロールする小さな枠を作らない
+        const innerScrollers = await page.evaluate(() => [...document.querySelectorAll(".popup-card *")]
+            .filter((element) => ["auto", "scroll"].includes(getComputedStyle(element).overflowY) && element.scrollHeight > element.clientHeight + 1)
+            .map((element) => element.className || element.tagName));
+        expect(innerScrollers).toEqual([]);
+
+        const cdp = await page.context().newCDPSession(page);
+        const scrollTop = () => page.locator(".mapboxgl-popup-content").evaluate((element) => element.scrollTop);
+        await drag(page, cdp, 600, 400);
+        await expect(page.locator(".mapboxgl-popup")).toHaveClass(/is-sheet-expanded/);
+        await drag(page, cdp, 600, 400);
+        expect(await scrollTop()).toBeGreaterThan(100);
+        // 下になぞると、まずスクロールして上に戻る（いきなり閉じない）
+        await drag(page, cdp, 400, 650);
+        await expect(page.locator(".mapboxgl-popup")).toBeVisible();
+    });
+});
