@@ -87,6 +87,36 @@ test.describe("スマホの聖地の詳細パネル", () => {
         await page.locator(content).evaluate((element) => { element.scrollTop = 100; });
         await expect(popup).toHaveClass(/is-sheet-expanded/);
     });
+
+    test("全画面にして下までスクロールしても、取っ手は検索欄の後ろに隠れず、なぞって下ろせる", async ({ page }) => {
+        const data = withSpots();
+        data.spot[bridge.id].scene = "長い説明の文です。".repeat(60);
+        await seed(page, { data });
+        await page.goto("html/map.html?spot=" + bridge.id);
+        const popup = page.locator(".mapboxgl-popup");
+        const content = ".mapboxgl-popup-content";
+        await expect(page.locator(".popup-card .popup-meta")).toBeVisible();
+
+        await page.locator(content).evaluate((element) => { element.scrollTop = 400; });
+        await expect(popup).toHaveClass(/is-sheet-expanded/);
+        await page.waitForTimeout(400);
+
+        // 取っ手の真ん中を触ると、取っ手に当たる（検索欄・絞り込みのボタンではない）
+        const hit = await page.locator(".sheet-handle").evaluate((handle) => {
+            const rect = handle.getBoundingClientRect();
+            const top = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            return { handle: top === handle, top: rect.top };
+        });
+        expect(hit.handle).toBe(true);
+        expect(hit.top).toBeLessThan(40);
+        // 閉じる × も見えている
+        await expect(page.locator(".mapboxgl-popup-close-button")).toBeInViewport();
+
+        await swipe(page, ".sheet-handle", 150);
+        await expect(popup).not.toHaveClass(/is-sheet-expanded/);
+        await swipe(page, ".sheet-handle", 150);
+        await expect(popup).toHaveCount(0);
+    });
 });
 
 test("「一覧」で、地図の真ん中から近い順に聖地を並べ、押すとその聖地の詳細を開く", async ({ page }) => {
