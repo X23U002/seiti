@@ -47,7 +47,7 @@ import { startOnboarding } from "./onboarding.js?v=f6c278bc";
 import { refreshMyPlan, setupMyPlan } from "./my-plan.js?v=4419a46f";
 
 // スマホの聖地の詳細パネルを、なぞって閉じる・全画面に広げる
-import { enableSheetDrag } from "./sheet-drag.js?v=b4c8f0eb";
+import { enableSheetDrag } from "./sheet-drag.js?v=1f21b23b";
 
 // 聖地・おすすめルートの読み込み（他の画面と共通。通信が止められた時の予備の読み方あり）
 import {

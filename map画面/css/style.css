@@ -1588,10 +1588,9 @@ body {
     color: #6b7b8c;
 }
 
-/* 長い説明は3行まで表示し、残りは枠内でスクロール */
+/* 説明は全部表示し、詳細のパネル全体でスクロールする
+   （3行の小さな枠の中でスクロールさせると、スマホでは指で動かしにくく、パネルを動かす操作とも取り合うため） */
 .popup-section p {
-    max-height: 5.1em;
-    overflow-y: auto;
     font-size: 14px;
     line-height: 1.7;
     color: #2c3e50;
