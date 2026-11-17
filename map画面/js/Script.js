@@ -30,7 +30,7 @@ import {
 import { getSpotImageSrc } from "./spot-image.js?v=59165daf";
 
 // 聖地を訪れる人への情報（入れる時間・定休日など）とマナー
-import { MANNER_NOTE, getVisitInfo } from "./spot-info.js?v=34e7c477";
+import { getVisitInfo } from "./spot-info.js?v=926febaf";
 
 // おすすめ聖地巡礼ルート
 import {
@@ -231,7 +231,7 @@ if (new URLSearchParams(location.search).has("walktest")) {
 let pin3DLayer = null;
 
 function loadPin3DLayer() {
-    import("./pin-3d-layer.js?v=81c220fe")
+    import("./pin-3d-layer.js?v=96f42b5d")
         .then(function (module) {
             pin3DLayer = module.createGLBPinLayer(map, {
                 // 輪っかの頭に白い球、角ばった先端のピン。差し替える時は名前も変える（端末に残った古いモデルを使わないように）
@@ -1079,19 +1079,20 @@ function goToSpot(spotId) {
 }
 
 
-// 聖地の詳細の「訪れる前に」（入力されている項目と、聖地巡礼のマナー）
+// 聖地の詳細の「訪れる前に」（管理ページで入力されている項目。何も無ければ出さない）
+// 聖地巡礼のマナーは、アプリを開いた時の注意書き（onboarding.js）で伝えるので、ここには出さない
 function getVisitInfoHTML(spot) {
     const items = getVisitInfo(spot);
+    if (items.length === 0) {
+        return "";
+    }
     return `
         <section class="popup-section popup-visit" aria-label="訪れる前に">
             <strong>訪れる前に</strong>
-            ${items.length > 0
-                ? `<dl class="popup-visit-list">${items.map(function (item) {
-                    return `<div class="popup-visit-item${item.key === "caution" ? " is-caution" : ""}">
-                        <dt>${escapeHTML(item.label)}</dt><dd>${escapeHTML(item.value)}</dd></div>`;
-                }).join("")}</dl>`
-                : ""}
-            <p class="popup-manner">${escapeHTML(MANNER_NOTE)}</p>
+            <dl class="popup-visit-list">${items.map(function (item) {
+                return `<div class="popup-visit-item${item.key === "caution" ? " is-caution" : ""}">
+                    <dt>${escapeHTML(item.label)}</dt><dd>${escapeHTML(item.value)}</dd></div>`;
+            }).join("")}</dl>
         </section>
     `;
 }
@@ -2533,7 +2534,7 @@ function drawMarkers(list) {
                             </div>`
                             : '<div class="popup-image no-image"></div>'}
 
-                        <!-- 訪れる前に（入れる時間・定休日・料金・アクセス・注意と、マナー） -->
+                        <!-- 訪れる前に（入れる時間・定休日・料金・アクセス・注意。入力がある時だけ） -->
                         ${getVisitInfoHTML(data)}
 
                         <!-- この作品のおすすめルート（開いた時に作る） -->

@@ -26,7 +26,7 @@ import { isAiPlanAvailable, requestAiPlan } from "./ai-plan.js?v=39fb6815";
 import { getTitleColor } from "./title-colors.js?v=5c634da9";
 import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=9a2ff22f";
 import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=59165daf";
-import { VISIT_FIELDS } from "./spot-info.js?v=34e7c477";
+import { VISIT_FIELDS } from "./spot-info.js?v=926febaf";
 import {
     COURSE_COLLECTION,
     COURSE_MAX_SPOTS,

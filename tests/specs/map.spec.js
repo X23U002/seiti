@@ -627,3 +627,16 @@ test("3D表示のピンのモデル（地図が指定しているもの）が読
     // 読み込むのに追加の部品（圧縮の解凍など）が要らない
     expect(gltf.extensionsRequired || []).toEqual([]);
 });
+
+test("聖地の詳細で、作品名の札と話数の札の上下がそろっている", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    await seed(page, { data: withSpots({}) });
+    await page.goto("html/map.html?spot=" + bridge.id);
+    const title = page.locator(".popup-card .popup-meta .popup-title");
+    const episode = page.locator(".popup-card .popup-meta .popup-ep");
+    await expect(episode).toBeVisible();
+    const a = await title.boundingBox();
+    const b = await episode.boundingBox();
+    expect(Math.abs((a.y + a.height / 2) - (b.y + b.height / 2))).toBeLessThan(1);
+    expect(Math.abs(a.height - b.height)).toBeLessThan(1.5);
+});
