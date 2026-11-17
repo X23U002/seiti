@@ -13,7 +13,7 @@ import * as THREE from "three";
 import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 
 // キャラクターの大きさ（画面上の高さを、キャラクターがいる場所の縮尺で決める）
-import { heightMetersForScreen, isModelVisibleAtZoom, metersPerPixel, modelScreenHeightPx } from "./walker-size.js?v=70de7303";
+import { heightMetersForScreen, isModelVisibleAtZoom, metersPerPixel, modelScreenHeightPx } from "./walker-size.js?v=bdf4842f";
 
 // ---------------------------------------------------------
 // 設定
@@ -23,7 +23,7 @@ import { heightMetersForScreen, isModelVisibleAtZoom, metersPerPixel, modelScree
 const MODEL_URL = "../models/walking.fbx";
 
 // 画面上でのキャラクターの高さは walker-size.js で決める
-// （出す時はいつも同じ大きさ。ズーム16より引いたら隠して、青い現在地の点にする）
+// （出す時はいつも同じ大きさ。ズーム13より引いたら隠して、青い現在地の点にする）
 
 // 3D表示に切りかえた時に、キャラクターの所へ寄るズーム（これより引いていた時だけ寄る）
 const FIXED_SIZE_ZOOM = 17;
@@ -485,7 +485,7 @@ function createWalkerLayer(map) {
             const zoom = map.getZoom();
             const screenHeightPx = modelScreenHeightPx(zoom);
 
-            // 2D表示の時と、ズーム16より引いた時はキャラクターを隠し、青い現在地の点を表示する
+            // 2D表示の時と、ズーム13より引いた時はキャラクターを隠し、青い現在地の点を表示する
             const visible = is3DMode() && isModelVisibleAtZoom(zoom);
             mapElement?.classList.toggle("walker-active", visible);
 

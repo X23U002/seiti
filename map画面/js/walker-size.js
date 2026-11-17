@@ -8,8 +8,8 @@
 // =========================================================
 
 // 画面上でのキャラクターの高さ（px）。ズームを寄せても引いても、この高さで固定する。
-// 引いた時に目立ちすぎないよう小さめ（3D表示のピン 42px より少し大きいくらい）
-export const MODEL_SCREEN_HEIGHT_PX = 64;
+// 3D表示のピン（42px）の2倍くらい（64px では小さかったので少し大きくした）
+export const MODEL_SCREEN_HEIGHT_PX = 96;
 
 // そのズームでの、画面上のキャラクターの高さ（px）。どのズームでも同じ
 export function modelScreenHeightPx() {
@@ -18,7 +18,8 @@ export function modelScreenHeightPx() {
 
 // これより引いたら、キャラクターを隠して青い現在地の点に切りかえる。
 // 画面上の大きさは固定なので、引いたまま出すと、県や地方より大きな巨人に見えてしまう
-export const MIN_VISIBLE_ZOOM = 16;
+// （16 だと点になるのが早すぎたので、市や区の全体が見えるくらいまでは出す）
+export const MIN_VISIBLE_ZOOM = 13;
 
 // そのズームでキャラクターを出すか（出す時は、いつも同じ大きさ）
 export function isModelVisibleAtZoom(zoom) {
