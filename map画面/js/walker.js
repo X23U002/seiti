@@ -13,7 +13,7 @@ import * as THREE from "three";
 import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 
 // キャラクターの大きさ（画面上の高さを、キャラクターがいる場所の縮尺で決める）
-import { heightMetersForScreen, isModelVisibleAtZoom, metersPerPixel, modelScreenHeightPx } from "./walker-size.js?v=bdf4842f";
+import { MODEL_HEIGHT_METERS, isModelVisible, metersPerPixel } from "./walker-size.js?v=9dbb121e";
 
 // ---------------------------------------------------------
 // 設定
@@ -22,8 +22,8 @@ import { heightMetersForScreen, isModelVisibleAtZoom, metersPerPixel, modelScree
 // 3Dモデル（Mixamoの歩行アニメーション付きFBX）
 const MODEL_URL = "../models/walking.fbx";
 
-// 画面上でのキャラクターの高さは walker-size.js で決める
-// （出す時はいつも同じ大きさ。ズーム13より引いたら隠して、青い現在地の点にする）
+// キャラクターの大きさは walker-size.js で決める（実際の大きさを固定し、建物や道と同じように写す。
+// 引いて画面上で小さくなりすぎたら隠して、青い現在地の点にする）
 
 // 3D表示に切りかえた時に、キャラクターの所へ寄るズーム（これより引いていた時だけ寄る）
 const FIXED_SIZE_ZOOM = 17;
@@ -481,12 +481,8 @@ function createWalkerLayer(map) {
                 updateByKeys(delta, map.getBearing(), map.getZoom()) ||
                 updatePosition(now);
 
-            // 画面上の大きさ（px）：どのズームでも同じ
-            const zoom = map.getZoom();
-            const screenHeightPx = modelScreenHeightPx(zoom);
-
-            // 2D表示の時と、ズーム13より引いた時はキャラクターを隠し、青い現在地の点を表示する
-            const visible = is3DMode() && isModelVisibleAtZoom(zoom);
+            // 2D表示の時と、引いて画面上で小さくなりすぎた時はキャラクターを隠し、青い現在地の点を表示する
+            const visible = is3DMode() && isModelVisible(map, state.position.lng, state.position.lat);
             mapElement?.classList.toggle("walker-active", visible);
 
             if (!visible) {
@@ -521,10 +517,8 @@ function createWalkerLayer(map) {
             const lngLat = [state.position.lng, state.position.lat];
             const mercator = mapboxgl.MercatorCoordinate.fromLngLat(lngLat, 0);
 
-            // 画面上で screenHeightPx になる大きさ（m）。キャラクターがいる場所の縮尺で決める
-            // （画面の真ん中の縮尺で決めると、斜めから見た時、手前に来ると巨大・奥では小さくなる）
-            const heightMeters =
-                heightMetersForScreen(map, state.position.lng, state.position.lat, screenHeightPx);
+            // 実際の大きさ（m）は固定。建物や道と同じように、寄せると大きく、引くと小さく写る
+            const heightMeters = MODEL_HEIGHT_METERS;
             const scale = mercator.meterInMercatorCoordinateUnits() * heightMeters;
 
             // --- 向き ---

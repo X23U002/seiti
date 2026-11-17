@@ -1,29 +1,28 @@
 // =========================================================
 // 3Dキャラクターの大きさ（walker.js から使う。three.js を使わないので、テストからも読み込める）
 //
-// 画面上の高さを決めて、その高さに見える実際の大きさ（m）を求める。
-// 3D表示では地図を斜めから見るので、同じ大きさでも手前（画面の下）は大きく、奥は小さく写る。
-// 画面の真ん中の縮尺で決めると、キャラクターが手前に来た時に巨大になるので、
-// キャラクターが今いる場所の縮尺で決める
+// キャラクターの実際の大きさ（m）を決めて、建物や道と同じように写す。
+// 寄せると大きく、引くと小さく写り、街と比べた大きさはいつも同じ（巨人になったり縮んだりしない）。
+// 引いて画面上で小さくなりすぎたら、キャラクターを隠して青い現在地の点に切りかえる
 // =========================================================
 
-// 画面上でのキャラクターの高さ（px）。ズームを寄せても引いても、この高さで固定する。
-// 3D表示のピン（42px）の2倍くらい（64px では小さかったので少し大きくした）
-export const MODEL_SCREEN_HEIGHT_PX = 96;
+// キャラクターの実際の高さ（m）。本物の背丈（約1.7m）だとふだんのズームでは見えないので、大きめにする
+// （ズーム17で画面上 約80px、地図の一番寄せたズーム18で約160px）
+export const MODEL_HEIGHT_METERS = 40;
 
-// そのズームでの、画面上のキャラクターの高さ（px）。どのズームでも同じ
-export function modelScreenHeightPx() {
-    return MODEL_SCREEN_HEIGHT_PX;
+// 画面上でこれより小さくなったら、キャラクターを隠して青い現在地の点に切りかえる（px。ズーム15あたり）
+export const MIN_VISIBLE_PX = 20;
+
+// その場所で、キャラクターが画面上に何pxに写るか（斜めから見た時の手前・奥の違いも入る）
+export function modelScreenHeightPx(map, lng, lat) {
+    const pixelsPerMeter = screenPixelsPerMeter(map, lng, lat) ||
+        1 / metersPerPixel(lat, map.getZoom());
+    return MODEL_HEIGHT_METERS * pixelsPerMeter;
 }
 
-// これより引いたら、キャラクターを隠して青い現在地の点に切りかえる。
-// 画面上の大きさは固定なので、引いたまま出すと、県や地方より大きな巨人に見えてしまう
-// （16 だと点になるのが早すぎたので、市や区の全体が見えるくらいまでは出す）
-export const MIN_VISIBLE_ZOOM = 13;
-
-// そのズームでキャラクターを出すか（出す時は、いつも同じ大きさ）
-export function isModelVisibleAtZoom(zoom) {
-    return zoom >= MIN_VISIBLE_ZOOM;
+// その場所でキャラクターを出すか（画面上で小さくなりすぎたら出さず、現在地の点にする）
+export function isModelVisible(map, lng, lat) {
+    return modelScreenHeightPx(map, lng, lat) >= MIN_VISIBLE_PX;
 }
 
 // 地図上で 1px が何mか（Mapboxのタイルは512px。画面の真ん中・真上から見た時）
@@ -44,13 +43,4 @@ export function screenPixelsPerMeter(map, lng, lat) {
     const pixels = Math.hypot(b.x - a.x, b.y - a.y) / SAMPLE_METERS;
 
     return Number.isFinite(pixels) && pixels > 0 ? pixels : null;
-}
-
-// 画面上で screenPx の高さに見える大きさ（m）。
-// その場所の縮尺が取れない時（画面の外など）は、画面の真ん中の縮尺で決める
-export function heightMetersForScreen(map, lng, lat, screenPx) {
-    const pixelsPerMeter = screenPixelsPerMeter(map, lng, lat);
-    return pixelsPerMeter
-        ? screenPx / pixelsPerMeter
-        : screenPx * metersPerPixel(lat, map.getZoom());
 }
