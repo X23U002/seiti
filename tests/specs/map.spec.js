@@ -550,7 +550,7 @@ test("検索の「×」は、候補を選んだ後も文字がある間は出て
     await expect(clear).toBeHidden();
 });
 
-test("3Dのキャラクターは、ズームしても、斜めから見た時の手前・奥でも、画面上の高さがいつも同じ", async ({ page }) => {
+test("3Dのキャラクターは、斜めから見た時の手前・奥で大きさが変わらず、引くと小さくなって点に切りかわる（巨人にならない）", async ({ page }) => {
     await seed(page);
     await page.goto("html/map.html");
     await expect(pins(page)).toHaveCount(SPOTS.length);
@@ -584,11 +584,15 @@ test("3Dのキャラクターは、ズームしても、斜めから見た時の
         const now = (point) => screenHeight([point.lng, point.lat], size.heightMetersForScreen(map, point.lng, point.lat, 130));
         // 前の決め方（画面の真ん中の縮尺）
         const before = (point) => screenHeight([point.lng, point.lat], 130 * size.metersPerPixel(point.lat, map.getZoom()));
-        // ズームを寄せても引いても（画面の真ん中で）
-        const byZoom = [13, 16, 18, 20].map((zoom) => {
+        // ズームごとの画面上の高さ（画面の真ん中で）と、出すかどうか
+        const byZoom = {};
+        [13, 15, 16, 18, 20].forEach((zoom) => {
             map.jumpTo({ zoom });
             const center = map.unproject([195, 470]);
-            return screenHeight([center.lng, center.lat], size.heightMetersForScreen(map, center.lng, center.lat, size.MODEL_SCREEN_HEIGHT_PX));
+            byZoom[zoom] = {
+                px: screenHeight([center.lng, center.lat], size.heightMetersForScreen(map, center.lng, center.lat, size.modelScreenHeightPx(zoom))),
+                visible: size.isModelVisibleAtZoom(zoom)
+            };
         });
         return { near: now(near), far: now(far), beforeNear: before(near), beforeFar: before(far), byZoom };
     });
@@ -601,11 +605,19 @@ test("3Dのキャラクターは、ズームしても、斜めから見た時の
         expect(height).toBeLessThan(155);
     }
     expect(Math.abs(result.near / result.far - 1)).toBeLessThan(0.2);
-    // ズームを寄せても引いても、画面上の高さは同じ（巨大にも小さくもならない）
-    for (const height of result.byZoom) {
-        expect(height).toBeGreaterThan(110);
-        expect(height).toBeLessThan(150);
+    // ズーム17以上は画面上の高さが同じ（約130px）
+    for (const zoom of [18, 20]) {
+        expect(result.byZoom[zoom].px).toBeGreaterThan(110);
+        expect(result.byZoom[zoom].px).toBeLessThan(150);
+        expect(result.byZoom[zoom].visible).toBe(true);
     }
+    // 引くと地図と一緒に小さくなり（1段引くと半分）、巨人にならない
+    expect(result.byZoom[16].px).toBeGreaterThan(55);
+    expect(result.byZoom[16].px).toBeLessThan(75);
+    expect(result.byZoom[15].px).toBeLessThan(40);
+    expect(result.byZoom[15].visible).toBe(true);
+    // 小さくなりすぎたら（20px 未満）キャラクターを隠し、現在地の点にする
+    expect(result.byZoom[13].visible).toBe(false);
 });
 
 test("3D表示のピンのモデル（地図が指定しているもの）が読めて、本体と白い球の2つの部品がある", async ({ request }) => {

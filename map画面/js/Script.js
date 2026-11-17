@@ -203,7 +203,7 @@ function loadThreeDExtras() {
 
 // 現在地に歩く3Dキャラクター（walker.js）
 function loadWalker() {
-    import("./walker.js?v=307f8208")
+    import("./walker.js?v=a992b8f5")
         .then(function (walker) {
             walker.initWalker(
                 map,
