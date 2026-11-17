@@ -9,8 +9,13 @@ export const CSV_COLUMNS = [
     { key: "title_name", label: "作品名" },
     { key: "spot_name", label: "スポット名" },
     { key: "spot_info", label: "説明" },
+    // 何期の何話か（数。空欄なら変えない・新しい聖地は分からない）
+    { key: "season", label: "期" },
+    { key: "episode", label: "話" },
     { key: "latitude", label: "緯度" },
-    { key: "longitude", label: "経度" }
+    { key: "longitude", label: "経度" },
+    // 画像（eupho/eupho_s0701.jpg など。空欄なら変えない・新しい聖地は画像なし）
+    { key: "image", label: "画像" }
 ];
 
 function escapeCell(value) {
@@ -18,7 +23,7 @@ function escapeCell(value) {
     return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
 }
 
-// rows：[{ id, title_name, spot_name, spot_info, latitude, longitude }]
+// rows：[{ id, title_name, spot_name, spot_info, season, episode, latitude, longitude, image }]
 // Excel で文字化けしないよう、先頭に BOM を付ける
 export function buildCsv(rows) {
     const lines = [CSV_COLUMNS.map(function (column) { return column.label; }).join(",")];

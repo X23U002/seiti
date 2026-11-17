@@ -18,12 +18,42 @@ import {
 
 import { db, getCurrentUser } from "./firebase-db.js?v=61accae5";
 import { encodeGeohash } from "./geohash.js?v=fe42fce1";
-import { assignSpotIds, buildCsv, readLatLng, readSpotCsv } from "./spot-csv.js?v=96226090";
+import { assignSpotIds, buildCsv, readLatLng, readSpotCsv } from "./spot-csv.js?v=eb19c435";
+import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=59165daf";
 
 // 表で直せる項目
 const FIELDS = ["title_name", "spot_name", "spot_info"];
 const FIELD_LABELS = { title_name: "作品名", spot_name: "スポット名", spot_info: "説明" };
 const MAX_LENGTH = { title_name: 100, spot_name: 100, spot_info: 2000 };
+
+// 画像（image_url）。管理ページの聖地フォームと同じ書き方ができる（eupho/eupho_s0701.jpg・GitHub の画像ページのURL・空欄＝画像なし）
+const IMAGE_MAX_LENGTH = 300;
+
+// 保存してある image_url → 表に出す形（images/spots/ は省き、画像なしは空欄）
+function displayImage(imageUrl) {
+    const value = normalizeSpotImage(imageUrl);
+    return value === "no_image" ? "" : value.replace(/^images\/spots\//, "");
+}
+
+// 何期の何話か（spot の season・episode）。空欄・0 は「分からない」
+const EPISODE_FIELDS = [
+    { key: "season", label: "期", max: 99 },
+    { key: "episode", label: "話", max: 999 }
+];
+
+// 保存してある数 → 表に出す形（0・無しは空欄）
+function displayCount(value) {
+    return Number(value) > 0 ? String(Number(value)) : "";
+}
+
+// 入力 → 数（全角の数字も読む）。空欄は 0、数でなければ NaN
+function readCount(text) {
+    const value = String(text || "").trim().replace(/[０-９]/g, function (c) {
+        return String.fromCharCode(c.charCodeAt(0) - 0xFEE0);
+    });
+    if (value === "") return 0;
+    return /^\d+$/.test(value) ? Number(value) : NaN;
+}
 
 // ID に使える文字（Firestore の ID として安全なもの）
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
@@ -70,6 +100,11 @@ function makeRow(id, data) {
         original: original,
         value: Object.assign({}, original),
         newId: id,
+        image: displayImage(data.image_url),
+        originalImage: displayImage(data.image_url),
+        season: displayCount(data.season),
+        episode: displayCount(data.episode),
+        originalEpisode: { season: displayCount(data.season), episode: displayCount(data.episode) },
         latitude: latitude,
         longitude: longitude,
         originalPlace: { latitude: latitude, longitude: longitude },
@@ -88,6 +123,11 @@ function makeNewRow(values) {
         original: { title_name: "", spot_name: "", spot_info: "" },
         value: value,
         newId: "",
+        image: String(values.image || ""),
+        originalImage: "",
+        season: String(values.season || ""),
+        episode: String(values.episode || ""),
+        originalEpisode: { season: "", episode: "" },
         latitude: String(values.latitude || ""),
         longitude: String(values.longitude || ""),
         originalPlace: { latitude: "", longitude: "" },
@@ -98,6 +138,19 @@ function makeNewRow(values) {
 
 function changedFields(row) {
     return FIELDS.filter(function (field) { return row.value[field] !== row.original[field]; });
+}
+
+// 画像を変えたか（書き方が違っても、保存する形が同じなら変えていない）
+function imageChanged(row) {
+    return !row.isNew && normalizeSpotImage(row.image) !== normalizeSpotImage(row.originalImage);
+}
+
+// 期・話を変えたか（変えた項目のキー）
+function changedEpisodeFields(row) {
+    if (row.isNew) return [];
+    return EPISODE_FIELDS
+        .filter(function (field) { return readCount(row[field.key]) !== readCount(row.originalEpisode[field.key]); })
+        .map(function (field) { return field.key; });
 }
 
 function idChanged(row) {
@@ -113,7 +166,8 @@ function placeChanged(row) {
 }
 
 function isDirty(row) {
-    return row.isNew || changedFields(row).length > 0 || idChanged(row) || placeChanged(row);
+    return row.isNew || changedFields(row).length > 0 || idChanged(row) || placeChanged(row) || imageChanged(row) ||
+        changedEpisodeFields(row).length > 0;
 }
 
 // 保存してよいか確かめる。だめならその理由
@@ -124,6 +178,15 @@ function validate(row) {
         if (Array.from(text).length > MAX_LENGTH[field]) {
             return FIELD_LABELS[field] + "は" + MAX_LENGTH[field] + "文字までです";
         }
+    }
+    for (const field of EPISODE_FIELDS) {
+        const count = readCount(row[field.key]);
+        if (!Number.isInteger(count) || count > field.max) {
+            return field.label + "は 0〜" + field.max + " の数で入れてください（分からなければ空欄）";
+        }
+    }
+    if (Array.from(row.image.trim()).length > IMAGE_MAX_LENGTH) {
+        return "画像は" + IMAGE_MAX_LENGTH + "文字までです";
     }
     if ((row.isNew || placeChanged(row)) && !readLatLng(row.latitude, row.longitude)) {
         return "緯度・経度を数字で入れてください（日本の中の場所）";
@@ -197,6 +260,13 @@ function updateRowState(tr, row) {
     });
     const idInput = tr.querySelector('[data-field="id"]');
     if (idInput) idInput.classList.toggle("is-changed-cell", idChanged(row));
+    const imageInput = tr.querySelector('[data-field="image"]');
+    if (imageInput) imageInput.classList.toggle("is-changed-cell", imageChanged(row));
+    const episodeChanged = changedEpisodeFields(row);
+    EPISODE_FIELDS.forEach(function (field) {
+        const input = tr.querySelector('[data-field="' + field.key + '"]');
+        if (input) input.classList.toggle("is-changed-cell", episodeChanged.includes(field.key));
+    });
     tr.querySelectorAll('[data-field="latitude"], [data-field="longitude"]').forEach(function (input) {
         input.classList.toggle("is-changed-cell", placeChanged(row));
     });
@@ -249,6 +319,65 @@ function renderRow(row) {
         tr.appendChild(td);
     });
 
+    // 何期の何話か（2つの小さな入力欄）
+    const episodeCell = el("td", "col-episode");
+    EPISODE_FIELDS.forEach(function (field) {
+        const label = el("label", "episode-input");
+        const input = el("input");
+        input.type = "text";
+        input.inputMode = "numeric";
+        input.dataset.field = field.key;
+        input.value = row[field.key];
+        input.setAttribute("aria-label", (row.isNew ? "新しい聖地" : row.original.spot_name) + "の" + field.label);
+        input.addEventListener("input", function () {
+            row[field.key] = input.value;
+            row.error = "";
+            updateRowState(tr, row);
+            updateSaveButton();
+        });
+        label.append(input, el("span", "", field.label));
+        episodeCell.appendChild(label);
+    });
+    tr.appendChild(episodeCell);
+
+    // 画像：入力欄と、その画像の小さな見本（ファイルが無ければ「見つかりません」）
+    const imageCell = el("td", "col-image");
+    const imageInput = el("input", "row-image");
+    imageInput.type = "text";
+    imageInput.dataset.field = "image";
+    imageInput.value = row.image;
+    imageInput.placeholder = "例 eupho/eupho_s0701.jpg（空欄＝なし）";
+    imageInput.spellcheck = false;
+    imageInput.setAttribute("aria-label", (row.isNew ? "新しい聖地" : row.original.spot_name) + "の画像");
+    const preview = el("div", "image-preview");
+    function updatePreview() {
+        preview.innerHTML = "";
+        const src = getSpotImageSrc(normalizeSpotImage(row.image));
+        if (!src) {
+            preview.appendChild(el("span", "image-none", "画像なし"));
+            return;
+        }
+        const img = el("img");
+        img.alt = "";
+        img.loading = "lazy";
+        img.src = src;
+        img.addEventListener("error", function () {
+            preview.innerHTML = "";
+            preview.appendChild(el("span", "image-missing", "見つかりません"));
+        });
+        preview.appendChild(img);
+    }
+    updatePreview();
+    imageInput.addEventListener("input", function () {
+        row.image = imageInput.value;
+        row.error = "";
+        updatePreview();
+        updateRowState(tr, row);
+        updateSaveButton();
+    });
+    imageCell.append(imageInput, preview);
+    tr.appendChild(imageCell);
+
     const place = el("td", "col-place");
     [["latitude", "緯度", "35.6812"], ["longitude", "経度", "139.7671"]].forEach(function (item) {
         const input = el("input");
@@ -277,6 +406,9 @@ function renderRow(row) {
         } else {
             row.value = Object.assign({}, row.original);
             row.newId = row.id;
+            row.image = row.originalImage;
+            row.season = row.originalEpisode.season;
+            row.episode = row.originalEpisode.episode;
             row.latitude = row.originalPlace.latitude;
             row.longitude = row.originalPlace.longitude;
             row.error = "";
@@ -298,7 +430,7 @@ function render() {
     if (list.length === 0) {
         const tr = el("tr");
         const td = el("td", "table-empty", "当てはまる聖地はありません");
-        td.colSpan = 6;
+        td.colSpan = 8;
         tr.appendChild(td);
         tbody.appendChild(tr);
     }
@@ -344,7 +476,7 @@ document.getElementById("filter-text").addEventListener("input", render);
 
 document.getElementById("export-csv").addEventListener("click", function () {
     const list = rows.filter(function (row) { return !row.isNew; }).map(function (row) {
-        return Object.assign({ id: row.id, latitude: row.latitude, longitude: row.longitude }, row.value);
+        return Object.assign({ id: row.id, latitude: row.latitude, longitude: row.longitude, image: row.image, season: row.season, episode: row.episode }, row.value);
     });
     const blob = new Blob([buildCsv(list)], { type: "text/csv;charset=utf-8" });
     const link = document.createElement("a");
@@ -391,6 +523,9 @@ document.getElementById("import-csv").addEventListener("change", async function 
         }
         const before = isDirty(row);
         FIELDS.forEach(function (field) { if (record[field] !== "") row.value[field] = record[field]; });
+        if (record.image !== "") row.image = record.image;
+        if (record.season !== "") row.season = record.season;
+        if (record.episode !== "") row.episode = record.episode;
         if (record.latitude !== "" && record.longitude !== "") {
             row.latitude = record.latitude;
             row.longitude = record.longitude;
@@ -465,7 +600,9 @@ document.getElementById("save-all").addEventListener("click", async function () 
                 row: row,
                 id: row.newId.trim() || autoIds.shift(),
                 create: Object.assign(value, placeFields, {
-                    image_url: "no_image",
+                    season: readCount(row.season),
+                    episode: readCount(row.episode),
+                    image_url: normalizeSpotImage(row.image),
                     title_url: titleUrls[value.title_name] || ""
                 })
             };
@@ -474,6 +611,8 @@ document.getElementById("save-all").addEventListener("click", async function () 
         const update = {};
         changedFields(row).forEach(function (field) { update[field] = value[field]; });
         if (placeChanged(row)) Object.assign(update, placeFields);
+        if (imageChanged(row)) update.image_url = normalizeSpotImage(row.image);
+        changedEpisodeFields(row).forEach(function (key) { update[key] = readCount(row[key]); });
 
         if (idChanged(row)) {
             // 新しい ID で作り直し、古い聖地を消す
@@ -541,6 +680,11 @@ document.getElementById("save-all").addEventListener("click", async function () 
                 FIELDS.forEach(function (field) { row.value[field] = row.value[field].trim(); });
                 row.original = Object.assign({}, row.value);
                 row.newId = row.id;
+                row.image = displayImage(row.data.image_url);
+                row.originalImage = row.image;
+                row.season = displayCount(row.data.season);
+                row.episode = displayCount(row.data.episode);
+                row.originalEpisode = { season: row.season, episode: row.episode };
                 row.latitude = row.data.coord ? String(row.data.coord.latitude) : row.latitude;
                 row.longitude = row.data.coord ? String(row.data.coord.longitude) : row.longitude;
                 row.originalPlace = { latitude: row.latitude, longitude: row.longitude };

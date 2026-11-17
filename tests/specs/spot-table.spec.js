@@ -107,7 +107,7 @@ test("CSV を書き出すと、全部の聖地が見出し付きで入る", asyn
     const [download] = await Promise.all([page.waitForEvent("download"), page.click("#export-csv")]);
     expect(download.suggestedFilename()).toMatch(/^seiti-spots-\d{8}\.csv$/);
     const text = (await (await download.createReadStream()).toArray()).join("");
-    expect(text.startsWith("﻿ID,作品名,スポット名,説明,緯度,経度")).toBe(true);
+    expect(text.startsWith("﻿ID,作品名,スポット名,説明,期,話,緯度,経度,画像")).toBe(true);
     expect(text).toContain(spotNamed("宇治橋").spot_name);
 });
 
@@ -178,4 +178,104 @@ test("新しい行に ID を入れると、その ID で登録される（空な
 
     expect((await readStore(page)).spot.s0799).toMatchObject({ spot_name: "ID を決めた聖地", title_name: bridge.title_name });
     await expect(page.locator("#spot-rows tr", { has: page.locator('[data-field="spot_name"]') }).first()).toBeVisible();
+});
+
+test("画像を表で入れて保存できる（見本で確かめられる）。新しい聖地・CSV でも入る", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    await openTable(page);
+
+    // 登録済みの聖地：ファイルの場所を入れると見本が出て、保存すると image_url が入る
+    const row = await rowOf(page, bridge.id);
+    const image = row.locator('[data-field="image"]');
+    await image.fill("eupho/eupho_s0702.jpg");
+    await expect(row.locator(".image-preview img")).toHaveAttribute("src", "../images/spots/eupho/eupho_s0702.jpg");
+    await expect.poll(() => row.locator(".image-preview img").evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
+    await expect(image).toHaveClass(/is-changed-cell/);
+
+    // 無いファイルは「見つかりません」
+    await image.fill("eupho/nothing.jpg");
+    await expect(row.locator(".image-missing")).toHaveText("見つかりません");
+
+    // GitHub の画像ページのURLでも入れられる
+    await image.fill("https://github.com/X23U002/seiti/blob/main/map画面/images/spots/eupho/eupho_s0702.jpg");
+    await page.click("#save-all");
+    await expect(page.locator("#toast")).toContainText("1件の聖地を保存しました");
+    expect((await readStore(page)).spot[bridge.id].image_url).toBe("images/spots/eupho/eupho_s0702.jpg");
+    // 保存した後は、短い形で出る
+    await expect(image).toHaveValue("eupho/eupho_s0702.jpg");
+
+    // 新しい聖地にも入る
+    await page.fill("#filter-text", "");
+    await page.click("#add-row");
+    const added = page.locator("#spot-rows tr.is-new");
+    await added.locator('[data-field="title_name"]').fill(bridge.title_name);
+    await added.locator('[data-field="spot_name"]').fill("画像つきの聖地");
+    await added.locator('[data-field="spot_info"]').fill("説明");
+    await added.locator('[data-field="latitude"]').fill("34.89");
+    await added.locator('[data-field="longitude"]').fill("135.80");
+    await added.locator('[data-field="image"]').fill("eupho/eupho_s0703.jpg");
+    await page.click("#save-all");
+    await expect.poll(async () => Object.values((await readStore(page)).spot).some((spot) => spot.spot_name === "画像つきの聖地")).toBe(true);
+    const created = Object.values((await readStore(page)).spot).find((spot) => spot.spot_name === "画像つきの聖地");
+    expect(created.image_url).toBe("images/spots/eupho/eupho_s0703.jpg");
+
+    // CSV の「画像」の列でも入る
+    const csv = "\ufeffID,作品名,スポット名,説明,緯度,経度,画像\r\n" +
+        `${bridge.id},${bridge.title_name},${bridge.spot_name},${bridge.spot_info},,,eupho/eupho_s0701.jpg\r\n`;
+    await page.setInputFiles("#import-csv", { name: "spots.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await expect(page.locator("#save-all")).toHaveText("保存する（1件）");
+    await page.click("#save-all");
+    await expect.poll(async () => (await readStore(page)).spot[bridge.id].image_url).toBe("images/spots/eupho/eupho_s0701.jpg");
+});
+
+test("何期の何話か（期・話）を表で入れて保存できる。数でなければ保存しない。新しい聖地・CSV でも入る", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    await openTable(page);
+
+    const row = await rowOf(page, bridge.id);
+    await row.locator('[data-field="season"]').fill("abc");
+    await page.click("#save-all");
+    await expect(row.locator(".row-error")).toContainText("期は 0〜99 の数");
+
+    // 全角の数字でも入る
+    await row.locator('[data-field="season"]').fill("２");
+    await row.locator('[data-field="episode"]').fill("13");
+    await expect(row.locator('[data-field="episode"]')).toHaveClass(/is-changed-cell/);
+    await page.click("#save-all");
+    await expect(page.locator("#toast")).toContainText("1件の聖地を保存しました");
+    let saved = (await readStore(page)).spot[bridge.id];
+    expect(saved.season).toBe(2);
+    expect(saved.episode).toBe(13);
+    await expect(row.locator('[data-field="season"]')).toHaveValue("2");
+
+    // 空欄にすると「分からない」（0）
+    await row.locator('[data-field="episode"]').fill("");
+    await page.click("#save-all");
+    // （前の「保存しました」が残っていることがあるので、保存した中身が変わるまで待つ）
+    await expect.poll(async () => (await readStore(page)).spot[bridge.id].episode).toBe(0);
+    await expect(page.locator("#save-all")).toHaveText("変更はありません");
+
+    // 新しい聖地
+    await page.fill("#filter-text", "");
+    await page.click("#add-row");
+    const added = page.locator("#spot-rows tr.is-new");
+    await added.locator('[data-field="title_name"]').fill(bridge.title_name);
+    await added.locator('[data-field="spot_name"]').fill("話数つきの聖地");
+    await added.locator('[data-field="spot_info"]').fill("説明");
+    await added.locator('[data-field="latitude"]').fill("34.89");
+    await added.locator('[data-field="longitude"]').fill("135.80");
+    await added.locator('[data-field="season"]').fill("1");
+    await added.locator('[data-field="episode"]').fill("3");
+    await page.click("#save-all");
+    await expect.poll(async () => Object.values((await readStore(page)).spot).some((spot) => spot.spot_name === "話数つきの聖地")).toBe(true);
+    const created = Object.values((await readStore(page)).spot).find((spot) => spot.spot_name === "話数つきの聖地");
+    expect([created.season, created.episode]).toEqual([1, 3]);
+    await expect(page.locator("#save-all")).toHaveText("変更はありません");
+
+    // CSV の「期」「話」の列
+    const csv = "\ufeffID,作品名,スポット名,説明,期,話\r\n" +
+        `${bridge.id},${bridge.title_name},${bridge.spot_name},"${bridge.spot_info}",3,8\r\n`;
+    await page.setInputFiles("#import-csv", { name: "spots.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await page.click("#save-all");
+    await expect.poll(async () => { const spot = (await readStore(page)).spot[bridge.id]; return [spot.season, spot.episode]; }).toEqual([3, 8]);
 });
