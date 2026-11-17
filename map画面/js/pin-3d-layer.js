@@ -23,16 +23,6 @@ const SELECTED_SCALE = 1.45;
 const DIMMED_OPACITY = 0.45;
 const RING_PULSE_MS = 1600;
 
-// 地図のピンを置く画面上の位置。重なったピンをずらして並べた分（Script.js の data-spread-x/y）も足す
-function projectMarker(map, marker) {
-    const point = map.project(marker.getLngLat());
-    const element = marker.getElement?.();
-    return {
-        x: point.x + (Number(element?.dataset?.spreadX) || 0),
-        y: point.y + (Number(element?.dataset?.spreadY) || 0)
-    };
-}
-
 export function createGLBPinLayer(map, options = {}) {
     if (!map || typeof map.getContainer !== "function") {
         throw new TypeError("createGLBPinLayerには初期化済みのMapbox mapが必要です。");
@@ -304,7 +294,8 @@ export function createGLBPinLayer(map, options = {}) {
         const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
         models.forEach((model) => {
-            const point = projectMarker(map, model.marker);
+            const lngLat = model.marker.getLngLat();
+            const point = map.project(lngLat);
             const x = point.x;
             const y = height - point.y;
 
@@ -480,7 +471,7 @@ export function createGLBPinLayer(map, options = {}) {
             const model = models.get(String(spotId));
             if (!model) return;
 
-            const screenPoint = projectMarker(map, marker);
+            const screenPoint = map.project(marker.getLngLat());
             const dx = point.x - screenPoint.x;
             const dy = point.y - screenPoint.y;
             if (Math.abs(dx) > halfWidth || dy < -targetHeightPx - 10 || dy > 10) return;
