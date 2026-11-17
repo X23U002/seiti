@@ -13,7 +13,7 @@ import * as THREE from "three";
 import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 
 // キャラクターの大きさ（画面上の高さを、キャラクターがいる場所の縮尺で決める）
-import { heightMetersForScreen, metersPerPixel } from "./walker-size.js?v=2f30df1d";
+import { MODEL_SCREEN_HEIGHT_PX, heightMetersForScreen, metersPerPixel } from "./walker-size.js?v=c3996f56";
 
 // ---------------------------------------------------------
 // 設定
@@ -22,14 +22,10 @@ import { heightMetersForScreen, metersPerPixel } from "./walker-size.js?v=2f30df
 // 3Dモデル（Mixamoの歩行アニメーション付きFBX）
 const MODEL_URL = "../models/walking.fbx";
 
-// 画面上でのキャラクターの高さ（px）
-// ズーム FIXED_SIZE_ZOOM 以上ではこの大きさで一定。それより引くと、
-// 実際の大きさ（ズーム17で130px分 ≒ 約60m）のまま小さくなる（引いても巨人にならない）
-const MODEL_HEIGHT_PX = 130;
-const FIXED_SIZE_ZOOM = 17;
+// 画面上でのキャラクターの高さは、ズームを寄せても引いても一定（walker-size.js の MODEL_SCREEN_HEIGHT_PX）
 
-// 画面上でこれより小さくなったらキャラクターを隠し、青い現在地の点を表示する（px）
-const MIN_VISIBLE_PX = 20;
+// 3D表示に切りかえた時に、キャラクターの所へ寄るズーム（これより引いていた時だけ寄る）
+const FIXED_SIZE_ZOOM = 17;
 
 // キャラクターのテクスチャ（画像）。walking.fbx と同じ時に書き出した画像を置く
 // ※ FBXの中にテクスチャが埋め込まれている場合は、そちらを優先して使う
@@ -484,13 +480,11 @@ function createWalkerLayer(map) {
                 updateByKeys(delta, map.getBearing(), map.getZoom()) ||
                 updatePosition(now);
 
-            // 画面上の大きさ（px）：ズーム17以上は一定、引くとズームに合わせて小さくなる
-            const zoom = map.getZoom();
-            const screenHeightPx =
-                MODEL_HEIGHT_PX * Math.pow(2, Math.min(0, zoom - FIXED_SIZE_ZOOM));
+            // 画面上の大きさ（px）：ズームを寄せても引いても一定
+            const screenHeightPx = MODEL_SCREEN_HEIGHT_PX;
 
-            // 2D表示の時と、引きすぎて小さくなった時はキャラクターを隠し、青い現在地の点を表示する
-            const visible = is3DMode() && screenHeightPx >= MIN_VISIBLE_PX;
+            // 2D表示の時はキャラクターを隠し、青い現在地の点を表示する
+            const visible = is3DMode();
             mapElement?.classList.toggle("walker-active", visible);
 
             if (!visible) {
@@ -678,7 +672,7 @@ function startWalkTest(map) {
         }
         updateButton();
 
-        // 引いた状態だとキャラクターが小さくて隠れるので、キャラクターの位置に寄る
+        // 引いた状態だと周りの様子が分かりにくいので、キャラクターの位置に寄る
         // （3D表示への切り替えの動きを上書きしてしまうため、傾きも同じ値を指定する）
         if (state.position) {
             map.easeTo({
