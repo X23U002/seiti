@@ -16,9 +16,13 @@ export function modelScreenHeightPx() {
     return MODEL_SCREEN_HEIGHT_PX;
 }
 
-// そのズームでキャラクターを出すか。どのズームでも出す（青い現在地の点には切りかえない）
-export function isModelVisibleAtZoom() {
-    return true;
+// これより引いたら、キャラクターを隠して青い現在地の点に切りかえる。
+// 画面上の大きさは固定なので、引いたまま出すと、県や地方より大きな巨人に見えてしまう
+export const MIN_VISIBLE_ZOOM = 16;
+
+// そのズームでキャラクターを出すか（出す時は、いつも同じ大きさ）
+export function isModelVisibleAtZoom(zoom) {
+    return zoom >= MIN_VISIBLE_ZOOM;
 }
 
 // 地図上で 1px が何mか（Mapboxのタイルは512px。画面の真ん中・真上から見た時）

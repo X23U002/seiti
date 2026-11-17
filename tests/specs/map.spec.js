@@ -550,7 +550,7 @@ test("検索の「×」は、候補を選んだ後も文字がある間は出て
     await expect(clear).toBeHidden();
 });
 
-test("3Dのキャラクターは、ズームしても、斜めから見た時の手前・奥でも、画面上の大きさが同じ（小さめで固定）", async ({ page }) => {
+test("3Dのキャラクターは、出す時はいつも同じ大きさ（手前・奥でも）。引いたら隠して現在地の点にする（巨人にならない）", async ({ page }) => {
     await seed(page);
     await page.goto("html/map.html");
     await expect(pins(page)).toHaveCount(SPOTS.length);
@@ -605,11 +605,15 @@ test("3Dのキャラクターは、ズームしても、斜めから見た時の
         expect(height).toBeLessThan(155);
     }
     expect(Math.abs(result.near / result.far - 1)).toBeLessThan(0.2);
-    // ズームを寄せても引いても、画面上の高さは同じ（約64px）。点にも切りかえない
-    for (const zoom of [13, 15, 16, 18, 20]) {
+    // 出す時（ズーム16以上）は、寄せても引いても画面上の高さが同じ（約64px）
+    for (const zoom of [16, 18, 20]) {
         expect(result.byZoom[zoom].px).toBeGreaterThan(54);
         expect(result.byZoom[zoom].px).toBeLessThan(74);
         expect(result.byZoom[zoom].visible).toBe(true);
+    }
+    // ズーム16より引いたら隠して、現在地の点にする（引いたまま出すと、県や地方より大きな巨人に見える）
+    for (const zoom of [13, 15]) {
+        expect(result.byZoom[zoom].visible).toBe(false);
     }
 });
 
@@ -628,4 +632,46 @@ test("3D表示のピンのモデル（地図が指定しているもの）が読
     expect(gltf.meshes).toHaveLength(2);
     // 読み込むのに追加の部品（圧縮の解凍など）が要らない
     expect(gltf.extensionsRequired || []).toEqual([]);
+});
+
+test("重なるほど近いピンは少しずらして並べ、どれも見えて押せる。寄せて離れれば元の場所に戻る", async ({ page }) => {
+    await seed(page);
+    await page.goto("html/map.html");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+
+    // 画面に出ているピン同士の、画面上の位置（ピンの頭の真ん中）
+    const overlappingPairs = () => page.evaluate(() => {
+        const points = [...document.querySelectorAll(".mapboxgl-marker[data-spot-id]")]
+            .map((element) => element.getBoundingClientRect())
+            .filter((rect) => rect.right > 0 && rect.bottom > 0 && rect.left < innerWidth && rect.top < innerHeight)
+            .map((rect) => [rect.left + rect.width / 2, rect.top + rect.height / 2]);
+        let pairs = 0;
+        for (let i = 0; i < points.length; i++) {
+            for (let j = i + 1; j < points.length; j++) {
+                const dx = (points[i][0] - points[j][0]) / 26;
+                const dy = (points[i][1] - points[j][1]) / 34;
+                if (dx * dx + dy * dy < 1) pairs++;
+            }
+        }
+        return pairs;
+    });
+
+    // 最初の地図（ズーム12）では、宇治の聖地が重なるほど近いので、ずらして並べる
+    await expect.poll(overlappingPairs).toBe(0);
+    const spread = page.locator('.mapboxgl-marker[data-spot-id]:not([data-spread-x="0"])');
+    expect(await spread.count()).toBeGreaterThan(1);
+
+    // ずらしたピンを押すと、その聖地の詳細が開く
+    const target = spread.first();
+    const id = await target.getAttribute("data-spot-id");
+    await target.click();
+    await expect(page.locator(".popup-card .popup-spot")).toContainText(SPOTS.find((spot) => spot.id === id).spot_name);
+    await page.locator(".mapboxgl-popup-close-button").click();
+
+    // 寄せて離れれば、元の場所に戻る
+    const bridge = spotNamed("宇治橋");
+    await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 18 }), [bridge.coord.longitude, bridge.coord.latitude]);
+    await page.evaluate(() => window.__map.fire("zoomend"));
+    await expect(page.locator(`.mapboxgl-marker[data-spot-id="${bridge.id}"]`)).toHaveAttribute("data-spread-x", "0");
+    await expect(page.locator(`.mapboxgl-marker[data-spot-id="${bridge.id}"]`)).toHaveAttribute("data-spread-y", "0");
 });
