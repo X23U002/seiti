@@ -49,7 +49,12 @@ test("作品ページには出さず、地図のおすすめルートの画面�
 
     await openMyPlan(page);
     await expect(page.locator("#my-plan")).toBeVisible();
-    await expect(page.locator("#my-plan-jump")).toBeVisible();
+    await expect(page.locator("#my-plan .my-plan-badge")).toContainText("AI");
+    // 目立つように、運営のおすすめルートの一覧より上に出す
+    const above = await page.evaluate(() =>
+        document.getElementById("my-plan").getBoundingClientRect().top <
+        document.getElementById("course-list").getBoundingClientRect().top);
+    expect(above).toBe(true);
 });
 
 test("ふだんは公開した中継サーバーに作品名と条件を送る", async ({ page }) => {
