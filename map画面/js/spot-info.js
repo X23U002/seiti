@@ -10,10 +10,6 @@ export const VISIT_FIELDS = [
     { key: "caution", label: "注意", max: 300, placeholder: "(例) 私有地のため敷地内に入らない・店内の撮影は禁止" }
 ];
 
-// どの聖地にも出す、聖地巡礼のマナー
-export const MANNER_NOTE =
-    "聖地の多くは、地元の方が暮らしたり働いたりしている場所です。大声・私有地への立ち入り・人が写る撮影は控えましょう。";
-
 // 入力されている項目だけを [{ label, value }] で返す
 export function getVisitInfo(spot) {
     return VISIT_FIELDS

@@ -1697,7 +1697,7 @@ body {
     margin-top: 10px;
 }
 
-/* 訪れる前に（入れる時間・定休日など）とマナー */
+/* 訪れる前に（入れる時間・定休日など。入力がある聖地だけ） */
 .popup-visit {
     margin-top: 12px;
 }
@@ -1739,16 +1739,6 @@ body {
 .popup-visit-item.is-caution dd {
     color: #b9770e;
     font-weight: bold;
-}
-
-.popup-manner {
-    margin: 8px 0 0;
-    padding: 8px 10px;
-    border-radius: 8px;
-    background: #f6f8f9;
-    font-size: 12px;
-    line-height: 1.6;
-    color: #6b7b8c;
 }
 
 /* スタンプ・ルートに追加のボタンは、詳細の一番下に固定して、いつでも押せるようにする

@@ -7,14 +7,14 @@ const admin = (extra) => withSpots(Object.assign({
     user: { uid1: PROFILE("管理者", "a@x.jp") }
 }, extra || {}));
 
-test("管理ページで訪れる人への情報を入れると、聖地の詳細の「訪れる前に」に出る（マナーはいつも出す）", async ({ page }) => {
+test("管理ページで訪れる人への情報を入れると、聖地の詳細の「訪れる前に」に出る（何も入れていなければ欄ごと出さない）", async ({ page }) => {
     await seed(page, { user: "uid1", data: admin() });
 
-    // 何も入れていない聖地にも、マナーは出す
+    // 何も入れていない聖地には、欄ごと出さない（マナーはアプリを開いた時の注意書きで伝える）
     await page.goto("html/map.html?spot=" + bridge.id);
     const visit = page.locator(".popup-card .popup-visit");
-    await expect(visit.locator(".popup-manner")).toContainText("私有地への立ち入り");
-    await expect(visit.locator(".popup-visit-item")).toHaveCount(0);
+    await expect(page.locator(".popup-card .popup-spot")).toBeVisible();
+    await expect(visit).toHaveCount(0);
 
     await page.goto("html/admin.html");
     await page.click("#tab-spots");
