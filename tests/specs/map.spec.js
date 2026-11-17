@@ -586,7 +586,7 @@ test("3Dのキャラクターは、出す時はいつも同じ大きさ（手前
         const before = (point) => screenHeight([point.lng, point.lat], 130 * size.metersPerPixel(point.lat, map.getZoom()));
         // ズームごとの画面上の高さ（画面の真ん中で）と、出すかどうか
         const byZoom = {};
-        [13, 15, 16, 18, 20].forEach((zoom) => {
+        [11, 12, 13, 15, 18, 20].forEach((zoom) => {
             map.jumpTo({ zoom });
             const center = map.unproject([195, 470]);
             byZoom[zoom] = {
@@ -605,14 +605,14 @@ test("3Dのキャラクターは、出す時はいつも同じ大きさ（手前
         expect(height).toBeLessThan(155);
     }
     expect(Math.abs(result.near / result.far - 1)).toBeLessThan(0.2);
-    // 出す時（ズーム16以上）は、寄せても引いても画面上の高さが同じ（約64px）
-    for (const zoom of [16, 18, 20]) {
-        expect(result.byZoom[zoom].px).toBeGreaterThan(54);
-        expect(result.byZoom[zoom].px).toBeLessThan(74);
+    // 出す時（ズーム13以上）は、寄せても引いても画面上の高さが同じ（約96px）
+    for (const zoom of [13, 15, 18, 20]) {
+        expect(result.byZoom[zoom].px).toBeGreaterThan(84);
+        expect(result.byZoom[zoom].px).toBeLessThan(108);
         expect(result.byZoom[zoom].visible).toBe(true);
     }
-    // ズーム16より引いたら隠して、現在地の点にする（引いたまま出すと、県や地方より大きな巨人に見える）
-    for (const zoom of [13, 15]) {
+    // ズーム13より引いたら隠して、現在地の点にする（引いたまま出すと、県や地方より大きな巨人に見える）
+    for (const zoom of [11, 12]) {
         expect(result.byZoom[zoom].visible).toBe(false);
     }
 });
