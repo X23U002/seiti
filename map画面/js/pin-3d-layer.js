@@ -8,6 +8,8 @@
  *   cannot depth-occlude or distort the model.
  * - Uses an orthographic screen-space camera: the pin keeps a stable pixel size
  *   at every map zoom while its anchor follows map.project().
+ * - The pin does not turn to face the viewer: it keeps a fixed heading on the ground, so it turns with the
+ *   map's bearing and leans with its pitch like an object standing there (ピンは地面に立っている物として向きを固定する)
  */
 // three.js は map.html の importmap のもの（歩くキャラクター walker.js と同じ）を使う
 import * as THREE from "three";
@@ -301,6 +303,11 @@ export function createGLBPinLayer(map, options = {}) {
         });
         const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
+        // ピンの向きは地面に固定する（こちらを向き続けない）。
+        // 地図を回すとピンも一緒に回り、上から見るほどピンの頭がこちらへ傾く（pitch 0 = 真上から、60 = 斜めから）
+        const headingRadians = yawRadians + THREE.MathUtils.degToRad(map.getBearing());
+        const leanRadians = THREE.MathUtils.degToRad(Math.max(0, 90 - map.getPitch()));
+
         models.forEach((model) => {
             const lngLat = model.marker.getLngLat();
             const point = map.project(lngLat);
@@ -313,8 +320,8 @@ export function createGLBPinLayer(map, options = {}) {
                 x > -targetHeightPx && x < width + targetHeightPx &&
                 y > -targetHeightPx && y < height + targetHeightPx;
 
-            // Slight yaw reveals the model's actual side thickness while keeping its face readable.
-            model.facing.rotation.y = yawRadians;
+            // Euler order XYZ: turn the pin about its own upright axis first (heading), then lean it toward the viewer.
+            model.facing.rotation.set(leanRadians, headingRadians, 0);
 
             // 詳細を開いているピンを強調する（大きく・手前に・足元に輪）。ほかのピンは薄くする
             const selected = isSelected(model);
