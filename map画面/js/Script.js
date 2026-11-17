@@ -13,7 +13,7 @@ import { getCurrentUser } from "./firebase-db.js?v=61accae5";
 import {
     getTitleColor,
     getTitleName
-} from "./title-colors.js?v=5c634da9";
+} from "./title-colors.js?v=62cd810d";
 
 // 何期の何話の場面か（入力された期・話、無ければ説明文から。お気に入り一覧と共通）
 // ※ ?v= を付けて、ブラウザに残った古い episode.js を使わないようにする
@@ -54,14 +54,14 @@ import {
     loadCourses as fetchCourseList,
     loadSpots,
     readCachedSpots
-} from "./public-data.js?v=e9b87d82";
+} from "./public-data.js?v=5183f404";
 
 // お気に入り・保存したルート
 import {
     loadFavorites,
     saveRoute,
     setFavorite
-} from "./saved-db.js?v=e608198e";
+} from "./saved-db.js?v=52020f50";
 
 // stampsyori.js（スタンプ獲得の演出）からも同じ色を使う
 window.getTitleColor = getTitleColor;
