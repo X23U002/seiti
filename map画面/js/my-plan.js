@@ -101,14 +101,6 @@ export async function setupMyPlan(settings) {
     options = settings;
     section.hidden = false;
 
-    // おすすめルートの一覧の上から、マイプランの欄へ移る
-    const jump = document.getElementById("my-plan-jump");
-    jump.hidden = false;
-    jump.addEventListener("click", function (event) {
-        event.preventDefault();
-        section.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-
     const form = document.getElementById("my-plan-form");
     const button = document.getElementById("my-plan-submit");
     const status = document.getElementById("my-plan-status");

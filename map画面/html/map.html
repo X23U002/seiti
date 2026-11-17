@@ -40,7 +40,7 @@
     <!-- 自作CSS -->
     <link
         rel="stylesheet"
-        href="../css/style.css?v=acf43457"
+        href="../css/style.css?v=c9c5644a"
     >
 
     <!-- スタンプのランク（回数で枠の色が変わる） -->
@@ -307,15 +307,9 @@
 
         </div>
 
-        <p class="filter-note">選ぶと、そのルートがルート案内に入ります。距離と時間は直線距離からの目安です。</p>
-
-        <a class="my-plan-jump" id="my-plan-jump" href="#my-plan" hidden>✨ 自分の条件で AI にプランを作ってもらう</a>
-
-        <div id="course-list"></div>
-
-        <!-- AI でつくるマイプラン（条件を入れると、その人向けのプランを AI が作る） -->
+        <!-- AI でつくるマイプラン（条件を入れると、その人向けのプランを AI が作る）。目立つように一覧の上に出す -->
         <section class="my-plan" id="my-plan" aria-labelledby="my-plan-heading" hidden>
-            <h3 id="my-plan-heading">AI でつくるマイプラン</h3>
+            <h3 id="my-plan-heading"><span class="my-plan-badge" aria-hidden="true">✨ AI</span>あなた専用のマイプランを作る</h3>
             <p class="my-plan-lead">使える時間や出発地、希望を入れると、あなた向けの巡礼プランを AI が作ります。</p>
             <form id="my-plan-form" class="my-plan-form">
                 <label class="my-plan-field">
@@ -344,6 +338,11 @@
             <p class="my-plan-status" id="my-plan-status" role="status" aria-live="polite"></p>
             <div id="my-plan-result" hidden></div>
         </section>
+
+        <h3 class="course-list-heading" id="course-list-heading">運営のおすすめルート</h3>
+        <p class="filter-note">選ぶと、そのルートがルート案内に入ります。距離と時間は直線距離からの目安です。</p>
+
+        <div id="course-list"></div>
 
     </div>
 
@@ -498,7 +497,7 @@
     ====================================================== -->
     <script
         type="module"
-        src="../js/Script.js?v=580729f3"
+        src="../js/Script.js?v=cf64808c"
     ></script>
 
 

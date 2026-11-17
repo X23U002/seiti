@@ -44,7 +44,7 @@ import {
 import { startOnboarding } from "./onboarding.js?v=f6c278bc";
 
 // AI でつくるマイプラン（おすすめルートの画面の下）
-import { refreshMyPlan, setupMyPlan } from "./my-plan.js?v=4419a46f";
+import { refreshMyPlan, setupMyPlan } from "./my-plan.js?v=c168cc3c";
 
 // スマホの聖地の詳細パネルを、なぞって閉じる・全画面に広げる
 import { enableSheetDrag } from "./sheet-drag.js?v=61204c4c";

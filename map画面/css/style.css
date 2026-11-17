@@ -3484,34 +3484,50 @@ body {
     transform: none;
 }
 
-/* ---------- AI でつくるマイプラン（おすすめルートの画面の下） ---------- */
+/* ---------- AI でつくるマイプラン（おすすめルートの画面の一番上。目立つ色の枠） ---------- */
 .my-plan[hidden],
-.my-plan-jump[hidden],
 .my-plan-login[hidden],
 .my-plan-form[hidden],
 #my-plan-result[hidden] {
     display: none;
 }
 
-.my-plan-jump {
-    display: block;
-    margin: 0 0 4px;
-    font-size: 14px;
-    font-weight: bold;
-    color: #0b3c5d;
-}
-
 .my-plan {
-    margin-top: 24px;
-    padding-top: 16px;
-    border-top: 1px dashed #c9d3dc;
-    scroll-margin-top: 16px;
+    position: relative;
+    margin: 4px 0 8px;
+    padding: 16px;
+    border: 2px solid transparent;
+    border-radius: 16px;
+    background:
+        linear-gradient(135deg, #f6f1ff, #eef6ff) padding-box,
+        linear-gradient(135deg, #7c4dff, #2f8cff) border-box;
+    box-shadow: 0 6px 18px rgba(92, 64, 200, .18);
 }
 
 .my-plan h3 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
     margin: 0 0 6px;
     font-size: 17px;
-    color: #0b3c5d;
+    color: #3a1f8f;
+}
+
+.my-plan-badge {
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #7c4dff, #2f8cff);
+    color: #fff;
+    font-size: 12px;
+    letter-spacing: .04em;
+}
+
+/* 運営のおすすめルートの見出し（AI の枠の下） */
+.course-list-heading {
+    margin: 20px 0 4px;
+    font-size: 15px;
+    color: #6b7b8c;
 }
 
 .my-plan-lead {
@@ -3569,15 +3585,18 @@ body {
 
 .my-plan-submit {
     line-height: normal;
+    background: linear-gradient(135deg, #7c4dff, #2f8cff);
+    box-shadow: 0 3px 10px rgba(92, 64, 200, .3);
 }
 
 .my-plan-submit:hover {
-    background: #14537f;
+    background: linear-gradient(135deg, #6a3bf0, #1f7bef);
     transform: none;
 }
 
 .my-plan-submit:disabled {
     background: #8a9aa8;
+    box-shadow: none;
     cursor: wait;
 }
 
