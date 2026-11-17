@@ -18,7 +18,7 @@ import {
 
 import { db, getCurrentUser } from "./firebase-db.js?v=61accae5";
 import { encodeGeohash } from "./geohash.js?v=fe42fce1";
-import { assignSpotIds, buildCsv, readLatLng, readSpotCsv } from "./spot-csv.js?v=eb19c435";
+import { assignSpotIds, buildCsv, decodeCsvBytes, readLatLng, readSpotCsv } from "./spot-csv.js?v=24508d96";
 import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=59165daf";
 
 // 表で直せる項目
@@ -499,7 +499,7 @@ document.getElementById("import-csv").addEventListener("change", async function 
 
     let records;
     try {
-        records = readSpotCsv(await file.text());
+        records = readSpotCsv(decodeCsvBytes(await file.arrayBuffer()));
     } catch (error) {
         notify("CSV を読めませんでした：" + error.message, "error");
         return;

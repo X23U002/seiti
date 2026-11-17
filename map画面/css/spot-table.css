@@ -280,3 +280,32 @@
     padding: 12px 0;
     background: linear-gradient(transparent, var(--color-bg) 30%);
 }
+
+/* 通知メッセージ（toast.js） */
+#toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(24px + env(safe-area-inset-bottom));
+    z-index: 10000;
+    max-width: calc(100vw - 32px);
+    padding: 12px 20px;
+    border-radius: 24px;
+    background: rgba(11, 60, 93, .95);
+    color: #fff;
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+    opacity: 0;
+    transform: translate(-50%, 16px);
+    transition: opacity .25s, transform .25s;
+    pointer-events: none;
+}
+
+#toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+#toast.toast-error {
+    background: rgba(192, 57, 43, .95);
+}

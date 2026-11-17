@@ -279,3 +279,15 @@ test("何期の何話か（期・話）を表で入れて保存できる。数�
     await page.click("#save-all");
     await expect.poll(async () => { const spot = (await readStore(page)).spot[bridge.id]; return [spot.season, spot.episode]; }).toEqual([3, 8]);
 });
+
+test("Excel で保存した CSV（Shift_JIS）も読み込めて、結果が画面に出る", async ({ page }) => {
+    await openTable(page);
+    // 「ID,作品名,スポット名,説明,期,話,緯度,経度,画像」と新しい聖地1行を Shift_JIS にしたもの
+    const sjis = Buffer.from("49442c8dec956996bc2c8358837c8362836796bc2c90e096be2c8afa2c98622c88dc93782c8c6f93782c89e6919c0d0a2c8365835883678dec95692c83658358836790b9926e2c90e096be82c582b72c312c322c33352e302c3133352e382c0d0a", "hex");
+    await page.setInputFiles("#import-csv", { name: "spots.csv", mimeType: "text/csv", buffer: sjis });
+    const toast = page.locator("#toast");
+    await expect(toast).toContainText("CSV を読み込みました：変更 0件・追加 1件");
+    await expect(toast).toBeVisible();
+    expect(await toast.evaluate((element) => getComputedStyle(element).position)).toBe("fixed");
+    await expect(page.locator('#spot-rows [data-field="spot_name"]').first()).toHaveValue("テスト聖地");
+});
