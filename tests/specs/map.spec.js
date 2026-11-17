@@ -550,7 +550,7 @@ test("検索の「×」は、候補を選んだ後も文字がある間は出て
     await expect(clear).toBeHidden();
 });
 
-test("3Dのキャラクターは、ズームしても、斜めから見た時の手前・奥でも、画面上の大きさが同じ（小さめで固定）", async ({ page }) => {
+test("3Dのキャラクターは、出す時はいつも同じ大きさ（手前・奥でも）。引いたら隠して現在地の点にする（巨人にならない）", async ({ page }) => {
     await seed(page);
     await page.goto("html/map.html");
     await expect(pins(page)).toHaveCount(SPOTS.length);
@@ -605,11 +605,15 @@ test("3Dのキャラクターは、ズームしても、斜めから見た時の
         expect(height).toBeLessThan(155);
     }
     expect(Math.abs(result.near / result.far - 1)).toBeLessThan(0.2);
-    // ズームを寄せても引いても、画面上の高さは同じ（約64px）。点にも切りかえない
-    for (const zoom of [13, 15, 16, 18, 20]) {
+    // 出す時（ズーム16以上）は、寄せても引いても画面上の高さが同じ（約64px）
+    for (const zoom of [16, 18, 20]) {
         expect(result.byZoom[zoom].px).toBeGreaterThan(54);
         expect(result.byZoom[zoom].px).toBeLessThan(74);
         expect(result.byZoom[zoom].visible).toBe(true);
+    }
+    // ズーム16より引いたら隠して、現在地の点にする（引いたまま出すと、県や地方より大きな巨人に見える）
+    for (const zoom of [13, 15]) {
+        expect(result.byZoom[zoom].visible).toBe(false);
     }
 });
 
