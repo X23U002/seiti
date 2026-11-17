@@ -550,71 +550,65 @@ test("検索の「×」は、候補を選んだ後も文字がある間は出て
     await expect(clear).toBeHidden();
 });
 
-test("3Dのキャラクターは、出す時はいつも同じ大きさ（手前・奥でも）。引いたら隠して現在地の点にする（巨人にならない）", async ({ page }) => {
+test("3Dのキャラクターは実際の大きさが一定で、建物や道と同じように寄せると大きく・引くと小さく写る。小さくなりすぎたら現在地の点にする", async ({ page }) => {
     await seed(page);
     await page.goto("html/map.html");
     await expect(pins(page)).toHaveCount(SPOTS.length);
     const bridge = spotNamed("宇治橋");
     // 3D表示にして（2D表示では傾けられない）、キャラクターを表示する時と同じように斜めから見る
     await page.evaluate(() => window.toggleView());
-    await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 18, pitch: 70, bearing: -20 }), [bridge.coord.longitude, bridge.coord.latitude]);
+    await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 17, pitch: 70, bearing: -20 }), [bridge.coord.longitude, bridge.coord.latitude]);
     await expect.poll(() => page.evaluate(() => window.__map.getPitch())).toBeGreaterThan(60);
 
     const result = await page.evaluate(async () => {
         const map = window.__map;
         const size = await import("../js/walker-size.js");
 
-        // 地図の描画と同じ行列で、地面から高さ h(m) の縦の棒が画面で何pxに写るか
-        // （ズームを変えると行列も変わるので、測るたびに取り直す）
+        // 地図の描画と同じ行列で、地面から高さ h(m) の縦の棒が画面で何pxに写るか（ズームを変えると行列も変わるので、測るたびに取り直す）
         const toScreenY = (x, y, z) => {
             const m = map.transform.customLayerMatrix ? map.transform.customLayerMatrix() : map.transform.mercatorMatrix;
             const cy = m[1] * x + m[5] * y + m[9] * z + m[13];
             const cw = m[3] * x + m[7] * y + m[11] * z + m[15];
             return ((1 - cy / cw) / 2) * map.getCanvas().clientHeight;
         };
-        const screenHeight = (point, meters) => {
+        const poleHeight = (point, meters) => {
             const mercator = window.mapboxgl.MercatorCoordinate.fromLngLat(point, 0);
             const top = mercator.meterInMercatorCoordinateUnits() * meters;
             return Math.abs(toScreenY(mercator.x, mercator.y, 0) - toScreenY(mercator.x, mercator.y, top));
         };
 
-        // 画面の手前（下の方）と奥（上の方）
-        const near = map.unproject([195, 620]);
-        const far = map.unproject([195, 330]);
-        const now = (point) => screenHeight([point.lng, point.lat], size.heightMetersForScreen(map, point.lng, point.lat, 130));
-        // 前の決め方（画面の真ん中の縮尺）
-        const before = (point) => screenHeight([point.lng, point.lat], 130 * size.metersPerPixel(point.lat, map.getZoom()));
-        // ズームごとの画面上の高さ（画面の真ん中で）と、出すかどうか
         const byZoom = {};
-        [11, 12, 13, 15, 18, 20].forEach((zoom) => {
+        [13, 15, 16, 17, 18].forEach((zoom) => {
             map.jumpTo({ zoom });
             const center = map.unproject([195, 470]);
+            const point = [center.lng, center.lat];
             byZoom[zoom] = {
-                px: screenHeight([center.lng, center.lat], size.heightMetersForScreen(map, center.lng, center.lat, size.modelScreenHeightPx(zoom))),
-                visible: size.isModelVisibleAtZoom(zoom)
+                // キャラクターの高さ・同じ場所の 40m の棒（建物の代わり）が画面に写る高さ
+                character: poleHeight(point, size.MODEL_HEIGHT_METERS),
+                building: poleHeight(point, 40),
+                estimated: size.modelScreenHeightPx(map, center.lng, center.lat),
+                visible: size.isModelVisible(map, center.lng, center.lat)
             };
         });
-        return { near: now(near), far: now(far), beforeNear: before(near), beforeFar: before(far), byZoom };
+        return { byZoom, meters: size.MODEL_HEIGHT_METERS };
     });
 
-    // 前の決め方では、手前の方がずっと大きく写っていた
-    expect(result.beforeNear / result.beforeFar).toBeGreaterThan(1.5);
-    // 今は手前でも奥でも、ほぼ 130px
-    for (const height of [result.near, result.far]) {
-        expect(height).toBeGreaterThan(105);
-        expect(height).toBeLessThan(155);
+    // 実際の大きさが一定なので、建物と比べた大きさはどのズームでも同じ
+    for (const zoom of [16, 17, 18]) {
+        const item = result.byZoom[zoom];
+        expect(item.character / item.building).toBeCloseTo(result.meters / 40, 2);
+        // 画面に写る高さの見積もり（点に切りかえる判定に使う）も、描画と合っている
+        expect(Math.abs(item.estimated / item.character - 1)).toBeLessThan(0.2);
+        expect(item.visible).toBe(true);
     }
-    expect(Math.abs(result.near / result.far - 1)).toBeLessThan(0.2);
-    // 出す時（ズーム13以上）は、寄せても引いても画面上の高さが同じ（約96px）
-    for (const zoom of [13, 15, 18, 20]) {
-        expect(result.byZoom[zoom].px).toBeGreaterThan(84);
-        expect(result.byZoom[zoom].px).toBeLessThan(108);
-        expect(result.byZoom[zoom].visible).toBe(true);
-    }
-    // ズーム13より引いたら隠して、現在地の点にする（引いたまま出すと、県や地方より大きな巨人に見える）
-    for (const zoom of [11, 12]) {
-        expect(result.byZoom[zoom].visible).toBe(false);
-    }
+    // 寄せると大きく、引くと小さく写る（1段で約2倍。地図はズーム18まで寄せられる）
+    expect(result.byZoom[18].character / result.byZoom[17].character).toBeCloseTo(2, 0);
+    expect(result.byZoom[17].character / result.byZoom[16].character).toBeCloseTo(2, 0);
+    // ズーム17で 60〜110px くらい
+    expect(result.byZoom[17].character).toBeGreaterThan(60);
+    expect(result.byZoom[17].character).toBeLessThan(110);
+    // 引いて小さくなりすぎたら（20px 未満）、キャラクターを隠して現在地の点にする
+    expect(result.byZoom[13].visible).toBe(false);
 });
 
 test("3D表示のピンのモデル（地図が指定しているもの）が読めて、本体と白い球の2つの部品がある", async ({ request }) => {
