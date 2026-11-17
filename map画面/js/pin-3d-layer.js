@@ -8,8 +8,8 @@
  *   cannot depth-occlude or distort the model.
  * - Uses an orthographic screen-space camera: the pin keeps a stable pixel size
  *   at every map zoom while its anchor follows map.project().
- * - The pin does not turn to face the viewer: it keeps a fixed heading on the ground, so it turns with the
- *   map's bearing and leans with its pitch like an object standing there (ピンは地面に立っている物として向きを固定する)
+ * - Pins face the viewer, except the one whose details are open: that pin keeps the heading it had when it was
+ *   tapped, so it turns with the map when the map rotates (押したピンだけ、地面に向きを固定する)
  */
 // three.js は map.html の importmap のもの（歩くキャラクター walker.js と同じ）を使う
 import * as THREE from "three";
@@ -232,6 +232,7 @@ export function createGLBPinLayer(map, options = {}) {
             ownedMaterials: ownedMaterials.concat(ringMaterial),
             pinMaterials: ownedMaterials,
             scale: 1,
+            fixedBearing: null,
             animationStart: null,
             spotId: String(spotId)
         };
@@ -303,10 +304,7 @@ export function createGLBPinLayer(map, options = {}) {
         });
         const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-        // ピンの向きは地面に固定する（こちらを向き続けない）。
-        // 地図を回すとピンも一緒に回り、上から見るほどピンの頭がこちらへ傾く（pitch 0 = 真上から、60 = 斜めから）
-        const headingRadians = yawRadians + THREE.MathUtils.degToRad(map.getBearing());
-        const leanRadians = THREE.MathUtils.degToRad(Math.max(0, 90 - map.getPitch()));
+        const bearing = map.getBearing();
 
         models.forEach((model) => {
             const lngLat = model.marker.getLngLat();
@@ -320,11 +318,15 @@ export function createGLBPinLayer(map, options = {}) {
                 x > -targetHeightPx && x < width + targetHeightPx &&
                 y > -targetHeightPx && y < height + targetHeightPx;
 
-            // Euler order XYZ: turn the pin about its own upright axis first (heading), then lean it toward the viewer.
-            model.facing.rotation.set(leanRadians, headingRadians, 0);
+            // ふだんのピンはこちらを向く。押したピン（詳細を開いている間）だけは、押した時の向きのまま地面に固定し、
+            // 地図を回すと一緒に回る（押した瞬間はこちらを向いているので、急に向きが変わらない）
+            const selected = isSelected(model);
+            if (selected && model.fixedBearing === null) model.fixedBearing = bearing;
+            if (!selected) model.fixedBearing = null;
+            const turned = selected ? THREE.MathUtils.degToRad(bearing - model.fixedBearing) : 0;
+            model.facing.rotation.y = yawRadians + turned;
 
             // 詳細を開いているピンを強調する（大きく・手前に・足元に輪）。ほかのピンは薄くする
-            const selected = isSelected(model);
             const targetScale = selected ? SELECTED_SCALE : 1;
             model.scale = reduceMotion
                 ? targetScale
