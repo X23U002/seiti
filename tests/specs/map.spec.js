@@ -550,7 +550,7 @@ test("検索の「×」は、候補を選んだ後も文字がある間は出て
     await expect(clear).toBeHidden();
 });
 
-test("3Dのキャラクターは、斜めから見た時の手前・奥で大きさが変わらず、引くと小さくなって点に切りかわる（巨人にならない）", async ({ page }) => {
+test("3Dのキャラクターは、ズームしても、斜めから見た時の手前・奥でも、画面上の大きさが同じ（小さめで固定）", async ({ page }) => {
     await seed(page);
     await page.goto("html/map.html");
     await expect(pins(page)).toHaveCount(SPOTS.length);
@@ -605,19 +605,12 @@ test("3Dのキャラクターは、斜めから見た時の手前・奥で大き
         expect(height).toBeLessThan(155);
     }
     expect(Math.abs(result.near / result.far - 1)).toBeLessThan(0.2);
-    // ズーム17以上は画面上の高さが同じ（約130px）
-    for (const zoom of [18, 20]) {
-        expect(result.byZoom[zoom].px).toBeGreaterThan(110);
-        expect(result.byZoom[zoom].px).toBeLessThan(150);
+    // ズームを寄せても引いても、画面上の高さは同じ（約64px）。点にも切りかえない
+    for (const zoom of [13, 15, 16, 18, 20]) {
+        expect(result.byZoom[zoom].px).toBeGreaterThan(54);
+        expect(result.byZoom[zoom].px).toBeLessThan(74);
         expect(result.byZoom[zoom].visible).toBe(true);
     }
-    // 引くと地図と一緒に小さくなり（1段引くと半分）、巨人にならない
-    expect(result.byZoom[16].px).toBeGreaterThan(55);
-    expect(result.byZoom[16].px).toBeLessThan(75);
-    expect(result.byZoom[15].px).toBeLessThan(40);
-    expect(result.byZoom[15].visible).toBe(true);
-    // 小さくなりすぎたら（20px 未満）キャラクターを隠し、現在地の点にする
-    expect(result.byZoom[13].visible).toBe(false);
 });
 
 test("3D表示のピンのモデル（地図が指定しているもの）が読めて、本体と白い球の2つの部品がある", async ({ request }) => {
