@@ -33,6 +33,17 @@ export function buildCsv(rows) {
     return "﻿" + lines.join("\r\n") + "\r\n";
 }
 
+// CSV のファイルの中身（バイト）→ 文字列
+// 書き出した CSV やスプレッドシートは UTF-8、Excel で「CSV（コンマ区切り）」で保存すると Shift_JIS になるので、
+// UTF-8 として読めなければ Shift_JIS として読む
+export function decodeCsvBytes(buffer) {
+    try {
+        return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+    } catch (error) {
+        return new TextDecoder("shift_jis").decode(buffer);
+    }
+}
+
 // CSV の文字列 → 行の配列（"" で囲んだ中の , や改行にも対応）
 export function parseCsvText(text) {
     const source = String(text || "").replace(/^﻿/, "");

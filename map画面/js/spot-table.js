@@ -18,7 +18,7 @@ import {
 
 import { db, getCurrentUser } from "./firebase-db.js?v=61accae5";
 import { encodeGeohash } from "./geohash.js?v=fe42fce1";
-import { assignSpotIds, buildCsv, readLatLng, readSpotCsv } from "./spot-csv.js?v=eb19c435";
+import { assignSpotIds, buildCsv, decodeCsvBytes, readLatLng, readSpotCsv } from "./spot-csv.js?v=24508d96";
 import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=59165daf";
 
 // 表で直せる項目
@@ -499,7 +499,7 @@ document.getElementById("import-csv").addEventListener("change", async function 
 
     let records;
     try {
-        records = readSpotCsv(await file.text());
+        records = readSpotCsv(decodeCsvBytes(await file.arrayBuffer()));
     } catch (error) {
         notify("CSV を読めませんでした：" + error.message, "error");
         return;
@@ -508,17 +508,19 @@ document.getElementById("import-csv").addEventListener("change", async function 
     const byId = new Map(rows.filter(function (row) { return !row.isNew; }).map(function (row) { return [row.id, row]; }));
     let changed = 0;
     let added = 0;
-    const unknown = [];
+    // まだ無い ID の行は、その ID で新しい聖地として足す（打ち間違いに気づけるよう、読み込んだ後に知らせる）
+    const namedNew = [];
 
     records.forEach(function (record) {
-        if (!record.id) {
-            rows.unshift(makeNewRow(record));
-            added++;
-            return;
-        }
-        const row = byId.get(record.id);
+        const row = record.id ? byId.get(record.id) : null;
         if (!row) {
-            unknown.push(record.line + "行目（" + record.id + "）");
+            const newRow = makeNewRow(record);
+            if (record.id) {
+                newRow.newId = record.id;
+                namedNew.push(record.line + "行目（" + record.id + "）");
+            }
+            rows.unshift(newRow);
+            added++;
             return;
         }
         const before = isDirty(row);
@@ -535,8 +537,10 @@ document.getElementById("import-csv").addEventListener("change", async function 
 
     render();
     const summary = "CSV を読み込みました：変更 " + changed + "件・追加 " + added + "件。確認して「保存する」を押してください";
-    if (unknown.length > 0) {
-        notify(summary + "。見つからない ID：" + unknown.slice(0, 5).join("、") + (unknown.length > 5 ? " ほか" : ""), "error");
+    if (namedNew.length > 0) {
+        notify(summary + "。まだ無い ID なので新しい聖地として足しました：" +
+            namedNew.slice(0, 5).join("、") + (namedNew.length > 5 ? " ほか" : "") +
+            "（書きかえのつもりなら ID を確かめてください）", "error");
     } else {
         notify(summary);
     }

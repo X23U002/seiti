@@ -84,12 +84,10 @@ test("CSV を読み込むと、ID のある行は書きかえ、ID が空の行�
     const csv = "﻿ID,作品名,スポット名,説明,緯度,経度\r\n" +
         `${bridge.id},${bridge.title_name},${bridge.spot_name},"CSV で直した説明, カンマ入り",,\r\n` +
         `,${bridge.title_name},CSVの新しい聖地,"2行の
-説明",34.9,135.81\r\n` +
-        "zzz,作品,ない聖地,説明,,\r\n";
+説明",34.9,135.81\r\n`;
     await page.setInputFiles("#import-csv", { name: "spots.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
 
     await expect(page.locator("#toast")).toContainText("変更 1件・追加 1件");
-    await expect(page.locator("#toast")).toContainText("見つからない ID：4行目（zzz）");
     await expect(page.locator("#save-all")).toHaveText("保存する（2件）");
     // 読み込んだだけでは保存しない
     expect((await readStore(page)).spot[bridge.id].spot_info).toBe(bridge.spot_info);
@@ -278,4 +276,47 @@ test("何期の何話か（期・話）を表で入れて保存できる。数�
     await page.setInputFiles("#import-csv", { name: "spots.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
     await page.click("#save-all");
     await expect.poll(async () => { const spot = (await readStore(page)).spot[bridge.id]; return [spot.season, spot.episode]; }).toEqual([3, 8]);
+});
+
+test("Excel で保存した CSV（Shift_JIS）も読み込めて、結果が画面に出る", async ({ page }) => {
+    await openTable(page);
+    // 「ID,作品名,スポット名,説明,期,話,緯度,経度,画像」と新しい聖地1行を Shift_JIS にしたもの
+    const sjis = Buffer.from("49442c8dec956996bc2c8358837c8362836796bc2c90e096be2c8afa2c98622c88dc93782c8c6f93782c89e6919c0d0a2c8365835883678dec95692c83658358836790b9926e2c90e096be82c582b72c312c322c33352e302c3133352e382c0d0a", "hex");
+    await page.setInputFiles("#import-csv", { name: "spots.csv", mimeType: "text/csv", buffer: sjis });
+    const toast = page.locator("#toast");
+    await expect(toast).toContainText("CSV を読み込みました：変更 0件・追加 1件");
+    await expect(toast).toBeVisible();
+    expect(await toast.evaluate((element) => getComputedStyle(element).position)).toBe("fixed");
+    await expect(page.locator('#spot-rows [data-field="spot_name"]').first()).toHaveValue("テスト聖地");
+});
+
+test("CSV でまだ無い ID を入れた行は、その ID で新しい聖地として足す（知らせる）", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    await openTable(page);
+    const csv = "ID,作品名,スポット名,説明,緯度,経度\r\n" +
+        `s0799,${bridge.title_name},ID を決めた聖地,説明,34.89,135.80\r\n` +
+        `,${bridge.title_name},ID が空の聖地,説明,34.88,135.79\r\n`;
+    await page.setInputFiles("#import-csv", { name: "spots.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await expect(page.locator("#toast")).toContainText("変更 0件・追加 2件");
+    await expect(page.locator("#toast")).toContainText("新しい聖地として足しました：2行目（s0799）");
+    await expect(page.locator("#save-all")).toHaveText("保存する（2件）");
+
+    await page.click("#save-all");
+    await expect(page.locator("#toast")).toContainText("2件の聖地を保存しました");
+    const store = await readStore(page);
+    expect(store.spot.s0799).toMatchObject({ spot_name: "ID を決めた聖地", title_name: bridge.title_name });
+    const auto = Object.entries(store.spot).find(([, spot]) => spot.spot_name === "ID が空の聖地");
+    expect(auto[0]).toMatch(/^s\d{4,}$/);
+    expect(auto[0]).not.toBe("s0799");
+});
+
+test("CSV で入れた ID の形がおかしい時は、保存せずにその行を赤くする", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    await openTable(page);
+    const csv = "ID,作品名,スポット名,説明,緯度,経度\r\n" +
+        `ああ,${bridge.title_name},形のおかしい ID,説明,34.89,135.80\r\n`;
+    await page.setInputFiles("#import-csv", { name: "spots.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await page.click("#save-all");
+    await expect(page.locator("#spot-rows tr.is-new .row-error")).toBeVisible();
+    expect(Object.values((await readStore(page)).spot).some((spot) => spot.spot_name === "形のおかしい ID")).toBe(false);
 });

@@ -46,10 +46,11 @@
         void toast.offsetWidth;
         toast.classList.add("show");
 
-        // ボタンがある時は、押せるように長めに出す
+        // ボタンがある時は、押せるように長めに出す。長い文は読み切れるように長めに出す（最長 8 秒）
         clearTimeout(hideTimer);
+        const readMs = Math.min(8000, Math.max(2800, String(message).length * 70));
         hideTimer = setTimeout(function () {
             toast.classList.remove("show");
-        }, action && action.label ? 6000 : 2800);
+        }, action && action.label ? Math.max(6000, readMs) : readMs);
     };
 })();
