@@ -18,7 +18,7 @@ export function modelScreenHeightPx() {
 
 // これより引いたら、キャラクターを隠して青い現在地の点に切りかえる。
 // 画面上の大きさは固定なので、引いたまま出すと、県や地方より大きな巨人に見えてしまう
-export const MIN_VISIBLE_ZOOM = 16;
+export const MIN_VISIBLE_ZOOM = 20;
 
 // そのズームでキャラクターを出すか（出す時は、いつも同じ大きさ）
 export function isModelVisibleAtZoom(zoom) {
