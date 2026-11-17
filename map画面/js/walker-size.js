@@ -7,23 +7,18 @@
 // キャラクターが今いる場所の縮尺で決める
 // =========================================================
 
-// 画面上でのキャラクターの高さ（px）。ズーム SIZE_FIXED_ZOOM 以上では、この高さで一定
-export const MODEL_SCREEN_HEIGHT_PX = 130;
+// 画面上でのキャラクターの高さ（px）。ズームを寄せても引いても、この高さで固定する。
+// 引いた時に目立ちすぎないよう小さめ（3D表示のピン 42px より少し大きいくらい）
+export const MODEL_SCREEN_HEIGHT_PX = 64;
 
-// これより引くと、地図と一緒に小さくなる（引いても街より大きな巨人にならない）
-export const SIZE_FIXED_ZOOM = 17;
-
-// 画面上でこれより小さくなったらキャラクターを隠し、青い現在地の点に切りかえる（px）
-export const MIN_VISIBLE_PX = 20;
-
-// そのズームでの、画面上のキャラクターの高さ（px）
-export function modelScreenHeightPx(zoom) {
-    return MODEL_SCREEN_HEIGHT_PX * Math.pow(2, Math.min(0, zoom - SIZE_FIXED_ZOOM));
+// そのズームでの、画面上のキャラクターの高さ（px）。どのズームでも同じ
+export function modelScreenHeightPx() {
+    return MODEL_SCREEN_HEIGHT_PX;
 }
 
-// そのズームでキャラクターを出すか（小さくなりすぎたら出さず、現在地の点にする）
-export function isModelVisibleAtZoom(zoom) {
-    return modelScreenHeightPx(zoom) >= MIN_VISIBLE_PX;
+// そのズームでキャラクターを出すか。どのズームでも出す（青い現在地の点には切りかえない）
+export function isModelVisibleAtZoom() {
+    return true;
 }
 
 // 地図上で 1px が何mか（Mapboxのタイルは512px。画面の真ん中・真上から見た時）
