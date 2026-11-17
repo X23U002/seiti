@@ -2,7 +2,8 @@
  * Independent screen-space Three.js overlay for Mapbox GL JS.
  *
  * - Keeps Mapbox Marker instances as the source of coordinates and popups.
- * - Hides only individual spot DOM markers while 3D mode and zoom > 10 are active.
+ * - Hides only individual spot DOM markers while 3D mode is active and the map shows individual spots
+ *   (not the zoomed-out clusters), so switching to clusters never flashes the 2D pins.
  * - Draws the pin model (models/Pin_1.glb) on a transparent canvas above the Mapbox map, so map buildings
  *   cannot depth-occlude or distort the model.
  * - Uses an orthographic screen-space camera: the pin keeps a stable pixel size
@@ -81,9 +82,16 @@ export function createGLBPinLayer(map, options = {}) {
         });
     }
 
+    // 1か所ずつのピンが置かれているか（ズーム10以下のまとめピンの時は置かれていない）。
+    // ズームの数字で決めると、引いていく途中でズーム10を下回ってから、まとめピンに描き直す（ズームが止まった時）までの間、
+    // 3Dのピンが消えて2Dのピンが一瞬見えてしまう。置かれているピンで決めれば、まとめピンに切りかわる時に一緒に切りかわる
+    function hasSpotMarkers() {
+        return markerList.some((marker) => Boolean(marker?.getElement?.()?.dataset?.spotId));
+    }
+
     function applyMarkerVisibility() {
         const shouldShowModels =
-            canvasReady && modelReady && !disposed && is3D() && map.getZoom() > 10;
+            canvasReady && modelReady && !disposed && is3D() && hasSpotMarkers();
         const changed = shouldShowModels !== visible;
         visible = shouldShowModels;
 
@@ -365,7 +373,7 @@ export function createGLBPinLayer(map, options = {}) {
     // Avoid recursion: visibility updates inside renderFrame must not call renderFrame again.
     function applyMarkerVisibilityWithoutRender() {
         const shouldShowModels =
-            canvasReady && modelReady && !disposed && is3D() && map.getZoom() > 10;
+            canvasReady && modelReady && !disposed && is3D() && hasSpotMarkers();
         visible = shouldShowModels;
 
         markerList.forEach((marker) => {
