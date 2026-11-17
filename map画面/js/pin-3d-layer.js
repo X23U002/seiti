@@ -3,7 +3,7 @@
  *
  * - Keeps Mapbox Marker instances as the source of coordinates and popups.
  * - Hides only individual spot DOM markers while 3D mode and zoom > 10 are active.
- * - Draws Pin.glb on a transparent canvas above the Mapbox map, so map buildings
+ * - Draws the pin model (models/Pin_1.glb) on a transparent canvas above the Mapbox map, so map buildings
  *   cannot depth-occlude or distort the model.
  * - Uses an orthographic screen-space camera: the pin keeps a stable pixel size
  *   at every map zoom while its anchor follows map.project().
@@ -28,7 +28,7 @@ export function createGLBPinLayer(map, options = {}) {
         throw new TypeError("createGLBPinLayerには初期化済みのMapbox mapが必要です。");
     }
 
-    const modelUrl = options.modelUrl || new URL("./models/Pin.glb", import.meta.url).href;
+    const modelUrl = options.modelUrl || new URL("../models/Pin_1.glb", import.meta.url).href;
     const is3D = typeof options.is3D === "function" ? options.is3D : () => false;
     const targetHeightPx = Math.max(12, Number(options.targetHeightPx) || DEFAULT_HEIGHT_PX);
     const yawRadians = THREE.MathUtils.degToRad(
@@ -125,11 +125,12 @@ export function createGLBPinLayer(map, options = {}) {
         });
 
         if (meshEntries.length === 0) {
-            console.warn("Pin.glb内にMeshがありません。");
+            console.warn("ピンのモデル内にMeshがありません。");
             return [];
         }
 
-        // In the supplied Pin.glb, the largest mesh is the body and the smaller mesh is the white centre.
+        // In the pin model, the largest mesh is the body and the smaller mesh is the white centre
+        // (Pin_1.glb: the body is the ring head with the faceted tip, the white centre is the ball).
         meshEntries.sort((a, b) => b.volume - a.volume);
         const bodyObject = meshEntries[0].object;
         const ownedMaterials = [];
@@ -168,7 +169,7 @@ export function createGLBPinLayer(map, options = {}) {
         const scaleRoot = new THREE.Group();
         const visual = baseScene.clone(true);
 
-        // Pin.glb uses Z as its long axis and +Z as the pointed tip.
+        // The pin model uses Z as its long axis and +Z as the pointed tip.
         // Rotate it so the point faces down-screen and the +Y front faces the viewer (+Z).
         visual.rotation.x = Math.PI / 2;
         visual.updateMatrixWorld(true);

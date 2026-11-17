@@ -224,17 +224,18 @@ if (new URLSearchParams(location.search).has("walktest")) {
 
 
 // =========================================================
-// 3D表示の時の立体のピン（pin-3d-layer.js・models/Pin.glb）
+// 3D表示の時の立体のピン（pin-3d-layer.js・models/Pin_1.glb）
 // 3D表示でズーム11以上の時は、聖地のピンを立体のピンにする（押すと回って詳細が開く）
 // three.js を読み込めなくても地図は使えるよう、別に読み込む（読めなければ今のピンのまま）
 // =========================================================
 let pin3DLayer = null;
 
 function loadPin3DLayer() {
-    import("./pin-3d-layer.js?v=d9c36930")
+    import("./pin-3d-layer.js?v=56bc64c0")
         .then(function (module) {
             pin3DLayer = module.createGLBPinLayer(map, {
-                modelUrl: new URL("../models/Pin.glb", import.meta.url).href,
+                // 輪っかの頭に白い球、角ばった先端のピン。差し替える時は名前も変える（端末に残った古いモデルを使わないように）
+                modelUrl: new URL("../models/Pin_1.glb", import.meta.url).href,
                 is3D: function () {
                     return is3D;
                 },

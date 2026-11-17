@@ -607,3 +607,20 @@ test("3Dのキャラクターは、ズームしても、斜めから見た時の
         expect(height).toBeLessThan(150);
     }
 });
+
+test("3D表示のピンのモデル（地図が指定しているもの）が読めて、本体と白い球の2つの部品がある", async ({ request }) => {
+    const fs = await import("node:fs");
+    const script = fs.readFileSync("../map画面/js/Script.js", "utf8");
+    const modelPath = script.match(/modelUrl: new URL\("\.\.\/(models\/[^"]+\.glb)"/)[1];
+    expect(modelPath).toBe("models/Pin_1.glb");
+
+    const response = await request.get(modelPath);
+    expect(response.ok()).toBe(true);
+    const body = await response.body();
+    expect(body.subarray(0, 4).toString()).toBe("glTF");
+    const jsonLength = body.readUInt32LE(12);
+    const gltf = JSON.parse(body.subarray(20, 20 + jsonLength).toString());
+    expect(gltf.meshes).toHaveLength(2);
+    // 読み込むのに追加の部品（圧縮の解凍など）が要らない
+    expect(gltf.extensionsRequired || []).toEqual([]);
+});
