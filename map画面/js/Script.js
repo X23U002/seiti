@@ -231,7 +231,7 @@ if (new URLSearchParams(location.search).has("walktest")) {
 let pin3DLayer = null;
 
 function loadPin3DLayer() {
-    import("./pin-3d-layer.js?v=56bc64c0")
+    import("./pin-3d-layer.js?v=b113173a")
         .then(function (module) {
             pin3DLayer = module.createGLBPinLayer(map, {
                 // 輪っかの頭に白い球、角ばった先端のピン。差し替える時は名前も変える（端末に残った古いモデルを使わないように）
@@ -2664,6 +2664,9 @@ function drawMarkers(list) {
     if (pin3DLayer) {
         pin3DLayer.setMarkers(spotMarkers);
     }
+
+    // 重なったピンを少しずらして並べる
+    spreadOverlappingPins();
 }
 
 // ルート案内に入れた聖地のピンに、回る順番の番号を出す（入れかえ・削除のたびに付け直す）
@@ -2689,6 +2692,130 @@ function showRouteOrderOnMarkers() {
         element.appendChild(badge);
     });
 }
+
+
+// =========================================================
+// 重なったピンを少しずらして並べる（1か所ずつのピンを出している時）
+// 画面上で重なるほど近いピン同士は、元の場所のまわりに少しずつずらして並べる（どのピンも見えて押せるように）。
+// ズーム・回転・傾きが終わるたびに並べ直し、離れれば元の場所に戻す。
+// ずらした量は、ピンの data-spread-x / data-spread-y に入れる（3D表示の立体のピンも同じだけずらす。pin-3d-layer.js）
+// =========================================================
+const PIN_GAP_X = 28;               // 横にこれより近いと重なる（ピンの幅くらい）
+const PIN_GAP_Y = 36;               // 縦にこれより近いと重なる（ピンの丸い頭が隠れないくらい）
+const PIN_BASE_OFFSET_Y = -14;      // Mapbox の標準のピンは、もともと上に 14px ずらして置かれている
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
+function setPinSpread(marker, dx, dy) {
+    const element = marker.getElement();
+    const x = Math.round(dx);
+    const y = Math.round(dy);
+
+    if (element.dataset.spreadX === String(x) && element.dataset.spreadY === String(y)) {
+        return;
+    }
+
+    element.dataset.spreadX = String(x);
+    element.dataset.spreadY = String(y);
+    marker.setOffset([x, PIN_BASE_OFFSET_Y + y]);
+}
+
+// ピン同士が画面上で重なるか（横と縦で重なりやすさが違うので、楕円で測る）
+function arePinsOverlapping(a, b) {
+    const dx = (a.x - b.x) / PIN_GAP_X;
+    const dy = (a.y - b.y) / PIN_GAP_Y;
+    return dx * dx + dy * dy < 1;
+}
+
+function spreadOverlappingPins() {
+    if (drawnMarkerMode !== "spots") {
+        return;
+    }
+
+    const items = spotMarkers
+        .filter(
+            function (marker) {
+                return marker.getElement().dataset.spotId;
+            }
+        )
+        .map(
+            function (marker) {
+                return {
+                    marker: marker,
+                    id: marker.getElement().dataset.spotId,
+                    point: map.project(marker.getLngLat())
+                };
+            }
+        );
+
+    // 重なっているもの同士を、つながった組にまとめる
+    const groups = [];
+    items.forEach(
+        function (item) {
+            const touching = groups.filter(
+                function (group) {
+                    return group.some(
+                        function (other) {
+                            return arePinsOverlapping(other.point, item.point);
+                        }
+                    );
+                }
+            );
+
+            const merged = [item];
+            touching.forEach(
+                function (group) {
+                    merged.push.apply(merged, group);
+                    groups.splice(groups.indexOf(group), 1);
+                }
+            );
+            groups.push(merged);
+        }
+    );
+
+    groups.forEach(
+        function (group) {
+            if (group.length === 1) {
+                setPinSpread(group[0].marker, 0, 0);
+                return;
+            }
+
+            // 組の真ん中のまわりに、ひまわりの種のように並べる（何本あっても重ならない間隔になる）。
+            // 並ぶ順番は、ズームしても入れかわらないよう聖地のIDの順
+            const centerX = group.reduce(function (sum, item) { return sum + item.point.x; }, 0) / group.length;
+            const centerY = group.reduce(function (sum, item) { return sum + item.point.y; }, 0) / group.length;
+
+            group
+                .slice()
+                .sort(
+                    function (a, b) {
+                        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+                    }
+                )
+                .forEach(
+                    function (item, index) {
+                        const radius = 0.62 * Math.sqrt(index + 0.5);
+                        const angle = index * GOLDEN_ANGLE;
+                        const x = centerX + PIN_GAP_X * radius * Math.cos(angle);
+                        const y = centerY + PIN_GAP_Y * radius * Math.sin(angle);
+                        setPinSpread(item.marker, x - item.point.x, y - item.point.y);
+                    }
+                );
+        }
+    );
+
+    // 立体のピンも、ずらした位置で描き直す
+    if (pin3DLayer) {
+        pin3DLayer.refreshVisibility();
+    }
+}
+
+window.spreadOverlappingPins = spreadOverlappingPins;
+
+["zoomend", "rotateend", "pitchend"].forEach(
+    function (type) {
+        map.on(type, spreadOverlappingPins);
+    }
+);
 
 
 // =========================================================
