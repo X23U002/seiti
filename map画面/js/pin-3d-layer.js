@@ -18,7 +18,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 const ROTATION_DURATION_MS = 1500;
 const ROTATION_RADIANS = Math.PI * 4;
 const DEFAULT_HEIGHT_PX = 48;
-const DEFAULT_YAW_DEGREES = 20;
+const DEFAULT_YAW_DEGREES = 0;
 
 // 詳細を開いているピンの強調（2D表示の .is-selected と同じ見せ方。style.css）
 // ・ピンを大きくする・手前に描く・足元に広がる輪を出す・ほかのピンを薄くする
