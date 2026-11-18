@@ -105,7 +105,7 @@
     <script src="../js/stamp.js?v=1332ab2a"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
-        import { loadStampBook } from "../js/stamp-db.js?v=2a36c2b2";
+        import { loadStampBook } from "../js/stamp-db.js?v=4e60fcbf";
 
         loadStampBook().then(function (book) {
             showStamps(book.stamps || [], book.stamps === null ? "guest" : "ready", book.summary);

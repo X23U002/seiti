@@ -23,7 +23,7 @@ import {
 import { db, getCurrentUser } from "./firebase-db.js?v=61accae5";
 import { encodeGeohash } from "./geohash.js?v=fe42fce1";
 import { isAiPlanAvailable, requestAiPlan } from "./ai-plan.js?v=39fb6815";
-import { getTitleColor } from "./title-colors.js?v=5c634da9";
+import { getTitleColor, registerTitles } from "./title-colors.js?v=62cd810d";
 import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=9a2ff22f";
 import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=59165daf";
 import { VISIT_FIELDS } from "./spot-info.js?v=926febaf";
@@ -121,6 +121,8 @@ async function loadAll() {
             titleUrls[spot.title_name] = spot.title_url;
         }
     });
+    // 作品ごとの色がかぶらないように、全部の作品名を渡す（title-colors.js）
+    registerTitles(spots.map(function (spot) { return spot.data.title_name || "その他"; }));
 
     const datalist = document.getElementById("title-options");
     datalist.innerHTML = "";

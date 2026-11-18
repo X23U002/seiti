@@ -6,8 +6,8 @@
 // ==========================================
 import { getCurrentUser } from "./firebase-db.js?v=61accae5";
 // 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
-import { fetchCollection, queryMine } from "./public-data.js?v=e9b87d82";
-import { getTitleColor, getTitleName } from "./title-colors.js?v=5c634da9";
+import { fetchCollection, queryMine } from "./public-data.js?v=5183f404";
+import { getTitleColor, getTitleName, registerTitles } from "./title-colors.js?v=62cd810d";
 
 // ログイン中のユーザーのID（Firebase Authentication の uid。未ログインなら null）
 export async function getLoginUserId() {
@@ -75,6 +75,8 @@ export async function loadStampBook() {
         fetchCollection("spot"),
         userId ? queryMine("stamp") : null
     ]);
+    // 作品ごとの色がかぶらないように、全部の作品名を渡す（title-colors.js）
+    registerTitles(spotList.map(function (spot) { return getTitleName(spot); }));
 
     // 聖地は { id, ...項目 } の配列なので、これまでと同じく forEach(doc => doc.id / doc.data()) で使える形にする
     const spotSnapshot = {

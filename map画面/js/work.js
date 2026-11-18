@@ -3,11 +3,11 @@
 // その作品の説明・聖地（話数の順）・おすすめルート・スタンプの進み具合・公式サイトを出す。
 // 「地図で見る」「このルートで巡る」は地図画面を開いて、その状態にする
 // ==========================================
-import { getTitleColor, getTitleName } from "./title-colors.js?v=5c634da9";
+import { getTitleColor, getTitleName } from "./title-colors.js?v=62cd810d";
 import { compareEpisodeKeys, formatEpisodeKey, getSpotEpisodeKey, getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=9a2ff22f";
 import { getSpotImageSrc } from "./spot-image.js?v=59165daf";
 import { courseDistance, formatCourseLength } from "./course.js?v=5729311e";
-import { loadCourses, loadMyStampCounts, loadSpots, loadWorkDescriptions, readCachedSpots } from "./public-data.js?v=e9b87d82";
+import { loadCourses, loadMyStampCounts, loadSpots, loadWorkDescriptions, readCachedSpots } from "./public-data.js?v=5183f404";
 
 const title = new URLSearchParams(location.search).get("title") || "";
 

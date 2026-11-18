@@ -640,3 +640,41 @@ test("聖地の詳細で、作品名の札と話数の札の上下がそろっ�
     expect(Math.abs((a.y + a.height / 2) - (b.y + b.height / 2))).toBeLessThan(1);
     expect(Math.abs(a.height - b.height)).toBeLessThan(1.5);
 });
+
+test("作品ごとの色はかぶらない（今ある作品も、あとから増やした作品も）", async ({ page }) => {
+    await page.goto("html/map.html");
+    const result = await page.evaluate(async () => {
+        const module = await import("../js/title-colors.js");
+        const fixed = Object.values(module.TITLE_COLORS).map((color) => color.toUpperCase());
+        // 色を決めていない作品を 12 個増やす
+        const added = Array.from({ length: 12 }, (_, i) => "あとから足した作品" + i);
+        module.registerTitles(Object.keys(module.TITLE_COLORS).concat(added));
+        const colors = added.map((title) => module.getTitleColor(title).toUpperCase());
+        // 端末に覚えて、聖地を読み込まない画面でも同じ色になる
+        const saved = JSON.parse(localStorage.getItem("seitiTitleColors"));
+        return { fixed, colors, saved: added.map((title) => saved[title]) };
+    });
+    const all = result.fixed.concat(result.colors);
+    expect(new Set(all).size).toBe(all.length);
+    expect(result.saved.map((color) => color.toUpperCase())).toEqual(result.colors);
+
+    // 見た目も離れている（Lab の距離が小さすぎない）・白い文字が読める（コントラスト比 3 以上）
+    const linear = (v) => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    const lab = (hex) => {
+        const [r, g, b] = [1, 3, 5].map((i) => linear(parseInt(hex.slice(i, i + 2), 16)));
+        const f = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+        const x = f((r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047), y = f(r * 0.2126 + g * 0.7152 + b * 0.0722), z = f((r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883);
+        return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+    };
+    const contrast = (hex) => {
+        const [r, g, b] = [1, 3, 5].map((i) => linear(parseInt(hex.slice(i, i + 2), 16)));
+        return 1.05 / (0.2126 * r + 0.7152 * g + 0.0722 * b + 0.05);
+    };
+    result.colors.forEach((color, i) => {
+        expect(contrast(color)).toBeGreaterThanOrEqual(3);
+        all.filter((other) => other !== color).forEach((other) => {
+            const [a, b] = [lab(color), lab(other)];
+            expect(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]), color + " と " + other).toBeGreaterThan(15);
+        });
+    });
+});
