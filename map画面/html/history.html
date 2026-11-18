@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>お気に入り・ルート・履歴 - 聖地巡礼NAVI</title>
-    <link rel="stylesheet" href="../css/common.css?v=c79053d9">
-    <link rel="stylesheet" href="../css/tab-bar.css?v=77603899">
+    <title>お気に入り・履歴 - 聖地巡礼NAVI</title>
+    <link rel="stylesheet" href="../css/common.css?v=f9624d5f">
+    <link rel="stylesheet" href="../css/tab-bar.css?v=82026e7c">
     <link rel="stylesheet" href="../css/history.css?v=24355d19">
     <!-- アプリとして使う（ホーム画面に追加・オフライン。pwa.js） -->
     <link rel="manifest" href="../manifest.webmanifest">
@@ -18,8 +18,8 @@
 
     <!-- アプリ共通ヘッダー -->
     <header class="app-header">
-        <a href="mypage.html" class="back-btn" aria-label="マイページに戻る">＜ 戻る</a>
-        <h1>お気に入り・ルート・履歴</h1>
+        <a href="mypage.html" class="back-btn" aria-label="マイページに戻る">＜ マイページ</a>
+        <h1>お気に入り・履歴</h1>
     </header>
 
     <main class="content">
@@ -40,13 +40,13 @@
                     お気に入り <span class="tab-count" id="count-favorites">0</span>
                 </button>
                 <button type="button" class="saved-tab" role="tab" id="tab-routes" aria-selected="false" aria-controls="panel-routes">
-                    ルート <span class="tab-count" id="count-routes">0</span>
+                    保存ルート <span class="tab-count" id="count-routes">0</span>
                 </button>
                 <button type="button" class="saved-tab" role="tab" id="tab-guided" aria-selected="false" aria-controls="panel-guided">
-                    案内履歴 <span class="tab-count" id="count-guided">0</span>
+                    案内ルート <span class="tab-count" id="count-guided">0</span>
                 </button>
                 <button type="button" class="saved-tab" role="tab" id="tab-history" aria-selected="false" aria-controls="panel-history">
-                    巡礼履歴 <span class="tab-count" id="count-history">0</span>
+                    行った聖地 <span class="tab-count" id="count-history">0</span>
                 </button>
             </div>
 
@@ -60,9 +60,9 @@
                 <ul class="saved-list" id="route-list"></ul>
             </section>
 
-            <!-- 案内履歴（「Googleマップで徒歩案内」を押したルート。この端末に記録） -->
+            <!-- 案内ルート（「Googleマップ」で案内したルート。この端末に記録） -->
             <section id="panel-guided" role="tabpanel" aria-labelledby="tab-guided" hidden>
-                <p class="guided-lead">地図で「Googleマップで徒歩案内」を押したルートが、この端末に記録されます。選ぶと「現在のルート」に表示され、もう一度案内を始められます。</p>
+                <p class="guided-lead">地図のルート案内で「Googleマップ」を押したルートが、この端末に記録されます。選ぶと「現在のルート」に表示され、もう一度案内を始められます。</p>
 
                 <!-- 現在のルート案内（タイムライン） -->
                 <h2 class="section-title"><span aria-hidden="true">📍</span> 現在のルート</h2>
@@ -81,7 +81,7 @@
                 </div>
             </section>
 
-            <!-- 巡礼履歴（スタンプを取った聖地） -->
+            <!-- 行った聖地（スタンプを取った聖地） -->
             <section id="panel-history" role="tabpanel" aria-labelledby="tab-history" hidden>
                 <ul class="saved-list" id="history-list"></ul>
             </section>
@@ -91,7 +91,7 @@
     <script src="../js/common.js?v=bdcf06ca"></script>
     <script src="../js/tab-bar.js?v=f5e177d7"></script>
     <script src="../js/toast.js?v=09b35151"></script>
-    <script src="../js/route-history.js?v=ee9790be"></script>
+    <script src="../js/route-history.js?v=fd926ea3"></script>
     <script type="module" src="../js/history.js?v=fc049d96"></script>
 </body>
 </html>

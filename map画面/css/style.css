@@ -2257,6 +2257,11 @@ body {
 }
 
 /* ---------- 現在地ボタンは右下の1つにまとめる（Mapbox標準の◎は隠す） ---------- */
+/* ---------- 北が上で傾いていない時は、方位ボタンを隠す（Script.js の updateNorthUp） ---------- */
+#map.is-north-up .mapboxgl-ctrl-compass {
+    display: none;
+}
+
 .mapboxgl-ctrl-group:has(> .mapboxgl-ctrl-geolocate) {
     display: none !important;
 }
@@ -2715,6 +2720,11 @@ body {
         display: none !important;
     }
 
+    /* 方位ボタンも隠れている時（北が上）は、ボタンの白い枠ごと隠す */
+    #map.is-north-up .mapboxgl-ctrl-group:has(> .mapboxgl-ctrl-compass) {
+        display: none;
+    }
+
     /* 2D｜3D は縦に並べて右側を細くし、ルート案内と重ならないようにする */
     #toggle-view-btn,
     #toggle-view-btn.mode3d {
@@ -2946,17 +2956,23 @@ body {
 }
 
 
-/* ---------- ルートの並べ替え（つまみ・▲▼ボタン） ---------- */
+/* ---------- ルートの並べ替え（つまみ。ドラッグ、またはキーボードの ↑↓） ---------- */
 .routeItem {
     gap: 6px;
     background: rgba(255, 255, 255, 0.95);
 }
 
-.route-handle {
+.routeItem .route-handle {
     flex-shrink: 0;
-    width: 24px;
-    padding: 6px 0;
-    font-size: 18px;
+    width: 32px;
+    height: 36px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    font-size: 20px;
     line-height: 1;
     color: #95a5a6;
     text-align: center;
@@ -2965,36 +2981,17 @@ body {
     user-select: none;
 }
 
+.routeItem .route-handle:hover,
+.routeItem .route-handle:focus-visible {
+    background: #e6f0f6;
+    color: #0b3c5d;
+    transform: none;
+}
+
 .route-name {
     flex: 1;
     min-width: 0;
     overflow-wrap: anywhere;
-}
-
-.route-move {
-    display: flex;
-    flex-direction: column;
-    flex-shrink: 0;
-    gap: 2px;
-}
-
-.routeItem .route-move button {
-    width: 28px;
-    height: 18px;
-    margin: 0;
-    border-radius: 4px;
-    background: #e6f0f6;
-    color: #0b3c5d;
-    font-size: 10px;
-}
-
-.routeItem .route-move button:hover:not(:disabled) {
-    background: #cfe0ec;
-}
-
-.routeItem .route-move button:disabled {
-    opacity: 0.35;
-    cursor: default;
 }
 
 .routeItem .route-remove {
@@ -3007,7 +3004,7 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 4px 0 4px 30px;      /* つまみの幅だけ右へ寄せて、項目の間の「つなぎ」に見せる */
+    padding: 4px 0 4px 38px;      /* つまみの幅だけ右へ寄せて、項目の間の「つなぎ」に見せる */
     font-size: 12px;
     color: #6b7b8c;
 }
@@ -3049,7 +3046,7 @@ body {
 
 /* 地図上にルートを生成した区間は、地図の線と同じ色の印を左に付ける */
 .route-leg.has-route-color {
-    margin-left: 26px;
+    margin-left: 34px;
     padding-left: 8px;
     border-left: 4px solid var(--leg-color);
 }
@@ -3066,7 +3063,8 @@ body {
     opacity: 0.95;
 }
 
-.routeItem.dragging .route-handle {
+.routeItem.dragging .route-handle,
+.routeItem.dragging .route-handle:hover {
     cursor: grabbing;
 }
 

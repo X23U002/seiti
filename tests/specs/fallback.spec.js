@@ -36,7 +36,7 @@ test.describe(() => {
         await expect(page.locator("#inbox-badge")).toHaveText("1", { timeout: 30_000 });
     });
 
-    test("お気に入り・ルート・履歴", async ({ page }) => {
+    test("お気に入り・履歴", async ({ page }) => {
         await page.goto("html/history.html");
         await expect(page.locator("#saved-main")).toBeVisible({ timeout: 30_000 });
         await expect(page.locator(".tab-count")).toHaveText(["1", "1", "0", "1"]);

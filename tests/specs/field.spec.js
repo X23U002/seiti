@@ -112,3 +112,19 @@ test("共有メニューが無いブラウザでは、ルートのリンクを�
     const copied = await page.evaluate(() => navigator.clipboard.readText());
     expect(copied).toContain("map.html?route=" + encodeURIComponent(`${station.id},${bridge.id}`));
 });
+
+test("現在地がまだ分からない時は、スタンプのボタンを押すとその場で現在地を取りにいく", async ({ page, context }) => {
+    await seed(page, { user: "uid2", data: member() });
+    await page.goto("html/map.html?spot=" + bridge.id);
+    const button = page.locator(".popup-card .stamp-button");
+    await expect(button).toHaveText("📍 現在地を確かめる");
+    await expect(button).toBeEnabled();
+    await expect(page.locator(".popup-card .stamp-distance-message")).toContainText("半径50m以内に入るとスタンプを取得できます");
+
+    // 宇治橋のすぐそばにいる
+    await context.grantPermissions(["geolocation"]);
+    await context.setGeolocation({ latitude: bridge.coord.latitude, longitude: bridge.coord.longitude, accuracy: 10 });
+    await button.click();
+    await expect(button).toHaveText("🎫 スタンプを取得");
+    await expect(button).toBeEnabled();
+});

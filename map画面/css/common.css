@@ -75,7 +75,8 @@ textarea {
     align-items: center;
     justify-content: center;
     height: var(--header-height);
-    padding: 0 64px;
+    /* 左の「＜ マイページ」と重ならない幅（長い題は … で切る） */
+    padding: 0 112px;
     background-color: var(--color-primary);
     color: #fff;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
