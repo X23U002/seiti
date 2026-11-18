@@ -3255,6 +3255,8 @@ window.toggleView =
                 "true"
             );
 
+            show3DHintOnce();
+
             // 3D表示の時だけ使うもの（キャラクター・立体のピン）を、初めての時に読み込む
             loadThreeDExtras();
 
@@ -3291,6 +3293,32 @@ window.toggleView =
         }
     };
 
+
+// =========================================================
+// 3D の向き・角度の変え方を、初めて 3D にした時だけ知らせる
+// （ボタンを増やすと画面がごちゃつくので、指やマウスでの変え方を伝える）
+// =========================================================
+const HINT_3D_KEY = "seiti3DHintShown";
+
+function show3DHintOnce() {
+    try {
+        if (localStorage.getItem(HINT_3D_KEY)) {
+            return;
+        }
+        localStorage.setItem(HINT_3D_KEY, "1");
+    } catch (error) {
+        // 覚えておけない環境では、毎回出さないよう何もしない
+        return;
+    }
+
+    // 指で触る端末（スマホ・タブレット）と、マウスの端末（パソコン）で、操作の書き方を変える
+    const touch = window.matchMedia("(pointer: coarse)").matches;
+    window.showToast(
+        touch
+            ? "2本指でひねると向き、上下になぞると角度が変わります"
+            : "右クリックしたまま動かすと、向きと角度が変わります"
+    );
+}
 
 // =========================================================
 // 現在地ボタン
