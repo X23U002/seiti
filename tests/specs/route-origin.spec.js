@@ -46,7 +46,7 @@ test.describe("現在地が分かる時", () => {
         await expect(page.locator("#routeList .routeItem")).toHaveCount(1);
 
         await page.click("#generate-mapbox-route");
-        await expect(page.locator("#toast")).toContainText("現在地からのルートを生成しました（約0.5km・徒歩約6分）");
+        await expect(page.locator("#toast")).toContainText("現在地からの道順を出しました（約0.5km・徒歩約6分）");
         expect(requests).toHaveLength(1);
         expect(requests[0]).toHaveLength(2);
         expect(requests[0][0][0]).toBeCloseTo(HERE.longitude, 5);
@@ -64,7 +64,7 @@ test.describe("現在地が分かる時", () => {
         await page.goto("html/map.html?course=c1");
         await expect(page.locator("#routeList .routeItem")).toHaveCount(2);
         await page.click("#generate-mapbox-route");
-        await expect(page.locator("#toast")).toContainText("現在地からのルートを生成しました（約1.0km");
+        await expect(page.locator("#toast")).toContainText("現在地からの道順を出しました（約1.0km");
         expect(requests[0]).toHaveLength(3);
         expect(requests[0][0][1]).toBeCloseTo(HERE.latitude, 5);
         expect(requests[0][2][1]).toBeCloseTo(bridge.coord.latitude, 5);
@@ -83,7 +83,7 @@ test.describe("現在地が1か所目から遠い時", () => {
         await page.goto("html/map.html?course=c1");
         await expect(page.locator("#routeList .routeItem")).toHaveCount(2);
         await page.click("#generate-mapbox-route");
-        await expect(page.locator("#toast")).toContainText("ルートを生成しました（約0.5km");
+        await expect(page.locator("#toast")).toContainText("道順を出しました（約0.5km");
         await expect(page.locator("#toast")).not.toContainText("現在地から");
         expect(requests[0]).toHaveLength(2);
 
@@ -91,7 +91,7 @@ test.describe("現在地が1か所目から遠い時", () => {
         await expect(page.locator("#toast")).toContainText("現在地から遠いため、ルートを作れません");
         // 消した聖地を通るルートは残さない
         expect(await page.evaluate(() => window.__map.getSource("selected-spots-route")._data.features)).toEqual([]);
-        await expect(page.locator("#generate-mapbox-route")).toHaveText("地図上にルートを生成");
+        await expect(page.locator("#generate-mapbox-route")).toHaveText("🚶 道順を地図に出す");
         await expect(page.locator("#generate-mapbox-route")).toBeEnabled();
     });
 });

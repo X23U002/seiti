@@ -381,12 +381,16 @@ test("地図上にルートを出している時に順番を入れ替えると�
     });
     await page.goto("html/map.html?course=c1");
     await page.click("#generate-mapbox-route");
-    await expect(page.locator("#toast")).toContainText("ルートを生成しました");
+    await expect(page.locator("#toast")).toContainText("道順を出しました");
 
     // 1番目を下へ（宇治橋, 京阪宇治駅, 大吉山）→ もう一度下へ（宇治橋, 大吉山, 京阪宇治駅）
-    await page.locator('#routeList .routeItem[data-index="0"] .route-move button').nth(1).click();
+    // キーボードでは、つまみを選んで ↓ キーで1つ後ろへ
+    await page.locator('#routeList .routeItem[data-index="0"] .route-handle').focus();
+    await page.keyboard.press("ArrowDown");
     await expect.poll(() => requests.length).toBe(2);
-    await page.locator('#routeList .routeItem[data-index="1"] .route-move button').nth(1).click();
+    // 動かした先のつまみが選ばれたままなので、続けて押せる
+    await expect(page.locator('#routeList .routeItem[data-index="1"] .route-handle')).toBeFocused();
+    await page.keyboard.press("ArrowDown");
     await expect.poll(() => requests.length).toBe(3);
     expect(requests[1]).toEqual([order[1], order[0], order[2]].map(at));
     expect(requests[2]).toEqual([order[1], order[2], order[0]].map(at));
@@ -746,4 +750,21 @@ test.describe("スマホ", () => {
         await page.evaluate(() => window.toggleView());
         await expect(page.locator("#toast")).toContainText("2本指でひねると向き、上下になぞると角度が変わります");
     });
+});
+
+test("北が上で傾いていない時は、方位ボタンを隠す（回した時・3D の時だけ出す）", async ({ page }) => {
+    await seed(page, { data: withSpots({}) });
+    await page.goto("html/map.html");
+    await page.waitForFunction(() => window.__map && window.__map.loaded());
+    const compass = page.locator(".mapboxgl-ctrl-compass");
+    await expect(compass).toBeHidden();
+
+    await page.evaluate(() => window.__map.setBearing(30));
+    await expect(compass).toBeVisible();
+    // 押すと北が上に戻り、また隠れる
+    await page.evaluate(() => window.__map.setBearing(0));
+    await expect(compass).toBeHidden();
+
+    await page.evaluate(() => window.toggleView());
+    await expect(compass).toBeVisible();
 });

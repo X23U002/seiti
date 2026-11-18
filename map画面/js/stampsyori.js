@@ -50,6 +50,9 @@ const COLLECTED_STAMPS_STORAGE_KEY =
     "collectedStamps";
 
 let currentStampPosition = null;
+
+// スタンプのボタンから現在地を取りにいっている間（locateForStamp）
+let stampLocating = false;
 let stampDb = null;
 let stampUserRef = null;
 let stampUserId = null;
@@ -632,18 +635,22 @@ function getStampState(
             spot
         );
 
-    // 現在地未取得
+    // 現在地未取得：押すと、その場で現在地を取りにいく（何をすればいいか分かるように、押せるボタンにする）
     if (
         !currentStampPosition
     ) {
         return {
-            disabled: true,
+            disabled: stampLocating,
+
+            action: "locate",
 
             label:
-                "📍 現在地を取得してください",
+                stampLocating
+                    ? "📍 現在地を取得中…"
+                    : "📍 現在地を確かめる",
 
             message:
-                `半径${radius}m以内で取得できます`
+                `聖地の半径${radius}m以内に入るとスタンプを取得できます`
         };
     }
 
@@ -1170,6 +1177,12 @@ async function collectStamp(spotId) {
             selectedSpot
         );
 
+    // まだ現在地が分からない時は、現在地を取りにいく
+    if (state.action === "locate") {
+        locateForStamp();
+        return;
+    }
+
     if (
         state.disabled
     ) {
@@ -1569,6 +1582,42 @@ function showStampCelebration(
                 4000
             );
     }
+}
+
+
+// ==========================================
+// スタンプのボタンから現在地を取りにいく（地図は動かさない）
+// ==========================================
+function locateForStamp() {
+    if (stampLocating) {
+        return;
+    }
+    if (!navigator.geolocation) {
+        notifyStamp("この端末では現在地を使えません", "error");
+        return;
+    }
+
+    stampLocating = true;
+    refreshStampUI();
+
+    navigator.geolocation.getCurrentPosition(
+        function (position) {
+            stampLocating = false;
+            updateStampPosition(position);
+            refreshStampUI();
+        },
+        function (error) {
+            stampLocating = false;
+            refreshStampUI();
+            notifyStamp(
+                error && error.code === 1
+                    ? "位置情報の利用を許可してください（ブラウザの設定から変えられます）"
+                    : "現在地を取得できませんでした。空の開けた所でもう一度お試しください",
+                "error"
+            );
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+    );
 }
 
 

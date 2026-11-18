@@ -156,6 +156,19 @@ map.on("pitch", () => {
     }
 });
 
+// 北が上で傾いていない時は、方位ボタン（押すと北を上に戻す）を隠す（押しても何も変わらないため。style.css）
+function updateNorthUp() {
+    map.getContainer().classList.toggle(
+        "is-north-up",
+        Math.abs(map.getBearing()) < 0.5 && map.getPitch() < 0.5
+    );
+}
+
+map.on("rotate", updateNorthUp);
+map.on("pitch", updateNorthUp);
+map.on("load", updateNorthUp);
+updateNorthUp();
+
 
 map.addControl(
     new mapboxgl.NavigationControl(),
@@ -4222,11 +4235,15 @@ function updateRouteList() {
             routeItem.dataset.index =
                 index;
 
-            // ドラッグで並べ替えるためのつまみ（スマホのタッチでも動く）
+            // 並べ替えのつまみ（ドラッグで動かす。スマホのタッチでも動く）。
+            // キーボードでは、つまみを選んで ↑↓ キーで1つずつ動かす
             const handle =
                 document.createElement(
-                    "span"
+                    "button"
                 );
+
+            handle.type =
+                "button";
 
             handle.className =
                 "route-handle";
@@ -4235,16 +4252,39 @@ function updateRouteList() {
                 "⠿";
 
             handle.title =
-                "ドラッグで並べ替え";
+                "つまんで動かすと順番を変えられます";
 
             handle.setAttribute(
-                "aria-hidden",
-                "true"
+                "aria-label",
+                `「${spot.name}」の順番を変える（上下の矢印キーで動かせます）`
             );
 
             handle.addEventListener(
                 "pointerdown",
                 startRouteDrag
+            );
+
+            handle.addEventListener(
+                "keydown",
+                function (event) {
+                    const step =
+                        event.key === "ArrowUp" ? -1
+                            : event.key === "ArrowDown" ? 1
+                                : 0;
+                    const toIndex = index + step;
+                    if (!step || toIndex < 0 || toIndex >= selectedSpots.length) {
+                        return;
+                    }
+                    event.preventDefault();
+                    window.moveRouteSpot(index, toIndex);
+                    // 続けて動かせるように、動かした先のつまみを選んだままにする
+                    const moved = document.querySelector(
+                        `#routeList .routeItem[data-index="${toIndex}"] .route-handle`
+                    );
+                    if (moved) {
+                        moved.focus();
+                    }
+                }
             );
 
             const nameSpan =
@@ -4257,33 +4297,6 @@ function updateRouteList() {
 
             nameSpan.textContent =
                 `${index + 1}. ${spot.name}`;
-
-            // ▲▼ボタンで1つずつ入れ替える
-            const moveButtons =
-                document.createElement(
-                    "div"
-                );
-
-            moveButtons.className =
-                "route-move";
-
-            moveButtons.appendChild(
-                createRouteMoveButton(
-                    "▲",
-                    `「${spot.name}」を1つ前へ`,
-                    index,
-                    index - 1
-                )
-            );
-
-            moveButtons.appendChild(
-                createRouteMoveButton(
-                    "▼",
-                    `「${spot.name}」を1つ後ろへ`,
-                    index,
-                    index + 1
-                )
-            );
 
             const removeButton =
                 document.createElement(
@@ -4322,10 +4335,6 @@ function updateRouteList() {
 
             routeItem.appendChild(
                 nameSpan
-            );
-
-            routeItem.appendChild(
-                moveButtons
             );
 
             routeItem.appendChild(
@@ -4497,50 +4506,6 @@ function createRouteLeg(from, to) {
     );
 
     return leg;
-}
-
-
-// ▲▼ボタンを作る（端の項目では押せないようにする）
-function createRouteMoveButton(label, ariaLabel, fromIndex, toIndex) {
-    const button =
-        document.createElement(
-            "button"
-        );
-
-    button.type =
-        "button";
-
-    button.textContent =
-        label;
-
-    button.setAttribute(
-        "aria-label",
-        ariaLabel
-    );
-
-    button.disabled =
-        toIndex < 0 ||
-        toIndex >= selectedSpots.length;
-
-    button.onclick =
-        function () {
-            window.moveRouteSpot(
-                fromIndex,
-                toIndex
-            );
-
-            // 続けて押せるように、移動先の同じボタンにフォーカスを戻す
-            const moved =
-                document.querySelector(
-                    `#routeList .routeItem[data-index="${toIndex}"] .route-move button:nth-child(${label === "▲" ? 1 : 2})`
-                );
-
-            if (moved && !moved.disabled) {
-                moved.focus();
-            }
-        };
-
-    return button;
 }
 
 
@@ -4873,8 +4838,8 @@ function updateMapboxRouteButtons() {
 
     if (generateButton) {
         generateButton.textContent = isMapboxRouteActive
-            ? "ルートを解除"
-            : "地図上にルートを生成";
+            ? "道順を消す"
+            : "🚶 道順を地図に出す";
 
         generateButton.disabled = false;
         generateButton.setAttribute(
@@ -4902,7 +4867,7 @@ function unsetMapboxRoute(showMessage = true) {
     updateMapboxRouteButtons();
 
     if (showMessage) {
-        window.showToast("ルートを解除しました");
+        window.showToast("道順を消しました");
     }
 }
 
@@ -5296,7 +5261,7 @@ async function generateMapboxRoute() {
     const originalText = button.textContent;
 
     button.disabled = true;
-    button.textContent = "ルート生成中…";
+    button.textContent = "道順を調べています…";
 
     try {
         // 現在地から歩くルートにする（取れない・1か所目から遠すぎる時は、1か所目から作る）
@@ -5436,7 +5401,7 @@ async function generateMapboxRoute() {
         const distanceKm = (route.distance / 1000).toFixed(1);
 
         window.showToast(
-            `${origin ? "現在地からの" : ""}ルートを生成しました（約${distanceKm}km・徒歩約${formatMinutes(route.duration / 60)}）` +
+            `${origin ? "現在地からの" : ""}道順を出しました（約${distanceKm}km・徒歩約${formatMinutes(route.duration / 60)}）` +
             (usesFerry ? "。歩いて渡れない所があるため、船の区間を含みます" : "")
         );
 
@@ -5444,7 +5409,7 @@ async function generateMapboxRoute() {
         console.error("ルート生成に失敗しました:", error);
 
         window.showToast(
-            "ルートを生成できませんでした。通信状態やスポットの座標を確認してください",
+            "道順を調べられませんでした。通信状態やスポットの座標を確認してください",
             "error"
         );
 

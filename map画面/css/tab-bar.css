@@ -13,6 +13,11 @@
 }
 
 @media (max-width: 600px) {
+    /* 下のタブで行ける画面（作品一覧・スタンプ帳・マイページ）では、上の「＜ 戻る」は出さない（タブと同じことになるため） */
+    .back-btn.is-tab-root {
+        display: none;
+    }
+
     :root {
         --tab-bar-height: calc(58px + env(safe-area-inset-bottom));
     }
