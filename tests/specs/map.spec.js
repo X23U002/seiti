@@ -714,3 +714,36 @@ test.describe("現在地ボタン", () => {
         expect(await page.evaluate(() => window.__map.getZoom())).toBeCloseTo(15, 1);
     });
 });
+
+test("初めて 3D にした時だけ、向きと角度の変え方を知らせる", async ({ page }) => {
+    await seed(page, { data: withSpots({}) });
+    await page.goto("html/map.html");
+    await page.waitForFunction(() => window.__map && window.__map.loaded());
+    const toast = page.locator("#toast");
+
+    await page.evaluate(() => window.toggleView());
+    // パソコン（マウス）の書き方
+    await expect(toast).toContainText("右クリックしたまま動かすと、向きと角度が変わります");
+    await expect(toast).toBeVisible();
+
+    // 2回目からは出さない（開き直しても）
+    await page.evaluate(() => window.toggleView());
+    await page.evaluate(() => { document.getElementById("toast").textContent = ""; });
+    await page.reload();
+    await page.waitForFunction(() => window.__map && window.__map.loaded());
+    await page.evaluate(() => window.toggleView());
+    await page.waitForTimeout(500);
+    await expect(page.getByText("向きと角度が変わります")).toHaveCount(0);
+});
+
+test.describe("スマホ", () => {
+    test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 760 } });
+
+    test("初めて 3D にした時、指での変え方を知らせる", async ({ page }) => {
+        await seed(page, { data: withSpots({}) });
+        await page.goto("html/map.html");
+        await page.waitForFunction(() => window.__map && window.__map.loaded());
+        await page.evaluate(() => window.toggleView());
+        await expect(page.locator("#toast")).toContainText("2本指でひねると向き、上下になぞると角度が変わります");
+    });
+});
