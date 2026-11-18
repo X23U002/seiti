@@ -687,7 +687,7 @@ test.describe("現在地ボタン", () => {
     const backHere = (page) => expect.poll(() => page.evaluate(([lat]) =>
         Math.abs(window.__map.getCenter().lat - lat) < 0.01 && !window.__map.isMoving(), [bridge.coord.latitude]), { timeout: 15000 }).toBe(true);
 
-    test("3D の時に押しても、2D の見え方（真上から）に戻らない。2D の時は真上からのまま", async ({ page }) => {
+    test("3D の時に押しても、2D の見え方（真上から）に戻らず、3Dキャラクターが見えるところまで寄る。2D の時は真上からのまま", async ({ page }) => {
         await seed(page, { data: withSpots({}) });
         await page.goto("html/map.html");
         await page.waitForFunction(() => window.__map && window.__map.loaded());
@@ -696,11 +696,13 @@ test.describe("現在地ボタン", () => {
 
         await page.evaluate(() => window.toggleView());
         await expect.poll(() => page.evaluate(() => window.__map.getPitch())).toBe(70);
-        // 地図を動かしてから、現在地へ戻る
-        await page.evaluate(() => window.__map.jumpTo({ center: [139.7, 35.68] }));
+        // 地図を動かして引いてから、現在地へ戻る
+        await page.evaluate(() => window.__map.jumpTo({ center: [139.7, 35.68], zoom: 12 }));
         await page.click("#location-btn");
         await backHere(page);
         expect(await page.evaluate(() => window.__map.getPitch())).toBe(70);
+        // 3D は地図の一番近く（18）まで寄る（15 だと現在地のキャラクターが小さすぎて見えない）
+        expect(await page.evaluate(() => window.__map.getZoom())).toBeCloseTo(18, 1);
 
         // 2D に戻すと、現在地へ動いても真上から
         await page.evaluate(() => window.toggleView());
@@ -709,5 +711,6 @@ test.describe("現在地ボタン", () => {
         await page.click("#location-btn");
         await backHere(page);
         expect(await page.evaluate(() => window.__map.getPitch())).toBe(0);
+        expect(await page.evaluate(() => window.__map.getZoom())).toBeCloseTo(15, 1);
     });
 });

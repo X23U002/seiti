@@ -184,19 +184,25 @@ map.addControl(
 // stampsyori.jsから現在地コントロールを参照できるようにする
 window.geolocate = geolocate;
 
+// 現在地へ動く時の寄り方。2D は前と同じ 15。3D は現在地の3Dキャラクターがよく見えるよう、地図の一番近く（18）まで寄る
+// （15 だとキャラクターが小さすぎて、walker-size.js の決まりで見えなくなる）
+const GEOLOCATE_ZOOM_2D = 15;
+const GEOLOCATE_ZOOM_3D = 18;
+
 // 現在地へ動く時に、地図の傾きを保つ（3D の時は 3D のまま）。
 // Mapbox の現在地コントロールは fitBounds で動き、傾きを渡さないと 0（真上から＝2D の見え方）に戻してしまう
-function keepGeolocatePitch(pitch) {
+// threeD：3D 表示か（切りかえの途中で呼ぶ時は、切りかえた後の表示を渡す）
+function keepGeolocatePitch(pitch, threeD) {
     geolocate.options.fitBoundsOptions = Object.assign(
         {},
         geolocate.options.fitBoundsOptions,
-        { pitch: pitch }
+        { pitch: pitch, maxZoom: threeD ? GEOLOCATE_ZOOM_3D : GEOLOCATE_ZOOM_2D }
     );
 }
 
 // 指で傾きを変えた時も、その傾きのまま現在地へ動く
 map.on("pitchend", function () {
-    keepGeolocatePitch(map.getPitch());
+    keepGeolocatePitch(map.getPitch(), is3D);
 });
 
 // =========================================================
@@ -3236,7 +3242,7 @@ window.toggleView =
                 duration: 1500
             });
             // 傾け終わる前に現在地ボタンを押しても 3D のまま動く
-            keepGeolocatePitch(70);
+            keepGeolocatePitch(70, true);
 
             button.classList.add(
                 "mode3d"
@@ -3265,7 +3271,7 @@ window.toggleView =
                 bearing: 0,
                 duration: 1500
             });
-            keepGeolocatePitch(0);
+            keepGeolocatePitch(0, false);
 
             button.classList.remove(
                 "mode3d"
