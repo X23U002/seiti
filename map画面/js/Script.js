@@ -184,6 +184,21 @@ map.addControl(
 // stampsyori.jsから現在地コントロールを参照できるようにする
 window.geolocate = geolocate;
 
+// 現在地へ動く時に、地図の傾きを保つ（3D の時は 3D のまま）。
+// Mapbox の現在地コントロールは fitBounds で動き、傾きを渡さないと 0（真上から＝2D の見え方）に戻してしまう
+function keepGeolocatePitch(pitch) {
+    geolocate.options.fitBoundsOptions = Object.assign(
+        {},
+        geolocate.options.fitBoundsOptions,
+        { pitch: pitch }
+    );
+}
+
+// 指で傾きを変えた時も、その傾きのまま現在地へ動く
+map.on("pitchend", function () {
+    keepGeolocatePitch(map.getPitch());
+});
+
 // =========================================================
 // 3D表示の時だけ使うもの（現在地に歩く3Dキャラクター・立体のピン）
 // three.js とキャラクターのモデル（約10MB）は重いので、初めて3D表示にした時に読み込む
@@ -3212,11 +3227,16 @@ window.toggleView =
         if (!is3D) {
             map.touchPitch.enable();
 
+            // 傾ける前に 3D にしておく（2D の間は傾きを 0 に戻す決まりなので、先に傾くと戻されてしまう）
+            is3D = true;
+
             map.easeTo({
                 pitch: 70,
                 bearing: -20,
                 duration: 1500
             });
+            // 傾け終わる前に現在地ボタンを押しても 3D のまま動く
+            keepGeolocatePitch(70);
 
             button.classList.add(
                 "mode3d"
@@ -3228,8 +3248,6 @@ window.toggleView =
                 "aria-pressed",
                 "true"
             );
-
-            is3D = true;
 
             // 3D表示の時だけ使うもの（キャラクター・立体のピン）を、初めての時に読み込む
             loadThreeDExtras();
@@ -3247,6 +3265,7 @@ window.toggleView =
                 bearing: 0,
                 duration: 1500
             });
+            keepGeolocatePitch(0);
 
             button.classList.remove(
                 "mode3d"

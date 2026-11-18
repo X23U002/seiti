@@ -678,3 +678,36 @@ test("作品ごとの色はかぶらない（今ある作品も、あとから�
         });
     });
 });
+
+test.describe("現在地ボタン", () => {
+    const bridge = spotNamed("宇治橋");
+    // 本物のスマホと同じく、位置には誤差（m）が付く
+    test.use({ geolocation: { latitude: bridge.coord.latitude, longitude: bridge.coord.longitude, accuracy: 20 }, permissions: ["geolocation"] });
+
+    const backHere = (page) => expect.poll(() => page.evaluate(([lat]) =>
+        Math.abs(window.__map.getCenter().lat - lat) < 0.01 && !window.__map.isMoving(), [bridge.coord.latitude]), { timeout: 15000 }).toBe(true);
+
+    test("3D の時に押しても、2D の見え方（真上から）に戻らない。2D の時は真上からのまま", async ({ page }) => {
+        await seed(page, { data: withSpots({}) });
+        await page.goto("html/map.html");
+        await page.waitForFunction(() => window.__map && window.__map.loaded());
+        // 開いた時に現在地へ動き終わるのを待つ
+        await backHere(page);
+
+        await page.evaluate(() => window.toggleView());
+        await expect.poll(() => page.evaluate(() => window.__map.getPitch())).toBe(70);
+        // 地図を動かしてから、現在地へ戻る
+        await page.evaluate(() => window.__map.jumpTo({ center: [139.7, 35.68] }));
+        await page.click("#location-btn");
+        await backHere(page);
+        expect(await page.evaluate(() => window.__map.getPitch())).toBe(70);
+
+        // 2D に戻すと、現在地へ動いても真上から
+        await page.evaluate(() => window.toggleView());
+        await expect.poll(() => page.evaluate(() => window.__map.getPitch())).toBe(0);
+        await page.evaluate(() => window.__map.jumpTo({ center: [139.7, 35.68] }));
+        await page.click("#location-btn");
+        await backHere(page);
+        expect(await page.evaluate(() => window.__map.getPitch())).toBe(0);
+    });
+});
