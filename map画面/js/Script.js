@@ -2731,19 +2731,13 @@ function showRouteOrderOnMarkers() {
 
 
 // =========================================================
-// 画面の上で重なったピンを、1つのピンにまとめる
+// 地図の上ですぐ近く（OVERLAP_METERS 以内）にあって、ピンが重なってしまう聖地を、1つのピンにまとめる
+// ・ズームしても、まとめ方は変わらない（地図の上の距離で決める）
 // ・作品の色で縦に塗り分ける（4作品までは全部の色。5作品以上は、聖地の多い3作品＋その他の灰色）
-// ・右上に、まとめた聖地の数を出す
-// ・押すと、ピンが分かれて見える所まで寄る。地図の一番近くでも重なったままなら、聖地を選ぶ一覧を出す
+// ・右上に、まとめた聖地の数を出す。押すと「この場所の聖地」の一覧から選ぶ
 // 1か所ずつのピンは消さずに隠すだけにする（開いている詳細やスタンプ・ルートの印がそのまま使えるように）
 // =========================================================
-// 重なったとみなす近さ（ピンの先の位置どうしの、横・縦の差がどちらもこれより小さい時）。ピンの形に合わせて縦を長くする
-const OVERLAP_BOX_2D = { x: 28, y: 36 };   // 2D のピン（幅 27px・高さ 41px）
-const OVERLAP_BOX_3D = { x: 34, y: 40 };   // 3D の立体のピン（高さ 42px）は少し大きい
-
-function getOverlapBox() {
-    return is3D ? OVERLAP_BOX_3D : OVERLAP_BOX_2D;
-}
+const OVERLAP_METERS = 50;
 const OVERLAP_MAX_COLORS = 4;
 const OVERLAP_OTHER_COLOR = "#78909C";
 const PIN_PATH =
@@ -2810,7 +2804,7 @@ function createOverlapMarker(group, lngLat) {
 
     const label =
         titles.slice(0, 3).join("・") + (titles.length > 3 ? " ほか" : "") +
-        `の聖地 ${group.length}か所（重なっています。押すと分かれて見えます）`;
+        `の聖地 ${group.length}か所（同じ場所にあります。押すと一覧から選べます）`;
     element.setAttribute("aria-label", label);
     element.title = label;
 
@@ -2823,40 +2817,9 @@ function createOverlapMarker(group, lngLat) {
         .addTo(map);
 }
 
-// 押した時：寄れば分かれるなら寄る。地図の一番近く（ズーム18）でも重なったままなら、一覧から選ぶ
+// 押した時：「この場所の聖地」の一覧から選ぶ
 function openOverlapGroup(group, lngLat) {
-    // 分かれて見えるのに要る間（縦にも並ぶので、長い方で考える）
-    const radius = getOverlapBox().y;
-    let farthest = 0;
-    group.forEach(function (a) {
-        group.forEach(function (b) {
-            farthest = Math.max(farthest, getDistanceMeters(
-                { latitude: a.coord.latitude, longitude: a.coord.longitude },
-                { latitude: b.coord.latitude, longitude: b.coord.longitude }
-            ));
-        });
-    });
-    // 一番近くまで寄った時に、ピンの間が何 px になるか（ズーム18で 1px ≒ 0.6m × cos(緯度)）
-    const metersPerPixelAtMax =
-        (40075016.686 * Math.cos(lngLat.lat * Math.PI / 180)) / (512 * Math.pow(2, map.getMaxZoom()));
-    const separatesAtMax = farthest / metersPerPixelAtMax > radius * 1.2;
-
-    if (!separatesAtMax || map.getZoom() >= map.getMaxZoom() - 0.2) {
-        showOverlapList(group, lngLat);
-        return;
-    }
-
-    // ピンの間が重ならない広さになるまで寄る（少なくとも1段）
-    const needed = Math.log2((radius * 1.6) / Math.max(farthest / metersPerPixelAtMax, 1));
-    const zoom = Math.min(
-        map.getMaxZoom(),
-        Math.max(map.getZoom() + 1, map.getMaxZoom() + needed)
-    );
-    map.easeTo({
-        center: lngLat,
-        zoom: zoom,
-        duration: prefersReducedMotion() ? 0 : 600
-    });
+    showOverlapList(group, lngLat);
 }
 
 // 同じ所にある聖地を選ぶ一覧（押すとその聖地の詳細を開く）
@@ -2920,15 +2883,9 @@ function updateOverlapGroups(force) {
         return;
     }
 
-    const box = getOverlapBox();
     const spotById = new Map(currentSpots.map(function (spot) { return [String(spot.id), spot]; }));
 
-    // 画面の中（と少し外）のピンだけを調べる。詳細を開いているピンはまとめない
-    // （3D では遠くのピンが地平線の近くに集まって見えるので、画面の外まで調べると、離れた聖地どうしをまとめてしまう）
-    const canvas = map.getCanvas();
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
-    const margin = 60;
+    // 詳細を開いているピンはまとめない
     const candidates = [];
     spotMarkers.forEach(function (marker) {
         const element = marker.getElement();
@@ -2936,47 +2893,44 @@ function updateOverlapGroups(force) {
         if (!spot || element.classList.contains("is-selected")) {
             return;
         }
-        const point = map.project(marker.getLngLat());
-        if (
-            !Number.isFinite(point.x) || !Number.isFinite(point.y) ||
-            point.x < -margin || point.x > width + margin ||
-            point.y < -margin || point.y > height + margin
-        ) {
-            return;
-        }
-        candidates.push({ marker: marker, spot: spot, point: point });
+        candidates.push({ marker: marker, spot: spot, lngLat: marker.getLngLat() });
     });
 
-    // 一番近い2つ（ピンやまとめたピン）を、重ならなくなるまでくり返しまとめる。
-    // まとめたピンの位置は、まとめた聖地の真ん中（まとめたピンどうしが重ならないように）
-    const groups = candidates.map(function (item) {
-        return { x: item.point.x, y: item.point.y, items: [item] };
-    });
-    for (;;) {
-        let best = null;
-        for (let i = 0; i < groups.length; i++) {
-            for (let j = i + 1; j < groups.length; j++) {
-                const dx = Math.abs(groups[i].x - groups[j].x);
-                const dy = Math.abs(groups[i].y - groups[j].y);
-                const distance = Math.hypot(dx, dy);
-                if (dx < box.x && dy < box.y && (!best || distance < best.distance)) {
-                    best = { i: i, j: j, distance: distance };
-                }
+    // 地図の上で OVERLAP_METERS 以内の聖地どうしをつなぎ、つながった聖地を1つにまとめる
+    const groups = [];
+    const groupOf = new Map();
+    candidates.forEach(function (item, index) {
+        for (let other = 0; other < index; other++) {
+            const near = getDistanceMeters(
+                { latitude: item.lngLat.lat, longitude: item.lngLat.lng },
+                { latitude: candidates[other].lngLat.lat, longitude: candidates[other].lngLat.lng }
+            ) <= OVERLAP_METERS;
+            if (!near) {
+                continue;
+            }
+            const mine = groupOf.get(index);
+            const theirs = groupOf.get(other);
+            if (mine && mine !== theirs) {
+                // 2つのまとまりをつなぐ
+                theirs.items.forEach(function (member) {
+                    mine.items.push(member);
+                    groupOf.set(candidates.indexOf(member), mine);
+                });
+                groups.splice(groups.indexOf(theirs), 1);
+            } else if (!mine) {
+                theirs.items.push(item);
+                groupOf.set(index, theirs);
             }
         }
-        if (!best) {
-            break;
+        if (!groupOf.has(index)) {
+            const group = { items: [item] };
+            groups.push(group);
+            groupOf.set(index, group);
         }
-        const a = groups[best.i];
-        const b = groups[best.j];
-        a.items = a.items.concat(b.items);
-        a.x = a.items.reduce(function (sum, item) { return sum + item.point.x; }, 0) / a.items.length;
-        a.y = a.items.reduce(function (sum, item) { return sum + item.point.y; }, 0) / a.items.length;
-        groups.splice(best.j, 1);
-    }
+    });
     const overlapping = groups.filter(function (group) { return group.items.length > 1; });
 
-    const signature = (is3D ? "3d|" : "2d|") + overlapping.map(function (group) {
+    const signature = overlapping.map(function (group) {
         return group.items.map(function (item) { return item.spot.id; }).sort().join(",");
     }).sort().join("|");
     if (signature === overlapSignature && !force) {
@@ -2990,7 +2944,11 @@ function updateOverlapGroups(force) {
     overlapping.forEach(function (group) {
         const spotsInGroup = group.items.map(function (item) { return item.spot; });
         // まとめた聖地の真ん中に置く
-        overlapMarkers.push(createOverlapMarker(spotsInGroup, map.unproject([group.x, group.y])));
+        const center = new mapboxgl.LngLat(
+            group.items.reduce(function (sum, item) { return sum + item.lngLat.lng; }, 0) / group.items.length,
+            group.items.reduce(function (sum, item) { return sum + item.lngLat.lat; }, 0) / group.items.length
+        );
+        overlapMarkers.push(createOverlapMarker(spotsInGroup, center));
         group.items.forEach(function (item) {
             hidden.add(item.marker);
         });
@@ -3013,10 +2971,6 @@ function updateOverlapGroups(force) {
         pin3DLayer.setMarkers(spotMarkers.concat(overlapMarkers));
     }
 }
-
-map.on("moveend", function () {
-    updateOverlapGroups();
-});
 
 
 // =========================================================
