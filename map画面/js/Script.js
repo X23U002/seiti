@@ -4216,12 +4216,14 @@ function updateRouteList() {
 
     selectedSpots.forEach(
         function (spot, index) {
-            // 前の聖地（1か所目は現在地）からの行き方
+            // 前の聖地（1か所目は現在地）からの行き方。現在地から出発しない時は、1か所目の上に「現在地から出発する」を出す
             routeList.appendChild(
-                createRouteLeg(
-                    selectedSpots[index - 1] || null,
-                    spot
-                )
+                index === 0 && !routeFromCurrent
+                    ? createRouteOriginAdd()
+                    : createRouteLeg(
+                        selectedSpots[index - 1] || null,
+                        spot
+                    )
             );
 
             const routeItem =
@@ -4505,7 +4507,74 @@ function createRouteLeg(from, to) {
         transit
     );
 
+    // 現在地からの区間は × で外せる（1か所目から出発する）
+    if (!from) {
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "route-origin-remove";
+        remove.textContent = "×";
+        remove.title = "現在地からの出発を外す";
+        remove.setAttribute("aria-label", "現在地からの出発を外す（1か所目から出発する）");
+        remove.addEventListener("click", function () {
+            setRouteFromCurrent(false);
+        });
+        leg.append(remove);
+    }
+
     return leg;
+}
+
+// 現在地から出発しない時に、1か所目の上に出す「＋ 現在地から出発する」
+function createRouteOriginAdd() {
+    const row = document.createElement("div");
+    row.className = "route-leg route-origin-off";
+
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "route-origin-add";
+    add.textContent = "＋ 現在地から出発する";
+    add.addEventListener("click", function () {
+        setRouteFromCurrent(true);
+    });
+
+    row.append(add);
+    return row;
+}
+
+// =========================================================
+// ルートを現在地から出発するか（ルート案内の「現在地から」の × で外せる。端末に覚えておく）
+// 外すと、1か所目から出発する（地図の道順・Googleマップの案内も）
+// =========================================================
+const ROUTE_FROM_CURRENT_KEY = "seitiRouteFromCurrent";
+
+let routeFromCurrent = (function () {
+    try {
+        return localStorage.getItem(ROUTE_FROM_CURRENT_KEY) !== "0";
+    } catch (error) {
+        return true;
+    }
+})();
+
+function setRouteFromCurrent(on) {
+    routeFromCurrent = on;
+    try {
+        if (on) {
+            localStorage.removeItem(ROUTE_FROM_CURRENT_KEY);
+        } else {
+            localStorage.setItem(ROUTE_FROM_CURRENT_KEY, "0");
+        }
+    } catch (error) {
+        // 覚えておけない環境では、開いている間だけ変える
+    }
+
+    updateRouteList();
+
+    // 道順を地図に出していれば、出発地を変えて出し直す
+    if (isMapboxRouteActive) {
+        generateMapboxRoute();
+    }
+
+    window.showToast(on ? "現在地から出発します" : "1か所目から出発します");
 }
 
 
@@ -4693,13 +4762,20 @@ window.openGoogleMapsRoute = function () {
     const destination =
         locations[locations.length - 1];
 
+    // 現在地から出発しない時（2か所以上）は、1か所目を出発地にする。それ以外は Googleマップが現在地から出発する
+    const origin =
+        !routeFromCurrent && locations.length >= 2
+            ? locations[0]
+            : null;
+
     const waypoints = locations
-        .slice(0, -1)
+        .slice(origin ? 1 : 0, -1)
         .join("|");
 
     let url =
         "https://www.google.com/maps/dir/?" +
         "api=1" +
+        (origin ? `&origin=${encodeURIComponent(origin)}` : "") +
         `&destination=${encodeURIComponent(destination)}`;
 
     if (waypoints) {
@@ -5264,8 +5340,8 @@ async function generateMapboxRoute() {
     button.textContent = "道順を調べています…";
 
     try {
-        // 現在地から歩くルートにする（取れない・1か所目から遠すぎる時は、1か所目から作る）
-        const position = await getRouteOrigin();
+        // 現在地から歩くルートにする（外している・取れない・1か所目から遠すぎる時は、1か所目から作る）
+        const position = routeFromCurrent ? await getRouteOrigin() : null;
         if (request !== mapboxRouteRequest) {
             return;
         }
@@ -5281,9 +5357,11 @@ async function generateMapboxRoute() {
                 unsetMapboxRoute(false);
             }
             window.showToast(
-                position
-                    ? "現在地から遠いため、ルートを作れません。2か所以上追加してください"
-                    : "現在地を取得できないため、ルートを作れません。2か所以上追加してください",
+                !routeFromCurrent
+                    ? "1か所だけでは道順を作れません。2か所以上追加するか、「現在地から出発する」を押してください"
+                    : position
+                        ? "現在地から遠いため、ルートを作れません。2か所以上追加してください"
+                        : "現在地を取得できないため、ルートを作れません。2か所以上追加してください",
                 "error"
             );
             return;
