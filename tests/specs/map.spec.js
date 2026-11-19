@@ -799,7 +799,7 @@ test.describe("すぐ近くにあって重なってしまうピン", () => {
         await expect(group).toBeVisible();
         await expect(visibleSpotPin(page, kaguya)).toHaveCount(0);
 
-        // 押すと一覧。選んだ聖地の詳細が開き、そのピンはまとめから外して見せる
+        // 押すと一覧。選んだ聖地の詳細が開く。まとめはくずさず、まとめたピンを目立たせる
         await group.click();
         const list = page.locator(".overlap-list");
         await expect(list.locator(".overlap-list-title")).toHaveText("この場所の聖地（2か所）");
@@ -807,7 +807,15 @@ test.describe("すぐ近くにあって重なってしまうピン", () => {
         await expect(page.locator(".popup-card .popup-spot")).toHaveText("東京ドーム");
         await expect(page.locator(".popup-card .popup-title")).toHaveText("超かぐや姫！");
         await expect(list).toHaveCount(0);
-        await expect(visibleSpotPin(page, kaguya)).toHaveClass(/is-selected/);
+        await expect(group).toBeVisible();
+        await expect(group).toHaveClass(/is-selected/);
+        await expect(visibleSpotPin(page, kaguya)).toHaveCount(0);
+        await expect(visibleSpotPin(page, oshi)).toHaveCount(0);
+
+        // 閉じると目立たせるのをやめる
+        await page.locator(".mapboxgl-popup-close-button").click();
+        await expect(group).not.toHaveClass(/is-selected/);
+        await expect(group).toBeVisible();
     });
 
     test("離れた聖地は、ズームを引いて画面の上で重なってもまとめない", async ({ page }) => {
@@ -846,4 +854,24 @@ test.describe("すぐ近くにあって重なってしまうピン", () => {
         const expected = await page.evaluate(() => ["作品A", "作品B"].map((title) => window.getTitleColor(title)));
         expect(colors.slice(0, 2)).toEqual(expected);
     });
+});
+
+test("まとめたピンは、ズームしても聖地の場所からずれない", async ({ page }) => {
+    const [oshi, kaguya] = SPOTS.filter((spot) => spot.spot_name === "東京ドーム");
+    await seed(page, { data: withSpots({}) });
+    await page.goto("html/map.html");
+    await page.waitForFunction(() => window.__map && window.__map.loaded());
+    const group = page.locator(`.overlap-pin[data-group-key="group:${[oshi.id, kaguya.id].sort().join(",")}"]`);
+    const center = { lng: (oshi.coord.longitude + kaguya.coord.longitude) / 2, lat: (oshi.coord.latitude + kaguya.coord.latitude) / 2 };
+
+    for (const zoom of [12, 15, 18]) {
+        await page.evaluate(([c, z]) => window.__map.jumpTo({ center: [c.lng + 0.01 / 2 ** (z - 12), c.lat], zoom: z }), [center, zoom]);
+        await expect(group).toBeVisible();
+        const box = await group.boundingBox();
+        const point = await page.evaluate((c) => window.__map.project([c.lng, c.lat]), center);
+        const mapBox = await page.locator("#map").boundingBox();
+        // ピンの下の真ん中が、聖地の場所（まとめた聖地の真ん中）に来る
+        expect(Math.abs(box.x + box.width / 2 - (mapBox.x + point.x))).toBeLessThan(2);
+        expect(Math.abs(box.y + box.height - (mapBox.y + point.y))).toBeLessThan(2);
+    }
 });
