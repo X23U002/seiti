@@ -2737,8 +2737,13 @@ function showRouteOrderOnMarkers() {
 // ・押すと、ピンが分かれて見える所まで寄る。地図の一番近くでも重なったままなら、聖地を選ぶ一覧を出す
 // 1か所ずつのピンは消さずに隠すだけにする（開いている詳細やスタンプ・ルートの印がそのまま使えるように）
 // =========================================================
-const OVERLAP_RADIUS_PX_2D = 26;   // 2D のピン（幅 27px・高さ 41px）が重なって押しにくくなる近さ
-const OVERLAP_RADIUS_PX_3D = 32;   // 3D の立体のピン（高さ 42px）は少し大きい
+// 重なったとみなす近さ（ピンの先の位置どうしの、横・縦の差がどちらもこれより小さい時）。ピンの形に合わせて縦を長くする
+const OVERLAP_BOX_2D = { x: 28, y: 36 };   // 2D のピン（幅 27px・高さ 41px）
+const OVERLAP_BOX_3D = { x: 34, y: 40 };   // 3D の立体のピン（高さ 42px）は少し大きい
+
+function getOverlapBox() {
+    return is3D ? OVERLAP_BOX_3D : OVERLAP_BOX_2D;
+}
 const OVERLAP_MAX_COLORS = 4;
 const OVERLAP_OTHER_COLOR = "#78909C";
 const PIN_PATH =
@@ -2820,7 +2825,8 @@ function createOverlapMarker(group, lngLat) {
 
 // 押した時：寄れば分かれるなら寄る。地図の一番近く（ズーム18）でも重なったままなら、一覧から選ぶ
 function openOverlapGroup(group, lngLat) {
-    const radius = is3D ? OVERLAP_RADIUS_PX_3D : OVERLAP_RADIUS_PX_2D;
+    // 分かれて見えるのに要る間（縦にも並ぶので、長い方で考える）
+    const radius = getOverlapBox().y;
     let farthest = 0;
     group.forEach(function (a) {
         group.forEach(function (b) {
@@ -2914,7 +2920,7 @@ function updateOverlapGroups(force) {
         return;
     }
 
-    const radius = is3D ? OVERLAP_RADIUS_PX_3D : OVERLAP_RADIUS_PX_2D;
+    const box = getOverlapBox();
     const spotById = new Map(currentSpots.map(function (spot) { return [String(spot.id), spot]; }));
 
     // 画面の中（と少し外）のピンだけを調べる。詳細を開いているピンはまとめない
@@ -2941,18 +2947,33 @@ function updateOverlapGroups(force) {
         candidates.push({ marker: marker, spot: spot, point: point });
     });
 
-    // 近いものからまとめる（件数が少ないので、全部の組み合わせを調べる）
-    const groups = [];
-    candidates.forEach(function (item) {
-        const near = groups.find(function (group) {
-            return Math.hypot(group.x - item.point.x, group.y - item.point.y) <= radius;
-        });
-        if (near) {
-            near.items.push(item);
-        } else {
-            groups.push({ x: item.point.x, y: item.point.y, items: [item] });
-        }
+    // 一番近い2つ（ピンやまとめたピン）を、重ならなくなるまでくり返しまとめる。
+    // まとめたピンの位置は、まとめた聖地の真ん中（まとめたピンどうしが重ならないように）
+    const groups = candidates.map(function (item) {
+        return { x: item.point.x, y: item.point.y, items: [item] };
     });
+    for (;;) {
+        let best = null;
+        for (let i = 0; i < groups.length; i++) {
+            for (let j = i + 1; j < groups.length; j++) {
+                const dx = Math.abs(groups[i].x - groups[j].x);
+                const dy = Math.abs(groups[i].y - groups[j].y);
+                const distance = Math.hypot(dx, dy);
+                if (dx < box.x && dy < box.y && (!best || distance < best.distance)) {
+                    best = { i: i, j: j, distance: distance };
+                }
+            }
+        }
+        if (!best) {
+            break;
+        }
+        const a = groups[best.i];
+        const b = groups[best.j];
+        a.items = a.items.concat(b.items);
+        a.x = a.items.reduce(function (sum, item) { return sum + item.point.x; }, 0) / a.items.length;
+        a.y = a.items.reduce(function (sum, item) { return sum + item.point.y; }, 0) / a.items.length;
+        groups.splice(best.j, 1);
+    }
     const overlapping = groups.filter(function (group) { return group.items.length > 1; });
 
     const signature = (is3D ? "3d|" : "2d|") + overlapping.map(function (group) {
@@ -2968,9 +2989,8 @@ function updateOverlapGroups(force) {
     const hidden = new Set();
     overlapping.forEach(function (group) {
         const spotsInGroup = group.items.map(function (item) { return item.spot; });
-        // 一番手前（画面の下）の聖地の場所に置く
-        const front = group.items.reduce(function (a, b) { return b.point.y > a.point.y ? b : a; });
-        overlapMarkers.push(createOverlapMarker(spotsInGroup, front.marker.getLngLat()));
+        // まとめた聖地の真ん中に置く
+        overlapMarkers.push(createOverlapMarker(spotsInGroup, map.unproject([group.x, group.y])));
         group.items.forEach(function (item) {
             hidden.add(item.marker);
         });
