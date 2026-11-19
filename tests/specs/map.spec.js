@@ -615,10 +615,11 @@ test("3Dのキャラクターは実際の大きさが一定で、建物や道と
     expect(result.byZoom[13].visible).toBe(false);
 });
 
-test("3D表示のピンのモデル（地図が指定しているもの）が読めて、本体と白い球の2つの部品がある", async ({ request }) => {
+test("3D表示のピンのモデル（地図が指定しているもの）が読めて、本体（Pin_body）・枠（Pin_outline）・白い球の部品がある", async ({ request }) => {
     const fs = await import("node:fs");
     const script = fs.readFileSync("../map画面/js/Script.js", "utf8");
-    const modelPath = script.match(/modelUrl: new URL\("\.\.\/(models\/[^"]+\.glb)"/)[1];
+    // 古いモデルが残らないよう、キャッシュ用の番号（?v=）が付いている
+    const modelPath = script.match(/modelUrl: new URL\("\.\.\/(models\/[^"?]+\.glb)\?v=[0-9a-f]{8}"/)[1];
     expect(modelPath).toBe("models/Pin_1.glb");
 
     const response = await request.get(modelPath);
@@ -627,7 +628,11 @@ test("3D表示のピンのモデル（地図が指定しているもの）が読
     expect(body.subarray(0, 4).toString()).toBe("glTF");
     const jsonLength = body.readUInt32LE(12);
     const gltf = JSON.parse(body.subarray(20, 20 + jsonLength).toString());
-    expect(gltf.meshes).toHaveLength(2);
+    // pin-3d-layer.js は、部品の名前で色を付ける（本体＝作品の色・枠＝暗い色・それ以外＝白）
+    const names = gltf.nodes.map((node) => node.name || "");
+    expect(names.filter((name) => name.startsWith("Pin_body"))).toHaveLength(1);
+    expect(names.filter((name) => name.startsWith("Pin_outline"))).toHaveLength(1);
+    expect(gltf.meshes).toHaveLength(3);
     // 読み込むのに追加の部品（圧縮の解凍など）が要らない
     expect(gltf.extensionsRequired || []).toEqual([]);
 });
