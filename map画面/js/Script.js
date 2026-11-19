@@ -265,7 +265,7 @@ if (new URLSearchParams(location.search).has("walktest")) {
 let pin3DLayer = null;
 
 function loadPin3DLayer() {
-    import("./pin-3d-layer.js?v=96f42b5d")
+    import("./pin-3d-layer.js?v=a277d04d")
         .then(function (module) {
             pin3DLayer = module.createGLBPinLayer(map, {
                 // 輪っかの頭に白い球、角ばった先端のピン。差し替える時は名前も変える（端末に残った古いモデルを使わないように）

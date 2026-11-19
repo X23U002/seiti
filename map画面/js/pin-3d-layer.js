@@ -26,6 +26,26 @@ const SELECTED_SCALE = 1.45;
 const DIMMED_OPACITY = 0.45;
 const RING_PULSE_MS = 1600;
 
+// 遠くのピンは出さない（3D では地平線の近くに遠くのピンが固まって見にくいため）。
+// 地図の真ん中から「画面の長い辺の何倍の長さ（地図の上の距離）」までを出すか。外側の FADE_START より先は少しずつ薄くする。
+// ズームを引くと、その分遠くまで出る
+const VISIBLE_RADIUS_SCREENS = 1.5;
+const FADE_START = 0.75;
+const MIN_VISIBLE_RADIUS_METERS = 500;
+
+// 地図の真ん中からの距離（m）。近い所だけなので、平らとみなして計算する
+function distanceMeters(a, b) {
+    const lat = THREE.MathUtils.degToRad((a.lat + b.lat) / 2);
+    const dx = THREE.MathUtils.degToRad(b.lng - a.lng) * Math.cos(lat) * 6371008;
+    const dy = THREE.MathUtils.degToRad(b.lat - a.lat) * 6371008;
+    return Math.hypot(dx, dy);
+}
+
+// 1px が地図の上で何 m か（Mapbox の 512px タイル）
+function metersPerPixel(lat, zoom) {
+    return (40075016.686 * Math.cos(THREE.MathUtils.degToRad(lat))) / (512 * Math.pow(2, zoom));
+}
+
 export function createGLBPinLayer(map, options = {}) {
     if (!map || typeof map.getContainer !== "function") {
         throw new TypeError("createGLBPinLayerには初期化済みのMapbox mapが必要です。");
@@ -233,6 +253,7 @@ export function createGLBPinLayer(map, options = {}) {
             pinMaterials: ownedMaterials,
             scale: 1,
             fixedBearing: null,
+            distanceFade: 1,
             animationStart: null,
             spotId: String(spotId)
         };
@@ -306,6 +327,13 @@ export function createGLBPinLayer(map, options = {}) {
 
         const bearing = map.getBearing();
 
+        // 出す範囲（地図の真ん中からの距離）
+        const center = map.getCenter();
+        const visibleRadius = Math.max(
+            MIN_VISIBLE_RADIUS_METERS,
+            metersPerPixel(center.lat, map.getZoom()) * Math.max(width, height) * VISIBLE_RADIUS_SCREENS
+        );
+
         models.forEach((model) => {
             const lngLat = model.marker.getLngLat();
             const point = map.project(lngLat);
@@ -314,7 +342,13 @@ export function createGLBPinLayer(map, options = {}) {
 
             // Screen-space anchor: zoom and pitch only move the pin; they do not distort its mesh.
             model.anchor.position.set(x, y, 0);
+            // 遠いほど薄く、出す範囲の外は出さない（詳細を開いているピンはいつも出す）
+            const fromCenter = distanceMeters(center, lngLat) / visibleRadius;
+            model.distanceFade = isSelected(model)
+                ? 1
+                : Math.min(1, Math.max(0, (1 - fromCenter) / (1 - FADE_START)));
             model.anchor.visible =
+                model.distanceFade > 0 &&
                 x > -targetHeightPx && x < width + targetHeightPx &&
                 y > -targetHeightPx && y < height + targetHeightPx;
 
@@ -339,7 +373,7 @@ export function createGLBPinLayer(map, options = {}) {
             model.emphasis.scale.setScalar(model.scale);
             model.anchor.position.z = selected ? 500 : 0;
 
-            const opacity = anySelected && !selected ? DIMMED_OPACITY : 1;
+            const opacity = (anySelected && !selected ? DIMMED_OPACITY : 1) * model.distanceFade;
             model.pinMaterials.forEach((material) => {
                 material.opacity = opacity;
             });
@@ -486,7 +520,8 @@ export function createGLBPinLayer(map, options = {}) {
             const spotId = element?.dataset?.spotId;
             if (!spotId) return;
             const model = models.get(String(spotId));
-            if (!model) return;
+            // 遠くて出していない（ほとんど見えない）ピンは押せない
+            if (!model || !model.anchor.visible || model.distanceFade < 0.3) return;
 
             const screenPoint = map.project(marker.getLngLat());
             const dx = point.x - screenPoint.x;
