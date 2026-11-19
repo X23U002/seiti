@@ -14,7 +14,14 @@ import { GLTFLoader } from "https://esm.sh/three@0.160.0/examples/jsm/loaders/GL
 const ROTATION_DURATION_MS = 1500;
 const ROTATION_RADIANS = Math.PI * 4;
 const DEFAULT_HEIGHT_PX = 48;
-const DEFAULT_YAW_DEGREES = 0;
+// 画面下側のピンほど手前に描画するための深度設定。
+// ピンの画面上の位置は変えず、Z方向だけに奥行きを付けます。
+const PIN_DEPTH_RANGE = 1400;
+const PIN_CAMERA_Z = 1800;
+const PIN_DEPTH_FAR = 4000;
+const PIN_DEPTH_TIE_BREAK = 0.01;
+//ピンの傾き処理
+const DEFAULT_YAW_DEGREES = 20;
 
 export function createGLBPinLayer(map, options = {}) {
     if (!map || typeof map.getContainer !== "function") {
@@ -105,44 +112,96 @@ export function createGLBPinLayer(map, options = {}) {
         models.clear();
     }
 
-    function applyPerPinMaterials(modelScene, colour) {
-        const meshEntries = [];
-        modelScene.updateMatrixWorld(true);
+    // function applyPerPinMaterials(modelScene, colour) {
+    //     const meshEntries = [];
+    //     modelScene.updateMatrixWorld(true);
 
-        modelScene.traverse((object) => {
-            if (!object.isMesh) return;
-            const bounds = new THREE.Box3().setFromObject(object);
-            const size = bounds.getSize(new THREE.Vector3());
-            const volume = Math.max(0, size.x * size.y * size.z);
-            meshEntries.push({ object, volume });
-        });
+    //     modelScene.traverse((object) => {
+    //         if (!object.isMesh) return;
+    //         const bounds = new THREE.Box3().setFromObject(object);
+    //         const size = bounds.getSize(new THREE.Vector3());
+    //         const volume = Math.max(0, size.x * size.y * size.z);
+    //         meshEntries.push({ object, volume });
+    //     });
 
-        if (meshEntries.length === 0) {
-            console.warn("Pin.glb内にMeshがありません。");
-            return [];
+    //     if (meshEntries.length === 0) {
+    //         console.warn("Pin.glb内にMeshがありません。");
+    //         return [];
+    //     }
+
+    //     // In the supplied Pin.glb, the largest mesh is the body and the smaller mesh is the white centre.
+    //     meshEntries.sort((a, b) => b.volume - a.volume);
+    //     const bodyObject = meshEntries[0].object;
+    //     const ownedMaterials = [];
+
+    //     meshEntries.forEach(({ object }) => {
+    //         const isBody = object === bodyObject;
+    //         const material = new THREE.MeshStandardMaterial({
+    //             color: isBody ? (colour || "#0b3c5d") : "#ffffff",
+    //             roughness: isBody ? 0.38 : 0.5,
+    //             metalness: isBody ? 0.03 : 0,
+    //             side: THREE.DoubleSide
+    //         });
+    //         object.material = material;
+    //         object.castShadow = false;
+    //         object.receiveShadow = false;
+    //         ownedMaterials.push(material);
+    //     });
+
+    //     return ownedMaterials;
+    // }
+
+
+function applyPerPinMaterials(modelScene, colour) {
+    const ownedMaterials = [];
+
+    // 本体色
+    const bodyColour = new THREE.Color(colour || "#0b3c5d");
+
+    // ふちは本体より少し濃くする（65%の明るさ）
+    const borderColour = bodyColour.clone().multiplyScalar(0.65);
+
+    modelScene.traverse((object) => {
+        if (!object.isMesh) return;
+
+        let materialColour;
+
+        // Blenderのオブジェクト名で色を判定
+        switch (object.name) {
+            case "Pin_Body":
+                materialColour = bodyColour;
+                break;
+
+            case "Pin_Border":
+                materialColour = borderColour;
+                break;
+
+            case "Pin_Center":
+                materialColour = "#ffffff";
+                break;
+
+            default:
+                console.warn("未設定のピンメッシュ:", object.name);
+                return;
         }
 
-        // In the supplied Pin.glb, the largest mesh is the body and the smaller mesh is the white centre.
-        meshEntries.sort((a, b) => b.volume - a.volume);
-        const bodyObject = meshEntries[0].object;
-        const ownedMaterials = [];
-
-        meshEntries.forEach(({ object }) => {
-            const isBody = object === bodyObject;
-            const material = new THREE.MeshStandardMaterial({
-                color: isBody ? (colour || "#0b3c5d") : "#ffffff",
-                roughness: isBody ? 0.38 : 0.5,
-                metalness: isBody ? 0.03 : 0,
-                side: THREE.DoubleSide
-            });
-            object.material = material;
-            object.castShadow = false;
-            object.receiveShadow = false;
-            ownedMaterials.push(material);
+        const material = new THREE.MeshStandardMaterial({
+            color: materialColour,
+            roughness: 0.38,
+            metalness: 0.03,
+            side: THREE.DoubleSide
         });
 
-        return ownedMaterials;
-    }
+        object.material = material;
+        object.castShadow = false;
+        object.receiveShadow = false;
+
+        ownedMaterials.push(material);
+    });
+
+    return ownedMaterials;
+}
+
 
     function createModelForMarker(marker) {
         const element = marker?.getElement?.();
@@ -191,6 +250,9 @@ export function createGLBPinLayer(map, options = {}) {
             spin,
             ownedMaterials,
             animationStart: null,
+            // 同じ画面位置にある場合の前後順も安定させます。
+            order: 0,
+            renderDepth: 0,
             spotId: String(spotId)
         };
     }
@@ -199,9 +261,12 @@ export function createGLBPinLayer(map, options = {}) {
         if (!scene || !baseScene || disposed) return;
         disposeModels();
 
-        markerList.forEach((marker) => {
+        markerList.forEach((marker, index) => {
             const model = createModelForMarker(marker);
-            if (model) models.set(model.spotId, model);
+            if (model) {
+                model.order = index;
+                models.set(model.spotId, model);
+            }
         });
 
         applyMarkerVisibility();
@@ -231,8 +296,8 @@ export function createGLBPinLayer(map, options = {}) {
         camera.top = height;
         camera.bottom = 0;
         camera.near = 0.1;
-        camera.far = 2000;
-        camera.position.set(0, 0, 1000);
+        camera.far = PIN_DEPTH_FAR;
+        camera.position.set(0, 0, PIN_CAMERA_Z);
         camera.lookAt(0, 0, 0);
         camera.updateProjectionMatrix();
         return true;
@@ -259,8 +324,12 @@ export function createGLBPinLayer(map, options = {}) {
             const x = point.x;
             const y = height - point.y;
 
-            // Screen-space anchor: zoom and pitch only move the pin; they do not distort its mesh.
-            model.anchor.position.set(x, y, 0);
+            // Mapboxの2Dマーカーと同じ考え方：画面下側（point.yが大きい）ほど手前。
+            // X/Yは従来どおりなので、地図上のピン位置は移動しません。
+            const depthRatio = THREE.MathUtils.clamp(point.y / Math.max(height, 1), -0.1, 1.1);
+            model.renderDepth =
+                depthRatio * PIN_DEPTH_RANGE + model.order * PIN_DEPTH_TIE_BREAK;
+            model.anchor.position.set(x, y, model.renderDepth);
             model.anchor.visible =
                 x > -targetHeightPx && x < width + targetHeightPx &&
                 y > -targetHeightPx && y < height + targetHeightPx;
@@ -329,8 +398,8 @@ export function createGLBPinLayer(map, options = {}) {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.autoClear = true;
 
-    camera = new THREE.OrthographicCamera(0, 1, 1, 0, 0.1, 2000);
-    camera.position.set(0, 0, 1000);
+    camera = new THREE.OrthographicCamera(0, 1, 1, 0, 0.1, PIN_DEPTH_FAR);
+    camera.position.set(0, 0, PIN_CAMERA_Z);
     camera.lookAt(0, 0, 0);
     scene = new THREE.Scene();
     scene.add(new THREE.AmbientLight(0xffffff, 1.5));
@@ -393,6 +462,7 @@ export function createGLBPinLayer(map, options = {}) {
 
         let hit = null;
         let bestDistance = Infinity;
+        let bestDepth = -Infinity;
         const halfWidth = targetHeightPx * 0.42;
 
         markerList.forEach((marker) => {
@@ -408,7 +478,14 @@ export function createGLBPinLayer(map, options = {}) {
             if (Math.abs(dx) > halfWidth || dy < -targetHeightPx - 10 || dy > 10) return;
 
             const distance = Math.hypot(dx, dy + targetHeightPx * 0.52);
-            if (distance < bestDistance) {
+
+            // 表示上で手前にあるピンを優先。深度が同じ場合だけ中心に近い方を選びます。
+            if (
+                !hit ||
+                model.renderDepth > bestDepth ||
+                (Math.abs(model.renderDepth - bestDepth) < 0.001 && distance < bestDistance)
+            ) {
+                bestDepth = model.renderDepth;
                 bestDistance = distance;
                 hit = model;
             }
