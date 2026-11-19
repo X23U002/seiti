@@ -773,3 +773,81 @@ test("北が上で傾いていない時は、方位ボタンを隠す（回し�
     await page.evaluate(() => window.toggleView());
     await expect(compass).toBeVisible();
 });
+
+test.describe("画面の上で重なったピン", () => {
+    const pins = (page) => page.locator(".overlap-pin");
+    const visibleSpotPin = (page, spot) => page.locator(`.mapboxgl-marker[data-spot-id="${spot.id}"]:not(.is-overlapped)`);
+
+    test("1つにまとめ、作品の色で塗り分けて数を出す。押すと分かれて見える所まで寄る", async ({ page }) => {
+        // 東京ドーム（【推しの子】と 超かぐや姫！。約23m 離れている）
+        const [oshi, kaguya] = SPOTS.filter((spot) => spot.spot_name === "東京ドーム");
+        await seed(page, { data: withSpots({}) });
+        await page.goto("html/map.html");
+        await page.waitForFunction(() => window.__map && window.__map.loaded());
+        await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 14 }), [oshi.coord.longitude, oshi.coord.latitude]);
+
+        const group = page.locator(`.overlap-pin[data-group-key="group:${[oshi.id, kaguya.id].sort().join(",")}"]`);
+        await expect(group).toBeVisible();
+        await expect(group.locator(".overlap-pin-count")).toHaveText("2");
+        await expect(group).toHaveAttribute("aria-label", /【推しの子】|超かぐや姫！/);
+        const colors = (await group.getAttribute("data-pin-colors")).split(",");
+        expect(colors.sort()).toEqual(["#EC407A", "#FF7043"]);
+        // 1か所ずつのピンは隠している
+        await expect(visibleSpotPin(page, oshi)).toHaveCount(0);
+
+        await group.click();
+        await expect.poll(() => page.evaluate(() => window.__map.getZoom())).toBeGreaterThan(16);
+        await expect(group).toHaveCount(0);
+        await expect(visibleSpotPin(page, oshi)).toBeVisible();
+        await expect(visibleSpotPin(page, kaguya)).toBeVisible();
+    });
+
+    test("一番近くまで寄っても重なる聖地は、押すと一覧から選べる。選んだ聖地の詳細が開く", async ({ page }) => {
+        // 同じ場所に登録されている2か所
+        const [denny, beach] = ["デニーズ 藤沢北口店", "片瀬東浜海水浴場"].map(spotNamed);
+        await seed(page, { data: withSpots({}) });
+        await page.goto("html/map.html");
+        await page.waitForFunction(() => window.__map && window.__map.loaded());
+        await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 15 }), [denny.coord.longitude, denny.coord.latitude]);
+
+        const group = page.locator(`.overlap-pin[data-group-key="group:${[denny.id, beach.id].sort().join(",")}"]`);
+        await expect(group).toBeVisible();
+        // 同じ作品だけなら1色
+        await expect(group).toHaveAttribute("data-pin-colors", "#00ACC1");
+
+        await group.click();
+        const list = page.locator(".overlap-list");
+        await expect(list.locator(".overlap-list-title")).toHaveText("この場所の聖地（2か所）");
+        await expect(list.locator(".overlap-list-name")).toHaveText([denny.spot_name, beach.spot_name]);
+
+        await list.locator(".overlap-list-item", { hasText: beach.spot_name }).click();
+        await expect(page.locator(".popup-card .popup-spot")).toHaveText(beach.spot_name);
+        await expect(list).toHaveCount(0);
+        // 詳細を開いたピンはまとめから外して見せる
+        await expect(visibleSpotPin(page, beach)).toHaveClass(/is-selected/);
+    });
+
+    test("5作品以上が重なる時は、聖地の多い3作品の色と灰色の4色にする", async ({ page }) => {
+        const base = spotNamed("宇治橋");
+        const titles = ["作品A", "作品A", "作品B", "作品B", "作品C", "作品D", "作品E"];
+        const extra = {};
+        titles.forEach((title, i) => {
+            extra["x" + i] = { spot_name: "重なる聖地" + i, title_name: title, spot_info: "", image_url: "no_image",
+                coord: { latitude: base.coord.latitude + 0.002 + i * 0.00001, longitude: base.coord.longitude + 0.002 } };
+        });
+        const data = withSpots({});
+        Object.assign(data.spot, extra);
+        await seed(page, { data });
+        await page.goto("html/map.html");
+        await page.waitForFunction(() => window.__map && window.__map.loaded());
+        await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 15 }), [base.coord.longitude + 0.002, base.coord.latitude + 0.002]);
+
+        const group = page.locator(".overlap-pin", { has: page.locator(".overlap-pin-count", { hasText: /^7$/ }) });
+        await expect(group).toBeVisible();
+        const colors = (await group.getAttribute("data-pin-colors")).split(",");
+        expect(colors).toHaveLength(4);
+        expect(colors[3]).toBe("#78909C");
+        const expected = await page.evaluate(() => ["作品A", "作品B"].map((title) => window.getTitleColor(title)));
+        expect(colors.slice(0, 2)).toEqual(expected);
+    });
+});

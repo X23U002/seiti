@@ -13,11 +13,15 @@ test("初めて出すピンは上から落ちてくる。描き直しても繰�
     await page.goto("html/map.html");
     await expect(pins(page)).toHaveCount(SPOTS.length);
 
-    // 落ちてくる動き（少しずつずらす）
-    const animations = await pins(page).evaluateAll((list) => list.slice(0, 3).map((pin) => getComputedStyle(pin).animationName));
+    // 落ちてくる動き（少しずつずらす）。重なってまとめたピンに入って隠れているピンは除く
+    const shown = page.locator(".mapboxgl-marker[data-spot-id]:not(.is-overlapped)");
+    const animations = await shown.evaluateAll((list) => list.slice(0, 3).map((pin) => getComputedStyle(pin).animationName));
     expect(animations).toEqual(["pin-drop", "pin-drop", "pin-drop"]);
-    const delays = await pins(page).evaluateAll((list) => list.slice(0, 3).map((pin) => pin.style.getPropertyValue("--pin-delay")));
-    expect(delays).toEqual(["0ms", "18ms", "36ms"]);
+    const delays = await shown.evaluateAll((list) => list.slice(0, 3).map((pin) => parseInt(pin.style.getPropertyValue("--pin-delay"), 10)));
+    expect(delays[0]).toBeLessThan(100);
+    expect(delays[1]).toBeGreaterThan(delays[0]);
+    expect(delays[2]).toBeGreaterThan(delays[1]);
+    delays.forEach((delay) => expect(delay % 18).toBe(0));
 
     // 落ち終わったら印を外し、描き直しても落とさない
     await expect(page.locator(".mapboxgl-marker.pin-drop")).toHaveCount(0, { timeout: 10_000 });

@@ -1421,6 +1421,106 @@ body {
 /* ---------- ズームアウト時のまとめピン ----------
    外側の輪：作品の色（作品ごとの件数の割合）　真ん中：件数
    大きさは件数に合わせて Script.js で決める（32〜52px） */
+/* ---------- 画面の上で重なったピンをまとめたピン（Script.js の updateOverlapGroups） ---------- */
+/* まとめた聖地の1か所ずつのピンは隠す（消さないのは、開いた詳細やスタンプ・ルートの印をそのまま使うため） */
+.mapboxgl-marker.is-overlapped {
+    display: none !important;
+}
+
+.overlap-pin {
+    position: relative;
+    width: 27px;
+    height: 41px;
+    cursor: pointer;
+}
+
+.overlap-pin svg {
+    display: block;
+}
+
+/* 右上の数（3D 表示でピンを立体にしている間も、数だけは出す） */
+.overlap-pin-count {
+    position: absolute;
+    top: -7px;
+    right: -11px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    box-sizing: border-box;
+    border: 1.5px solid #0b3c5d;
+    border-radius: 10px;
+    background: #fff;
+    color: #0b3c5d;
+    font-size: 12px;
+    font-weight: bold;
+    line-height: 17px;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .35);
+    visibility: visible;
+    pointer-events: none;
+}
+
+/* 3D の立体のピンは少し大きいので、数も上へずらす */
+#map.is-3d .overlap-pin-count {
+    top: -12px;
+    right: -14px;
+}
+
+/* 同じ場所の聖地を選ぶ一覧 */
+.overlap-list-popup .mapboxgl-popup-content {
+    padding: 10px 10px 6px;
+    border-radius: 12px;
+}
+
+.overlap-list-title {
+    margin: 0 0 6px;
+    padding-right: 18px;
+    font-size: 13px;
+    font-weight: bold;
+    color: #0b3c5d;
+}
+
+.overlap-list-item {
+    display: grid;
+    grid-template-columns: 12px 1fr;
+    column-gap: 8px;
+    align-items: center;
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+    padding: 6px 8px;
+    border: none;
+    border-top: 1px solid #eef2f5;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    text-align: left;
+    color: #2c3e50;
+}
+
+.overlap-list-item:hover,
+.overlap-list-item:focus-visible {
+    background: #e6f0f6;
+    transform: none;
+}
+
+.overlap-list-dot {
+    grid-row: 1 / span 2;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.overlap-list-name {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.overlap-list-work {
+    font-size: 11px;
+    color: #6b7b8c;
+}
+
 .spot-cluster {
     display: flex;
     align-items: center;
