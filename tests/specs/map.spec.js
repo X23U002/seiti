@@ -774,11 +774,10 @@ test("北が上で傾いていない時は、方位ボタンを隠す（回し�
     await expect(compass).toBeVisible();
 });
 
-test.describe("画面の上で重なったピン", () => {
-    const pins = (page) => page.locator(".overlap-pin");
+test.describe("すぐ近くにあって重なってしまうピン", () => {
     const visibleSpotPin = (page, spot) => page.locator(`.mapboxgl-marker[data-spot-id="${spot.id}"]:not(.is-overlapped)`);
 
-    test("1つにまとめ、作品の色で塗り分けて数を出す。押すと分かれて見える所まで寄る", async ({ page }) => {
+    test("50m 以内の聖地を1つにまとめ、作品の色で塗り分けて数を出す。ズームしても変わらない。押すと一覧から選べる", async ({ page }) => {
         // 東京ドーム（【推しの子】と 超かぐや姫！。約23m 離れている）
         const [oshi, kaguya] = SPOTS.filter((spot) => spot.spot_name === "東京ドーム");
         await seed(page, { data: withSpots({}) });
@@ -795,36 +794,33 @@ test.describe("画面の上で重なったピン", () => {
         // 1か所ずつのピンは隠している
         await expect(visibleSpotPin(page, oshi)).toHaveCount(0);
 
-        await group.click();
-        await expect.poll(() => page.evaluate(() => window.__map.getZoom())).toBeGreaterThan(16);
-        await expect(group).toHaveCount(0);
-        await expect(visibleSpotPin(page, oshi)).toBeVisible();
-        await expect(visibleSpotPin(page, kaguya)).toBeVisible();
-    });
-
-    test("一番近くまで寄っても重なる聖地は、押すと一覧から選べる。選んだ聖地の詳細が開く", async ({ page }) => {
-        // 同じ場所に登録されている2か所
-        const [denny, beach] = ["デニーズ 藤沢北口店", "片瀬東浜海水浴場"].map(spotNamed);
-        await seed(page, { data: withSpots({}) });
-        await page.goto("html/map.html");
-        await page.waitForFunction(() => window.__map && window.__map.loaded());
-        await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 15 }), [denny.coord.longitude, denny.coord.latitude]);
-
-        const group = page.locator(`.overlap-pin[data-group-key="group:${[denny.id, beach.id].sort().join(",")}"]`);
+        // 一番近くまで寄っても、まとめたまま（地図の上の距離で決める）
+        await page.evaluate(() => window.__map.jumpTo({ zoom: 18 }));
         await expect(group).toBeVisible();
-        // 同じ作品だけなら1色
-        await expect(group).toHaveAttribute("data-pin-colors", "#00ACC1");
+        await expect(visibleSpotPin(page, kaguya)).toHaveCount(0);
 
+        // 押すと一覧。選んだ聖地の詳細が開き、そのピンはまとめから外して見せる
         await group.click();
         const list = page.locator(".overlap-list");
         await expect(list.locator(".overlap-list-title")).toHaveText("この場所の聖地（2か所）");
-        await expect(list.locator(".overlap-list-name")).toHaveText([denny.spot_name, beach.spot_name]);
-
-        await list.locator(".overlap-list-item", { hasText: beach.spot_name }).click();
-        await expect(page.locator(".popup-card .popup-spot")).toHaveText(beach.spot_name);
+        await list.locator(".overlap-list-item", { hasText: "超かぐや姫！" }).click();
+        await expect(page.locator(".popup-card .popup-spot")).toHaveText("東京ドーム");
+        await expect(page.locator(".popup-card .popup-title")).toHaveText("超かぐや姫！");
         await expect(list).toHaveCount(0);
-        // 詳細を開いたピンはまとめから外して見せる
-        await expect(visibleSpotPin(page, beach)).toHaveClass(/is-selected/);
+        await expect(visibleSpotPin(page, kaguya)).toHaveClass(/is-selected/);
+    });
+
+    test("離れた聖地は、ズームを引いて画面の上で重なってもまとめない", async ({ page }) => {
+        // 川崎駅東口広場と丸福珈琲店（約41m）はまとめるが、ラ・チッタデッラ（数百 m 離れている）は入れない
+        const [plaza, cafe, citta] = ["川崎駅東口広場", "丸福珈琲店 川崎アゼリア店", "ラ・チッタデッラ（チネチッタ）"].map(spotNamed);
+        await seed(page, { data: withSpots({}) });
+        await page.goto("html/map.html");
+        await page.waitForFunction(() => window.__map && window.__map.loaded());
+        await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 12 }), [plaza.coord.longitude, plaza.coord.latitude]);
+
+        await expect(page.locator(`.overlap-pin[data-group-key*="${plaza.id}"]`)).toHaveAttribute("data-group-key", new RegExp(cafe.id));
+        await expect(page.locator(`.overlap-pin[data-group-key*="${citta.id}"]`)).toHaveCount(0);
+        await expect(visibleSpotPin(page, citta)).toBeVisible();
     });
 
     test("5作品以上が重なる時は、聖地の多い3作品の色と灰色の4色にする", async ({ page }) => {
