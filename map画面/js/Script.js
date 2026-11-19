@@ -1,13 +1,3 @@
-import {
-    createGLBPinLayer
-} from "./pin-3d-layer.js?v=20261102a";
-
-// import * as THREE from
-//     "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
-
-
-
-    
 // =========================================================
 // 1. Firebase の読み込みと設定
 // =========================================================
@@ -17,17 +7,17 @@ import {
 
 // Firebase の接続（ログイン）は他の画面と共通
 // （ブラウザに古い firebase-db.js が残っていても動くよう、前からある getCurrentUser だけを使う）
-import { getCurrentUser } from "./firebase-db.js?v=917161b9";
+import { getCurrentUser } from "./firebase-db.js?v=61accae5";
 
 // 作品名と作品ごとの色（スタンプ帳・マイページと共通）
 import {
     getTitleColor,
     getTitleName
-} from "./title-colors.js?v=5c634da9";
+} from "./title-colors.js?v=62cd810d";
 
 // 何期の何話の場面か（入力された期・話、無ければ説明文から。お気に入り一覧と共通）
 // ※ ?v= を付けて、ブラウザに残った古い episode.js を使わないようにする
-import { getSpotEpisodeLabel } from "./episode.js?v=feb7ee57";
+import { compareEpisodeKeys, formatEpisodeKey, getSpotEpisodeKey, getSpotEpisodeLabel } from "./episode.js?v=9a2ff22f";
 
 // 検索のあいまい比較・作品の略称・HTMLエスケープ
 import {
@@ -37,28 +27,41 @@ import {
 } from "./map-text.js?v=2c4e86eb";
 
 // 聖地の画像（GitHub の map画面/images/spots/ に置いたもの）
-import { getSpotImageSrc } from "./spot-image.js?v=9f48db08";
+import { getSpotImageSrc } from "./spot-image.js?v=59165daf";
+
+// 聖地を訪れる人への情報（入れる時間・定休日など）とマナー
+import { getVisitInfo } from "./spot-info.js?v=926febaf";
 
 // おすすめ聖地巡礼ルート
 import {
     courseDistance,
     distanceMeters,
-    formatCourseLength
+    formatCourseLength,
+    orderByNearest
 } from "./course.js?v=5729311e";
+
+// はじめての人への使い方の説明と、現在地を使ってよいかの確認
+import { startOnboarding } from "./onboarding.js?v=f6c278bc";
+
+// AI でつくるマイプラン（おすすめルートの画面の下）
+import { refreshMyPlan, setupMyPlan } from "./my-plan.js?v=c168cc3c";
+
+// スマホの聖地の詳細パネルを、なぞって閉じる・全画面に広げる
+import { enableSheetDrag } from "./sheet-drag.js?v=61204c4c";
 
 // 聖地・おすすめルートの読み込み（他の画面と共通。通信が止められた時の予備の読み方あり）
 import {
     loadCourses as fetchCourseList,
     loadSpots,
     readCachedSpots
-} from "./public-data.js?v=c815b81a";
+} from "./public-data.js?v=5183f404";
 
 // お気に入り・保存したルート
 import {
     loadFavorites,
     saveRoute,
     setFavorite
-} from "./saved-db.js?v=2aaaa116";
+} from "./saved-db.js?v=52020f50";
 
 // stampsyori.js（スタンプ獲得の演出）からも同じ色を使う
 window.getTitleColor = getTitleColor;
@@ -98,20 +101,38 @@ let hoverPopup = null;
 // =========================================================
 const titleColorMap = {};
 
-
-
 const map = new mapboxgl.Map({
     container: "map",
     style: "mapbox://styles/mapbox/standard",
-    center: [139.7671, 35.6812],
+    center: [
+        139.7671,
+        35.6812
+    ],
     zoom: 12,
     pitch: 0,
     bearing: 0,
     minZoom: 6,
     maxZoom: 18,
-
-    // 3Dピンの輪郭を滑らかにする
-    antialias: true
+    // 地名・駅名・お店などの名前を日本語で出す（日本語の名前が無いものは、その土地の言葉で出す）
+    language: "ja",
+    // 国境などの書き方を日本の見方にする
+    worldview: "JP",
+    // 漢字・かなは端末の日本語フォントで描く（読みやすく、文字の読み込みも軽い）
+    localIdeographFontFamily: "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', Meiryo, sans-serif",
+    // 地図のボタンの説明（マウスを置いた時・読み上げ）も日本語にする
+    locale: {
+        "NavigationControl.ZoomIn": "拡大",
+        "NavigationControl.ZoomOut": "縮小",
+        "NavigationControl.ResetBearing": "北を上にする",
+        "GeolocateControl.FindMyLocation": "現在地を表示",
+        "GeolocateControl.LocationNotAvailable": "現在地を取得できません",
+        "ScrollZoomBlocker.CtrlMessage": "Ctrl キーを押しながらスクロールで拡大・縮小",
+        "ScrollZoomBlocker.CmdMessage": "⌘ キーを押しながらスクロールで拡大・縮小",
+        "TouchPanBlocker.Message": "2本の指で地図を動かせます",
+        "AttributionControl.ToggleAttribution": "地図の出典",
+        "LogoControl.Title": "Mapbox のホームページ",
+        "Map.Title": "地図"
+    }
 });
 
 
@@ -125,14 +146,6 @@ map.dragRotate.enable();
 map.touchZoomRotate.enableRotation();
 
 
-map.on("style.load", () => {
-    map.setConfigProperty(
-        "basemap",
-        "language",
-        "ja"
-    );
-});
-
 
 map.on("pitch", () => {
     if (
@@ -143,465 +156,24 @@ map.on("pitch", () => {
     }
 });
 
+// 北が上で傾いていない時は、方位ボタン（押すと北を上に戻す）を隠す（押しても何も変わらないため。style.css）
+function updateNorthUp() {
+    map.getContainer().classList.toggle(
+        "is-north-up",
+        Math.abs(map.getBearing()) < 0.5 && map.getPitch() < 0.5
+    );
+}
+
+map.on("rotate", updateNorthUp);
+map.on("pitch", updateNorthUp);
+map.on("load", updateNorthUp);
+updateNorthUp();
+
 
 map.addControl(
     new mapboxgl.NavigationControl(),
     "top-right"
 );
-
-// =========================================================
-// 3Dピンレイヤー
-// ズーム11以上の個別スポット用
-// =========================================================
-function create3DPinLayer(mapInstance) {
-    const PIN_HEIGHT_PX = 42;
-    const ROTATION_DURATION = 1500;
-    const ROTATION_ANGLE = Math.PI * 4;
-
-    return {
-        id: "spot-pins-3d",
-        type: "custom",
-        renderingMode: "3d",
-
-        map: null,
-        camera: null,
-        scene: null,
-        renderer: null,
-
-        markers: [],
-        models: new Map(),
-
-        ready: false,
-        visible: false,
-
-        scaleMatrix: null,
-        rotateXMatrix: null,
-
-        onAdd(map, gl) {
-            this.map = map;
-            this.camera = new THREE.Camera();
-            this.scene = new THREE.Scene();
-
-            this.scene.add(
-                new THREE.AmbientLight(0xffffff, 1.2)
-            );
-
-            const light = new THREE.DirectionalLight(
-                0xffffff,
-                1.8
-            );
-
-            light.position.set(-3, -2, 4);
-            this.scene.add(light);
-
-            // Mapboxと同じWebGLキャンバスを使用
-            this.renderer = new THREE.WebGLRenderer({
-                canvas: map.getCanvas(),
-                context: gl,
-                antialias: true
-            });
-
-            this.renderer.autoClear = false;
-
-            this.scaleMatrix = new THREE.Matrix4();
-            this.rotateXMatrix =
-                new THREE.Matrix4().makeRotationX(
-                    Math.PI / 2
-                );
-
-            this.ready = true;
-
-            this.rebuildModels();
-            this.refreshVisibility(true);
-        },
-
-        // 現在のMapboxマーカーから3Dピンを生成
-        setMarkers(markers) {
-            this.markers = (markers || []).filter(
-                marker => {
-                    return marker
-                        ?.getElement()
-                        ?.dataset
-                        ?.spotId;
-                }
-            );
-
-            this.rebuildModels();
-            this.refreshVisibility(true);
-        },
-
-        disposeModels() {
-            this.models.forEach(model => {
-                this.scene?.remove(model.anchor);
-
-                model.body.geometry.dispose();
-                model.body.material.dispose();
-
-                model.dot.geometry.dispose();
-                model.dot.material.dispose();
-            });
-
-            this.models.clear();
-        },
-
-        rebuildModels() {
-            if (!this.scene) return;
-
-            this.disposeModels();
-
-            this.markers.forEach(marker => {
-                const element = marker.getElement();
-                const spotId = element.dataset.spotId;
-
-                if (!spotId) return;
-
-                const color =
-                    element.dataset.pinColor || "#0b3c5d";
-
-                // ピン先端を原点 (0, 0, 0) とする
-                const shape = new THREE.Shape();
-
-                shape.moveTo(0, 0);
-
-                shape.bezierCurveTo(
-                    -0.10, 0.15,
-                    -0.36, 0.38,
-                    -0.36, 0.60
-                );
-
-                shape.bezierCurveTo(
-                    -0.36, 0.81,
-                    -0.20, 0.96,
-                    0, 0.96
-                );
-
-                shape.bezierCurveTo(
-                    0.20, 0.96,
-                    0.36, 0.81,
-                    0.36, 0.60
-                );
-
-                shape.bezierCurveTo(
-                    0.36, 0.38,
-                    0.10, 0.15,
-                    0, 0
-                );
-
-                shape.closePath();
-
-                // 厚みのあるピン本体
-                const geometry = new THREE.ExtrudeGeometry(
-                    shape,
-                    {
-                        depth: 0.08,
-                        bevelEnabled: true,
-                        bevelSegments: 3,
-                        bevelSize: 0.018,
-                        bevelThickness: 0.02,
-                        curveSegments: 16
-                    }
-                );
-
-                const material =
-                    new THREE.MeshStandardMaterial({
-                        color,
-                        roughness: 0.42,
-                        metalness: 0.03,
-                        side: THREE.DoubleSide
-                    });
-
-                const body = new THREE.Mesh(
-                    geometry,
-                    material
-                );
-
-                // 白い中心部分
-                // 白い中心部分（ちらつき対策）
-const dot = new THREE.Mesh(
-    new THREE.CircleGeometry(0.125, 32),
-    new THREE.MeshBasicMaterial({
-        color: "#ffffff",
-        side: THREE.DoubleSide,
-        depthTest: true,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -2,
-        polygonOffsetUnits: -2
-    })
-);
-
-dot.position.set(0, 0.62, 0.16);
-dot.renderOrder = 10;
-
-
-                // 方向調整用と回転用のグループを分離
-                const anchor = new THREE.Group();
-                anchor.matrixAutoUpdate = false;
-
-                const facing = new THREE.Group();
-                const spin = new THREE.Group();
-
-                spin.add(body);
-                spin.add(dot);
-
-                facing.add(spin);
-                anchor.add(facing);
-
-                this.scene.add(anchor);
-
-                this.models.set(String(spotId), {
-                    marker,
-                    anchor,
-                    facing,
-                    spin,
-                    body,
-                    dot,
-                    animationStart: null
-                });
-            });
-        },
-
-        // 2D/3D状態に合わせて表示を切り替える
-        refreshVisibility(force = false) {
-            const nextVisible =
-                this.ready &&
-                is3D &&
-                this.map.getZoom() > 10;
-
-            const changed =
-                nextVisible !== this.visible;
-
-            this.visible = nextVisible;
-
-            // 3D表示中は元のHTMLマーカーを隠す
-            this.markers.forEach(marker => {
-                const element = marker.getElement();
-
-                element.style.visibility =
-                    nextVisible ? "hidden" : "";
-
-                element.style.pointerEvents =
-                    nextVisible ? "none" : "";
-            });
-
-            // 3D表示が終了した場合は回転も停止
-            if (!nextVisible) {
-                this.models.forEach(model => {
-                    model.animationStart = null;
-                    model.spin.rotation.y = 0;
-                });
-            }
-
-            if (this.map && (changed || force)) {
-                this.map.triggerRepaint();
-            }
-        },
-
-        // クリックされた位置に3Dピンがあるか判定
-        handleClick(point) {
-            if (!this.visible) return false;
-
-            let nearest = null;
-            let bestDistance = Infinity;
-
-            this.markers.forEach(marker => {
-                const projected = this.map.project(
-                    marker.getLngLat()
-                );
-
-                const dx = point.x - projected.x;
-                const dy = point.y - projected.y;
-
-                // 先端を基準に、ピンの表示範囲を判定
-                const hit =
-                    Math.abs(dx) <= 26 &&
-                    dy >= -PIN_HEIGHT_PX - 8 &&
-                    dy <= 8;
-
-                if (!hit) return;
-
-                const distance = Math.hypot(
-                    dx,
-                    dy + PIN_HEIGHT_PX * 0.48
-                );
-
-                if (distance < bestDistance) {
-                    bestDistance = distance;
-                    nearest = marker;
-                }
-            });
-
-            if (!nearest) return false;
-
-            const spotId =
-                nearest.getElement().dataset.spotId;
-
-            const model = this.models.get(String(spotId));
-
-            if (!model) return false;
-
-            // 回転中のアニメーション重複を防ぐ
-            if (model.animationStart !== null) {
-                return true;
-            }
-
-            model.animationStart = performance.now();
-
-            // 既存のスポット詳細ポップアップを開く
-            if (nearest.getPopup()) {
-                nearest.togglePopup();
-            }
-
-            this.map.triggerRepaint();
-
-            return true;
-        },
-
-        render(gl, matrix) {
-            if (!this.ready || !this.visible) return;
-
-            this.camera.projectionMatrix.fromArray(matrix);
-
-            const zoom = this.map.getZoom();
-            const worldSize = 512 * Math.pow(2, zoom);
-
-            // ピンの見た目の大きさをズームに合わせて調整
-            const scale =
-                PIN_HEIGHT_PX / (worldSize * 0.96);
-
-            this.scaleMatrix.makeScale(
-                scale,
-                -scale,
-                scale
-            );
-
-            const now = performance.now();
-            let animating = false;
-
-            this.models.forEach(model => {
-                const lngLat = model.marker.getLngLat();
-
-                const coord =
-                    mapboxgl.MercatorCoordinate.fromLngLat(
-                        [lngLat.lng, lngLat.lat],
-                        0
-                    );
-
-                // 地図座標に3Dピンを配置
-                model.anchor.matrix.makeTranslation(
-                    coord.x,
-                    coord.y,
-                    coord.z
-                );
-
-                model.anchor.matrix
-                    .multiply(this.scaleMatrix)
-                    .multiply(this.rotateXMatrix);
-
-                model.anchor.matrixWorldNeedsUpdate = true;
-
-                // 地図の回転に合わせてピンの正面を調整
-                model.facing.rotation.y =
-                    -this.map.getBearing() * Math.PI / 180;
-
-                // 2回転のアニメーション
-                if (model.animationStart !== null) {
-                    const progress = Math.min(
-                        (now - model.animationStart) /
-                            ROTATION_DURATION,
-                        1
-                    );
-
-                    // 徐々に減速する
-                    const eased =
-                        1 - Math.pow(1 - progress, 3);
-
-                    model.spin.rotation.y =
-                        ROTATION_ANGLE * eased;
-
-                    if (progress >= 1) {
-                        model.spin.rotation.y = 0;
-                        model.animationStart = null;
-                    } else {
-                        animating = true;
-                    }
-                }
-            });
-
-            this.scene.updateMatrixWorld(true);
-
-            // MapboxとWebGL状態を共有する
-            this.renderer.resetState();
-            this.renderer.render(
-                this.scene,
-                this.camera
-            );
-
-            // アニメーション中だけ再描画
-            if (animating) {
-                this.map.triggerRepaint();
-            }
-        },
-
-        onRemove() {
-            this.markers.forEach(marker => {
-                const element = marker.getElement();
-
-                element.style.visibility = "";
-                element.style.pointerEvents = "";
-            });
-
-            this.disposeModels();
-
-            if (this.renderer) {
-                this.renderer.dispose();
-            }
-
-            this.renderer = null;
-            this.scene = null;
-            this.camera = null;
-            this.ready = false;
-            this.visible = false;
-        }
-    };
-}
-// =========================================================
-// GLB 3Dピンレイヤー
-// =========================================================
-
-const pin3DLayer = createGLBPinLayer(map, {
-    modelUrl: new URL(
-        "../models/Pin.glb",
-        import.meta.url
-    ).href,
-
-    is3D: () => is3D,
-
-    targetHeightPx: 42
-});
-
-// Mapboxのスタイル読み込み後に登録
-map.on("style.load", () => {
-    if (!map.getLayer(pin3DLayer.id)) {
-        map.addLayer(pin3DLayer);
-    }
-
-    pin3DLayer.refreshVisibility();
-});
-
-// 3Dピンのクリック
-map.on("click", event => {
-    pin3DLayer.handleClick(event.point);
-});
-
-// ズーム・地図移動への対応
-map.on("zoom", () => {
-    pin3DLayer.refreshVisibility();
-});
-
-map.on("moveend", () => {
-    pin3DLayer.refreshVisibility();
-});
 
 
 // =========================================================
@@ -625,23 +197,109 @@ map.addControl(
 // stampsyori.jsから現在地コントロールを参照できるようにする
 window.geolocate = geolocate;
 
+// 現在地へ動く時の寄り方。2D は前と同じ 15。3D は現在地の3Dキャラクターがよく見えるよう、地図の一番近く（18）まで寄る
+// （15 だとキャラクターが小さすぎて、walker-size.js の決まりで見えなくなる）
+const GEOLOCATE_ZOOM_2D = 15;
+const GEOLOCATE_ZOOM_3D = 18;
+
+// 現在地へ動く時に、地図の傾きを保つ（3D の時は 3D のまま）。
+// Mapbox の現在地コントロールは fitBounds で動き、傾きを渡さないと 0（真上から＝2D の見え方）に戻してしまう
+// threeD：3D 表示か（切りかえの途中で呼ぶ時は、切りかえた後の表示を渡す）
+function keepGeolocatePitch(pitch, threeD) {
+    geolocate.options.fitBoundsOptions = Object.assign(
+        {},
+        geolocate.options.fitBoundsOptions,
+        { pitch: pitch, maxZoom: threeD ? GEOLOCATE_ZOOM_3D : GEOLOCATE_ZOOM_2D }
+    );
+}
+
+// 指で傾きを変えた時も、その傾きのまま現在地へ動く
+map.on("pitchend", function () {
+    keepGeolocatePitch(map.getPitch(), is3D);
+});
+
 // =========================================================
-// 現在地に歩く3Dキャラクターを表示（walker.js）
+// 3D表示の時だけ使うもの（現在地に歩く3Dキャラクター・立体のピン）
+// three.js とキャラクターのモデル（約10MB）は重いので、初めて3D表示にした時に読み込む
+// （2D表示のまま使う人は読み込まない。動作テストの map.html?walktest の時は最初から読み込む）
 // 読み込みに失敗しても地図は使えるよう、別に読み込む
 // =========================================================
-import("./walker.js?v=27d32a9f")
-    .then(function (walker) {
-        walker.initWalker(
-            map,
-            geolocate
-        );
-    })
-    .catch(function (error) {
-        console.warn(
-            "3Dキャラクターを表示できませんでした:",
-            error
-        );
+let threeDExtrasLoaded = false;
+
+function loadThreeDExtras() {
+    if (threeDExtrasLoaded) {
+        return;
+    }
+    threeDExtrasLoaded = true;
+    loadWalker();
+    loadPin3DLayer();
+}
+
+// 現在地に歩く3Dキャラクター（walker.js）
+function loadWalker() {
+    import("./walker.js?v=df7b31db")
+        .then(function (walker) {
+            walker.initWalker(
+                map,
+                geolocate
+            );
+        })
+        .catch(function (error) {
+            console.warn(
+                "3Dキャラクターを表示できませんでした:",
+                error
+            );
+        });
+}
+
+if (new URLSearchParams(location.search).has("walktest")) {
+    loadThreeDExtras();
+}
+
+
+// =========================================================
+// 3D表示の時の立体のピン（pin-3d-layer.js・models/Pin_1.glb）
+// 3D表示でズーム11以上の時は、聖地のピンを立体のピンにする（押すと回って詳細が開く）
+// three.js を読み込めなくても地図は使えるよう、別に読み込む（読めなければ今のピンのまま）
+// =========================================================
+let pin3DLayer = null;
+
+function loadPin3DLayer() {
+    import("./pin-3d-layer.js?v=3489f8d4")
+        .then(function (module) {
+            pin3DLayer = module.createGLBPinLayer(map, {
+                // 輪っかの頭に白い球、角ばった先端のピン。差し替える時は名前も変える（端末に残った古いモデルを使わないように）
+                modelUrl: new URL("../models/Pin_1.glb?v=bebf0102", import.meta.url).href,
+                is3D: function () {
+                    return is3D;
+                },
+                targetHeightPx: 42
+            });
+            pin3DLayer.setMarkers(spotMarkers.concat(overlapMarkers));
+            pin3DLayer.refreshVisibility();
+        })
+        .catch(function (error) {
+            console.warn(
+                "立体のピンを表示できませんでした（今のピンで表示します）:",
+                error
+            );
+        });
+}
+
+// 立体のピンを押した時・ズームや移動で見え方が変わった時
+map.on("click", function (event) {
+    if (pin3DLayer) {
+        pin3DLayer.handleClick(event.point);
+    }
+});
+
+["zoom", "moveend", "style.load"].forEach(function (type) {
+    map.on(type, function () {
+        if (pin3DLayer) {
+            pin3DLayer.refreshVisibility();
+        }
     });
+});
 
 
 // =========================================================
@@ -682,6 +340,11 @@ function setSpots(list) {
 
     // stampsyori.jsへ最新のスポット一覧を渡す
     window.spots = spots;
+
+    // おすすめルートの一覧を開いていれば、新しい聖地で作り直す
+    if (isCourseListOpen()) {
+        renderCourseList();
+    }
 
     if (
         typeof window.refreshStampUI ===
@@ -805,17 +468,46 @@ function openSpotFromUrl() {
 // （「お気に入り・ルート・履歴」画面の保存したルートから使う）
 // =========================================================
 function openRouteFromUrl() {
-    const param =
+    const params =
         new URLSearchParams(
             location.search
-        ).get("route");
+        );
+    const param =
+        params.get("route");
 
     if (!param) {
         return false;
     }
 
-    param
-        .split(",")
+    // 名前付き（送られたルート・スタンプ帳の「まだの聖地をルートに入れる」）の時は、その名前で知らせる。
+    // order=near の時は、回りやすいよう近い順に並べ直す（送られたルートは送った人の順番のまま）
+    const routeName =
+        (params.get("name") || "").slice(0, 40);
+    let routeIds =
+        param.split(",");
+
+    if (params.get("order") === "near") {
+        routeIds =
+            orderByNearest(
+                routeIds
+                    .map(
+                        function (spotId) {
+                            return spots.find(
+                                function (spot) {
+                                    return String(spot.id) === String(spotId) && spot.coord;
+                                }
+                            );
+                        }
+                    )
+                    .filter(Boolean)
+            ).map(
+                function (spot) {
+                    return spot.id;
+                }
+            );
+    }
+
+    routeIds
         .forEach(
             function (spotId) {
                 window.addSpotToRouteById(
@@ -833,11 +525,18 @@ function openRouteFromUrl() {
         return false;
     }
 
+    fitRouteBounds();
+
+    if (routeName) {
+        window.showToast(
+            `「${routeName}」（${selectedSpots.length}か所）をルート案内に入れました`
+        );
+        return true;
+    }
+
     // 保存したルートを開いたばかりなので「保存済み」にしておく
     lastSavedRouteKey = getRouteKey();
     updateSaveRouteButton();
-
-    fitRouteBounds();
 
     window.showToast(
         `保存したルート（${selectedSpots.length}か所）を開きました`
@@ -853,6 +552,7 @@ function openRouteFromUrl() {
 // そのままルート案内に入る
 // =========================================================
 let courses = [];
+let coursesLoaded = false;
 
 // 聖地と同じく、Firestore で読めなければ Web API から読む（public-data.js）
 async function loadCourses() {
@@ -861,6 +561,12 @@ async function loadCourses() {
     } catch (error) {
         console.warn("おすすめルートを読み込めませんでした:", error);
         courses = [];
+    }
+    coursesLoaded = true;
+
+    // 読み込み中に一覧を開いていれば、出し直す
+    if (isCourseListOpen()) {
+        renderCourseList();
     }
 
     // 開いている詳細があれば、この聖地を通るルートを出し直す
@@ -872,6 +578,10 @@ async function loadCourses() {
             }
         );
 }
+
+// 地図の準備や最新の聖地を待たずに読み始める
+// （前回の聖地でピンがすぐ出るので、ピンに触る前にメニューから開かれても出せるように）
+const coursesReady = loadCourses();
 
 function findSpot(spotId) {
     return spots.find(
@@ -898,6 +608,20 @@ function getCourseSummary(course) {
     return courseSpots.length + "か所・" + formatCourseLength(courseDistance(courseSpots));
 }
 
+// 聖地の範囲へ地図を飛ばす時の動き（3D の時は、少し回り込みながら飛ぶ）
+// 動きを減らす設定の人には、すぐに切りかえる
+function getFlyOptions(options) {
+    if (prefersReducedMotion()) {
+        return Object.assign({}, options, { duration: 0 });
+    }
+
+    return Object.assign(
+        { duration: 1400, curve: 1.5, essential: true },
+        options,
+        is3D ? { bearing: map.getBearing() + 35, pitch: map.getPitch() } : {}
+    );
+}
+
 // ルート案内に入れたスポットが全部入るように地図を動かす
 function fitRouteBounds() {
     const bounds = new mapboxgl.LngLatBounds();
@@ -912,11 +636,10 @@ function fitRouteBounds() {
 
     map.fitBounds(
         bounds,
-        {
+        getFlyOptions({
             padding: 80,
-            maxZoom: 16,
-            duration: prefersReducedMotion() ? 0 : 800
-        }
+            maxZoom: 16
+        })
     );
 }
 
@@ -932,9 +655,14 @@ function startCourse(courseId) {
         return;
     }
 
+    startRouteFromSpotIds(course.spot_ids, course.course_name);
+}
+
+// 聖地の並び（おすすめルート・AI のマイプラン）でルート案内を始める
+function startRouteFromSpotIds(spotIds, routeName) {
     window.clearSelectedSpots();
 
-    course.spot_ids.forEach(
+    spotIds.forEach(
         function (spotId) {
             window.addSpotToRouteById(
                 spotId,
@@ -968,8 +696,51 @@ function startCourse(courseId) {
     fitRouteBounds();
 
     window.showToast(
-        `「${course.course_name}」（${selectedSpots.length}か所）をルート案内に入れました`
+        `「${routeName}」（${selectedSpots.length}か所）をルート案内に入れました`
     );
+}
+
+// マイプランで選べる作品（聖地が2か所以上ある作品。絞り込み中の作品を先に）
+function getMyPlanTitles() {
+    const counts = {};
+    spots.forEach(
+        function (spot) {
+            const title = getTitleName(spot);
+            counts[title] = (counts[title] || 0) + 1;
+        }
+    );
+    return Object.keys(counts)
+        .filter(
+            function (title) {
+                return counts[title] >= 2 && title !== "その他";
+            }
+        )
+        .sort(
+            function (a, b) {
+                return Number(activeFilter.titles.includes(b)) - Number(activeFilter.titles.includes(a)) ||
+                    a.localeCompare(b, "ja");
+            }
+        );
+}
+
+// 地図の準備ができてから（絞り込みの状態を使うので）
+function startMyPlan() {
+    setupMyPlan({
+        getTitles: getMyPlanTitles,
+        getDefaultTitle: function () {
+            return activeFilter.titles[0] || "";
+        },
+        startPlan: function (plan) {
+            startRouteFromSpotIds(
+                plan.stops.map(
+                    function (stop) {
+                        return stop.id;
+                    }
+                ),
+                plan.title
+            );
+        }
+    });
 }
 
 // ---------- メニューの「おすすめルート」 ----------
@@ -980,6 +751,7 @@ window.openCourses =
         }
 
         renderCourseList();
+        refreshMyPlan();
 
         document
             .getElementById(
@@ -994,15 +766,18 @@ window.openCourses =
             .focus();
     };
 
+function isCourseListOpen() {
+    const modal = document.getElementById("course-modal");
+    return Boolean(modal) && modal.style.display === "block";
+}
+
 window.closeCourses =
     function () {
-        document
-            .getElementById(
+        closeSheet(
+            document.getElementById(
                 "course-modal"
             )
-            .style
-            .display =
-                "none";
+        );
     };
 
 function renderCourseList() {
@@ -1013,11 +788,15 @@ function renderCourseList() {
 
     list.innerHTML = "";
 
-    if (courses.length === 0) {
+    const showMessage = function (text) {
         const empty = document.createElement("p");
         empty.className = "course-empty";
-        empty.textContent = "まだおすすめルートはありません。";
+        empty.textContent = text;
         list.appendChild(empty);
+    };
+
+    if (!coursesLoaded) {
+        showMessage("おすすめルートを読み込んでいます…");
         return;
     }
 
@@ -1090,6 +869,13 @@ function renderCourseList() {
             list.appendChild(card);
         }
     );
+
+    // ルートが無い・聖地をまだ読み込めていない
+    if (!list.querySelector(".course-card")) {
+        showMessage(spots.length === 0
+            ? "聖地を読み込んでいます…"
+            : "まだおすすめルートはありません。");
+    }
 }
 
 // ---------- 聖地の詳細の「おすすめルート」 ----------
@@ -1221,6 +1007,7 @@ function openWorkFromUrl() {
     }
 
     activeFilter.titles = [work];
+    activeFilter.episodes = {};
     activeFilter.keyword = "";
     applyActiveFilter();
 
@@ -1232,11 +1019,10 @@ function openWorkFromUrl() {
     );
     map.fitBounds(
         bounds,
-        {
+        getFlyOptions({
             padding: 80,
-            maxZoom: 15,
-            duration: 0
-        }
+            maxZoom: 15
+        })
     );
 
     window.showToast(
@@ -1327,13 +1113,44 @@ function goToSpot(spotId) {
 }
 
 
-function getEpisodeBadgeHTML(spot) {
+// 聖地の詳細の「訪れる前に」（管理ページで入力されている項目。何も無ければ出さない）
+// 聖地巡礼のマナーは、アプリを開いた時の注意書き（onboarding.js）で伝えるので、ここには出さない
+function getVisitInfoHTML(spot) {
+    const items = getVisitInfo(spot);
+    if (items.length === 0) {
+        return "";
+    }
+    return `
+        <section class="popup-section popup-visit" aria-label="訪れる前に">
+            <strong>訪れる前に</strong>
+            <dl class="popup-visit-list">${items.map(function (item) {
+                return `<div class="popup-visit-item${item.key === "caution" ? " is-caution" : ""}">
+                    <dt>${escapeHTML(item.label)}</dt><dd>${escapeHTML(item.value)}</dd></div>`;
+            }).join("")}</dl>
+        </section>
+    `;
+}
+
+// asLink：押すと作品ページを開き、その話の聖地の一覧を出す（聖地の詳細の札）
+function getEpisodeBadgeHTML(spot, asLink) {
     const label =
         getSpotEpisodeLabel(spot);
 
-    return label
-        ? `<span class="popup-ep">${escapeHTML(label)}</span>`
-        : "";
+    if (!label) {
+        return "";
+    }
+
+    if (asLink) {
+        const title = getTitleName(spot);
+        const href =
+            "work.html?title=" + encodeURIComponent(title) +
+            "&ep=" + encodeURIComponent(getSpotEpisodeKey(spot)) +
+            "#work-spots-section";
+        return `<a class="popup-ep popup-ep-link" href="${escapeHTML(href)}"
+            title="「${escapeHTML(title)}」の${escapeHTML(label)}の聖地を作品ページで見る">${escapeHTML(label)}</a>`;
+    }
+
+    return `<span class="popup-ep">${escapeHTML(label)}</span>`;
 }
 
 
@@ -1454,6 +1271,250 @@ function renderNearbySpots(container, spot) {
 
 
 // =========================================================
+// スタンプを押した後の「次の聖地」（stampsyori.js のお祝いの画面から使う）
+// ルート案内に入っている聖地なら、ルートでその後にある、まだスタンプを押していない聖地。
+// そうでなければ、同じ作品のまだの聖地のうち一番近いもの（歩いて行ける距離まで）
+// =========================================================
+const NEXT_SPOT_MAX_METERS = 5000;
+
+function isSpotCollected(spotId) {
+    return (
+        typeof window.hasCollectedStamp === "function" &&
+        window.hasCollectedStamp(spotId)
+    );
+}
+
+function findSpotById(spotId) {
+    return spots.find(
+        function (spot) {
+            return String(spot.id) === String(spotId);
+        }
+    );
+}
+
+function getNextPilgrimageSpot(spotId) {
+    const here = findSpotById(spotId);
+    if (!here || !here.coord) {
+        return null;
+    }
+
+    const index =
+        selectedSpots.findIndex(
+            function (item) {
+                return String(item.id) === String(spotId);
+            }
+        );
+
+    if (index !== -1) {
+        const nextInRoute =
+            selectedSpots
+                .slice(index + 1)
+                .map(
+                    function (item) {
+                        return findSpotById(item.id);
+                    }
+                )
+                .find(
+                    function (spot) {
+                        return spot && spot.coord && !isSpotCollected(spot.id);
+                    }
+                );
+
+        if (nextInRoute) {
+            return {
+                spot: nextInRoute,
+                distance: getDistanceMeters(here.coord, nextInRoute.coord),
+                reason: "route"
+            };
+        }
+    }
+
+    const titleName = getTitleName(here);
+    let best = null;
+
+    spots.forEach(
+        function (spot) {
+            if (
+                String(spot.id) === String(spotId) ||
+                !spot.coord ||
+                getTitleName(spot) !== titleName ||
+                isSpotCollected(spot.id)
+            ) {
+                return;
+            }
+
+            const distance = getDistanceMeters(here.coord, spot.coord);
+            if (
+                Number.isFinite(distance) &&
+                distance <= NEXT_SPOT_MAX_METERS &&
+                (!best || distance < best.distance)
+            ) {
+                best = { spot: spot, distance: distance, reason: "nearby" };
+            }
+        }
+    );
+
+    return best;
+}
+
+window.getNextPilgrimageSpot =
+    function (spotId) {
+        const next = getNextPilgrimageSpot(spotId);
+        if (!next) {
+            return null;
+        }
+
+        return {
+            id: String(next.spot.id),
+            name: next.spot.spot_name || "無題のスポット",
+            distanceText: formatDistance(next.distance),
+            reason: next.reason,
+            latitude: Number(next.spot.coord.latitude),
+            longitude: Number(next.spot.coord.longitude)
+        };
+    };
+
+window.goToSpot = goToSpot;
+
+
+// =========================================================
+// 近くの聖地の一覧（地図の「一覧」ボタンから開く、下から出るシート）
+// 現在地（分からなければ地図の真ん中）から近い順に、絞り込みどおりの聖地を並べる
+// =========================================================
+const SPOT_LIST_MAX = 50;
+
+function getSpotListOrigin() {
+    const last = geolocate && geolocate._lastKnownPosition;
+    if (last && last.coords) {
+        return {
+            coord: { latitude: last.coords.latitude, longitude: last.coords.longitude },
+            label: "現在地から近い順"
+        };
+    }
+
+    const center = map.getCenter();
+    return {
+        coord: { latitude: center.lat, longitude: center.lng },
+        label: "地図の真ん中から近い順"
+    };
+}
+
+function renderSpotList() {
+    const list = document.getElementById("spot-list");
+    const note = document.getElementById("spot-list-note");
+    const origin = getSpotListOrigin();
+
+    const items =
+        filterSpots()
+            .filter(
+                function (spot) {
+                    return spot.coord;
+                }
+            )
+            .map(
+                function (spot) {
+                    return {
+                        spot: spot,
+                        distance: getDistanceMeters(origin.coord, spot.coord)
+                    };
+                }
+            )
+            .filter(
+                function (item) {
+                    return Number.isFinite(item.distance);
+                }
+            )
+            .sort(
+                function (a, b) {
+                    return a.distance - b.distance;
+                }
+            )
+            .slice(0, SPOT_LIST_MAX);
+
+    note.textContent =
+        origin.label +
+        (items.length >= SPOT_LIST_MAX
+            ? `（近い ${SPOT_LIST_MAX} か所）`
+            : `（${items.length}か所）`) +
+        (activeFilter.titles.length || activeFilter.keyword ? "・絞り込み中の作品だけ" : "");
+
+    if (items.length === 0) {
+        list.innerHTML = '<li class="course-empty">表示できる聖地がありません</li>';
+        return;
+    }
+
+    list.innerHTML =
+        items.map(
+            function (item) {
+                const spot = item.spot;
+                const title = getTitleName(spot);
+                const color = titleColorMap[title] || getTitleColor(title);
+                const image = getSpotImageSrc(spot.image_url);
+                const episode = getSpotEpisodeLabel(spot);
+
+                return `
+                    <li>
+                        <button type="button" class="spot-list-item" data-spot-id="${escapeHTML(String(spot.id))}">
+                            <span class="spot-list-thumb" style="background:${escapeHTML(color)};" aria-hidden="true">
+                                <span class="spot-list-initial">${escapeHTML(getTitleInitial(title))}</span>
+                                ${image ? `<img src="${escapeHTML(image)}" alt="" loading="lazy" onerror="this.remove()">` : ""}
+                            </span>
+                            <span class="spot-list-body">
+                                <span class="spot-list-name">${escapeHTML(spot.spot_name || "無題のスポット")}</span>
+                                <span class="spot-list-meta">
+                                    <span class="spot-list-title">${escapeHTML(title)}</span>
+                                    ${episode ? `<span class="popup-ep">${escapeHTML(episode)}</span>` : ""}
+                                </span>
+                            </span>
+                            <span class="spot-list-side">
+                                <span class="spot-list-distance">${formatDistance(item.distance)}</span>
+                                ${isSpotCollected(spot.id) ? '<span class="spot-list-done" aria-label="スタンプ獲得済み">✓ 獲得済み</span>' : ""}
+                            </span>
+                        </button>
+                    </li>
+                `;
+            }
+        ).join("");
+}
+
+window.openSpotList =
+    function () {
+        if (document.getElementById("side-menu").classList.contains("open")) {
+            window.toggleMenu();
+        }
+
+        renderSpotList();
+
+        const sheet = document.getElementById("spot-list-modal");
+        sheet.style.display = "block";
+        sheet.scrollTop = 0;
+        sheet.querySelector(".filter-header button").focus();
+    };
+
+window.closeSpotList =
+    function () {
+        closeSheet(
+            document.getElementById("spot-list-modal")
+        );
+    };
+
+document
+    .getElementById("spot-list")
+    .addEventListener(
+        "click",
+        function (event) {
+            const item = event.target.closest(".spot-list-item");
+            if (!item) {
+                return;
+            }
+
+            document.getElementById("spot-list-modal").style.display = "none";
+            goToSpot(item.dataset.spotId);
+        }
+    );
+
+
+// =========================================================
 // お気に入り（ハート）
 // ログインしている人だけ使える。DB（favorite）に保存する
 // =========================================================
@@ -1493,13 +1554,52 @@ async function loadFavoriteIds() {
     }
 }
 
+// お気に入りにした時、ハートがポンとはじけて、小さなハートが散る（style.css）
+function burstHeart(button) {
+    if (prefersReducedMotion()) {
+        return;
+    }
+
+    button.classList.remove("is-burst");
+    void button.offsetWidth;
+    button.classList.add("is-burst");
+
+    for (let i = 0; i < 6; i++) {
+        const heart = document.createElement("span");
+        heart.className = "heart-particle";
+        heart.setAttribute("aria-hidden", "true");
+        heart.textContent = "♥";
+        heart.style.setProperty("--heart-angle", (i * 60 - 150) + "deg");
+        button.appendChild(heart);
+    }
+
+    setTimeout(
+        function () {
+            button.classList.remove("is-burst");
+            button.querySelectorAll(".heart-particle").forEach(function (heart) {
+                heart.remove();
+            });
+        },
+        700
+    );
+}
+
+// ログインが必要な機能を押された時：「ログインする」ボタン付きで知らせ、
+// ログインしたら back（地図のアドレス）へ戻ってくる（login.js の next）
+function showLoginPrompt(message, back) {
+    window.showToast(message, "", {
+        label: "ログインする",
+        href: "login.html?next=" + encodeURIComponent(back)
+    });
+}
+
 async function toggleFavorite(button) {
     const spotId = button.dataset.spotId;
 
     if (!(await getCurrentUser())) {
-        window.showToast(
+        showLoginPrompt(
             "お気に入りはログインすると使えます",
-            "error"
+            "map.html?spot=" + encodeURIComponent(spotId)
         );
         return;
     }
@@ -1514,6 +1614,10 @@ async function toggleFavorite(button) {
     }
     syncFavoriteButtons();
     button.disabled = true;
+
+    if (on) {
+        burstHeart(button);
+    }
 
     try {
         await setFavorite(spotId, on);
@@ -1668,7 +1772,7 @@ function smoothMarker(marker) {
 
 // 詳細に隠れないよう、ピンを見えている部分の真ん中に置く
 // スマホ：詳細が画面下半分を覆うので上寄り／広い画面：詳細が左に出るので右寄り
-const SPOT_PANEL_SPACE = 360 + 16 * 2; // 左の詳細パネルの幅＋余白（style.css と合わせる）
+const SPOT_PANEL_SPACE = 440 + 16 * 2; // 左の詳細パネルの幅＋余白（style.css と合わせる）
 
 function getSpotPadding() {
     const isMobile =
@@ -1776,6 +1880,103 @@ geolocate.on("trackuserlocationstart", stopOrbit);
 
 
 // =========================================================
+// ルート案内の聖地に近づいたら知らせる（地図を開いている間だけ）
+// 同じ聖地では1回だけ。ルートから外した聖地は、また入れたら知らせる
+// =========================================================
+const NEAR_ROUTE_SPOT_METERS = 150;
+const notifiedNearSpotIds = new Set();
+
+// ルート案内をたたんだ時の1行（「次：宇治橋・あと約350m」）。
+// 次は、ルートの順でまだスタンプを押していない聖地。距離は現在地が分かる時だけ
+function updateRouteNext() {
+    const label = document.getElementById("route-next");
+    if (!label) {
+        return;
+    }
+
+    const next = selectedSpots.find(
+        function (spot) {
+            return !isSpotCollected(spot.id);
+        }
+    );
+
+    if (!next) {
+        label.textContent = selectedSpots.length > 0 ? "全部回りました" : "";
+        return;
+    }
+
+    const last = geolocate && geolocate._lastKnownPosition;
+    const meters =
+        last && last.coords
+            ? getDistanceMeters(
+                { latitude: last.coords.latitude, longitude: last.coords.longitude },
+                next
+            )
+            : NaN;
+
+    label.textContent =
+        "次：" + next.name +
+        (Number.isFinite(meters) ? "・あと約" + formatDistance(meters) : "");
+}
+
+window.updateRouteNext = updateRouteNext;
+
+geolocate.on(
+    "geolocate",
+    function (event) {
+        const here = {
+            latitude: event.coords.latitude,
+            longitude: event.coords.longitude
+        };
+
+        updateRouteNext();
+
+        // ルートから外した聖地は、また知らせられるようにする
+        const routeIds = new Set(
+            selectedSpots.map(function (spot) {
+                return String(spot.id);
+            })
+        );
+        notifiedNearSpotIds.forEach(function (id) {
+            if (!routeIds.has(id)) {
+                notifiedNearSpotIds.delete(id);
+            }
+        });
+
+        // ルートの順に、まだ知らせていない近くの聖地を探す
+        const near = selectedSpots.find(function (spot) {
+            return !notifiedNearSpotIds.has(String(spot.id)) &&
+                getDistanceMeters(here, spot) <= NEAR_ROUTE_SPOT_METERS;
+        });
+        if (!near) {
+            return;
+        }
+
+        notifiedNearSpotIds.add(String(near.id));
+        const meters = Math.round(getDistanceMeters(here, near) / 10) * 10;
+        window.showToast(
+            `もうすぐ「${near.name}」です（あと約${Math.max(10, meters)}m）`,
+            "",
+            {
+                label: "詳細を見る",
+                onClick: function () {
+                    goToSpot(near.id);
+                }
+            }
+        );
+
+        if (!prefersReducedMotion() && typeof navigator.vibrate === "function") {
+            try {
+                navigator.vibrate([60, 40, 60]);
+            } catch (error) {
+                // 震わせられない端末では何もしない
+            }
+        }
+    }
+);
+
+
+// =========================================================
 // ポップアップの「ルートに追加」ボタン
 // ルートに入っている間は「追加済み」にして押せなくする
 // =========================================================
@@ -1847,19 +2048,38 @@ function setSelectedMarker(spotId, selected) {
         "has-selected",
         Boolean(document.querySelector(".mapboxgl-marker.is-selected"))
     );
+
+    // 詳細を開いたピンは、重なりのまとめから外して見せる（閉じたらまたまとめる）
+    updateOverlapGroups();
+
+    // 3D表示の立体のピンも、同じように強調し直す（pin-3d-layer.js）
+    if (pin3DLayer) {
+        pin3DLayer.render();
+        map.triggerRepaint();
+    }
 }
 
-function createSpotPopup(html, data, longitude, latitude) {
+// buildHTML：詳細の中身を作る関数。全部のピンの詳細を先に作ると、
+// 登録した画像を全部読み込んでしまって重いので、初めて開いた時に作る
+function createSpotPopup(buildHTML, data, longitude, latitude) {
+    let built = false;
     const popup =
         new mapboxgl.Popup({
             offset: 25
         }).setHTML(
-            html
+            '<div class="popup-card"></div>'
         );
 
     popup.on(
         "open",
         function () {
+            if (!built) {
+                built = true;
+                popup.setHTML(
+                    buildHTML()
+                );
+            }
+
             // 閉じている間にルートやお気に入りが変わっていることがあるので合わせ直す
             syncRouteButtons(
                 popup.getElement()
@@ -1867,6 +2087,9 @@ function createSpotPopup(html, data, longitude, latitude) {
             syncFavoriteButtons(
                 popup.getElement()
             );
+
+            // スマホでは、なぞって閉じる・全画面に広げる
+            enableSheetDrag(popup);
 
             // 近くの聖地は開いた時に作る（スタンプの✓も最新にするため）
             renderNearbySpots(
@@ -2132,58 +2355,61 @@ function getMarkerMode() {
 let drawnMarkerMode = null;
 let drawnMarkerList = null;
 
-function drawMarkers(list) {
+// 作品名の1文字目（「【推しの子】」なら「推」。近くの聖地の一覧で、写真が無い時に使う）
+function getTitleInitial(title) {
+    const name = String(title || "").replace(/^[【「『（(\[〔\s]+/, "");
+    return Array.from(name)[0] || "";
+}
 
-    // 最後に描画した状態を記録
+// 一度出したピン（初めて出す時だけ、上から落ちてくる動きを付ける。ズームや絞り込みで描き直しても繰り返さない）
+const droppedPinIds = new Set();
+
+function drawMarkers(list) {
     drawnMarkerMode = getMarkerMode();
     drawnMarkerList = list;
 
-    spotMarkers.forEach(function (spotMarker) {
-        spotMarker.remove();
-    });
+    // 初めて出すピンを、少しずつずらして落とす
+    let dropCount = 0;
 
-spotMarkers = [];
+    spotMarkers.forEach(
+        function (spotMarker) {
+            spotMarker.remove();
+        }
+    );
 
-// 3Dレイヤーにも古いマーカーを残さない
-pin3DLayer.setMarkers([]);
+    spotMarkers = [];
 
-const zoom = map.getZoom();
+    // 重なったピンのまとめも作り直す
+    clearOverlapGroups();
 
-
-    // drawnMarkerMode = getMarkerMode();
-    // drawnMarkerList = list;
-
-    // spotMarkers.forEach(
-    //     function (spotMarker) {
-    //         spotMarker.remove();
-    //     }
-    // );
-
-    // spotMarkers = [];
-
-    // const zoom =
-    //     map.getZoom();
+    const zoom =
+        map.getZoom();
 
 
     // =====================================================
     // ズーム10以下はスポットをまとめて表示
     // =====================================================
-if (zoom <= 10) {
-    clusterSpots(list).forEach(function (group) {
-        const marker =
-            group.length === 1
-                ? createSingleDotMarker(group[0])
-                : createClusterMarker(group);
+    if (zoom <= 10) {
+        clusterSpots(list).forEach(
+            function (group) {
+                const marker =
+                    group.length === 1
+                        ? createSingleDotMarker(group[0])
+                        : createClusterMarker(group);
 
-        if (marker) {
-            spotMarkers.push(marker);
+                if (marker) {
+                    spotMarkers.push(marker);
+                }
+            }
+        );
+
+        // まとめて表示している間は、立体のピンは出さない
+        if (pin3DLayer) {
+            pin3DLayer.setMarkers(spotMarkers);
         }
-    });
 
-    pin3DLayer.setMarkers(spotMarkers);
-
-    return;
-}
+        return;
+    }
 
 
     // =====================================================
@@ -2256,122 +2482,134 @@ if (zoom <= 10) {
                     : "";
 
 
-            // =============================================
-            // stampsyori.jsからスタンプ取得ボタンを受け取る
-            // =============================================
-            const stampHTML =
-                typeof window
-                    .getStampPopupHTML ===
-                "function"
+            // 詳細の中身は、初めて開いた時に作る（画像も開くまで読み込まない。createSpotPopup）
+            const buildPopupHTML = function () {
+                // =============================================
+                // stampsyori.jsからスタンプ取得ボタンを受け取る
+                // =============================================
+                const stampHTML =
+                    typeof window
+                        .getStampPopupHTML ===
+                    "function"
 
-                    ? window
-                        .getStampPopupHTML(
-                            data
-                        )
+                        ? window
+                            .getStampPopupHTML(
+                                data
+                            )
 
-                    : "";
+                        : "";
 
 
-            // =============================================
-            // ポップアップ
-            // =============================================
-            // ルートに追加済みなら、描き直した後も「追加済み」のままにする
-            const isInRoute =
-                selectedSpots.some(
-                    function (item) {
-                        return item.id === data.id;
-                    }
-                );
-            const popupHTML = `
-                <div class="popup-card">
+                // =============================================
+                // ポップアップ
+                // =============================================
+                // ルートに追加済みなら、描き直した後も「追加済み」のままにする
+                const isInRoute =
+                    selectedSpots.some(
+                        function (item) {
+                            return item.id === data.id;
+                        }
+                    );
+                return `
+                    <div class="popup-card">
 
-                    <div class="popup-meta">
-                        <a
-                            class="popup-title"
-                            style="background:${titleColor};"
-                            href="work.html?title=${encodeURIComponent(titleName)}"
-                            title="「${escapeHTML(titleName)}」の作品ページを開く"
-                        >
-                            ${escapeHTML(titleName)}
-                        </a>
-                        ${getEpisodeBadgeHTML(data)}
-                        <div class="popup-actions">
-                            <button
-                                type="button"
-                                class="popup-icon-btn popup-fav"
-                                data-spot-id="${escapeHTML(String(data.id))}"
-                                aria-pressed="${favoriteIds.has(String(data.id))}"
-                                aria-label="お気に入り"
-                                title="お気に入り"
+                        <div class="popup-meta">
+                            <a
+                                class="popup-title"
+                                style="background:${titleColor};"
+                                href="work.html?title=${encodeURIComponent(titleName)}"
+                                title="「${escapeHTML(titleName)}」の作品ページを開く"
                             >
-                                ${HEART_ICON}
-                            </button>
-                            <button
-                                type="button"
-                                class="popup-icon-btn popup-share"
-                                data-spot-id="${escapeHTML(String(data.id))}"
-                                aria-label="この聖地を共有"
-                                title="共有"
-                            >
-                                ${SHARE_ICON}
-                            </button>
+                                ${escapeHTML(titleName)}
+                            </a>
+                            ${getEpisodeBadgeHTML(data, true)}
+                            <div class="popup-actions">
+                                <button
+                                    type="button"
+                                    class="popup-icon-btn popup-fav"
+                                    data-spot-id="${escapeHTML(String(data.id))}"
+                                    aria-pressed="${favoriteIds.has(String(data.id))}"
+                                    aria-label="お気に入り"
+                                    title="お気に入り"
+                                >
+                                    ${HEART_ICON}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="popup-icon-btn popup-share"
+                                    data-spot-id="${escapeHTML(String(data.id))}"
+                                    aria-label="この聖地を共有"
+                                    title="共有"
+                                >
+                                    ${SHARE_ICON}
+                                </button>
+                            </div>
                         </div>
+
+                        <h2 class="popup-spot">
+                            ${escapeHTML(spotName)}
+                        </h2>
+
+                        <div class="popup-section">
+                            <strong>
+                                登場シーン
+                            </strong>
+
+                            <p>
+                                ${escapeHTML(
+                                    data.scene ||
+                                    data.spot_info ||
+                                    "情報がありません"
+                                )}
+                            </p>
+                        </div>
+
+                        ${imageSrc
+                            ? `<div class="popup-image">
+                                <img
+                                    src="${escapeHTML(imageSrc)}"
+                                    alt="スポット画像"
+                                    onerror="this.parentNode.classList.add('no-image')"
+                                >
+                            </div>`
+                            : '<div class="popup-image no-image"></div>'}
+
+                        <!-- 訪れる前に（入れる時間・定休日・料金・アクセス・注意。入力がある時だけ） -->
+                        ${getVisitInfoHTML(data)}
+
+                        <!-- この作品のおすすめルート（開いた時に作る） -->
+                        <div class="popup-section popup-courses" data-spot-id="${escapeHTML(String(data.id))}" hidden></div>
+
+                        <!-- 近くの聖地（開いた時に作る） -->
+                        <div class="popup-section popup-nearby" hidden></div>
+
+                        <!-- よく使うボタン（スタンプ・ルートに追加）は、下までスクロールしなくても押せるよう、
+                             詳細の一番下に固定する（style.css の .popup-action-bar） -->
+                        <div class="popup-action-bar">
+
+                            <!-- スタンプ取得ボタン -->
+                            ${stampHTML}
+
+                            <div class="popup-buttons">
+
+                                ${homeButtonHTML}
+
+                                <button
+                                    type="button"
+                                    id="route-btn-${data.id}"
+                                    onclick="addSpotToRouteById('${data.id}')"
+                                    ${isInRoute ? "disabled" : ""}
+                                >
+                                    ${getRouteButtonHTML(isInRoute)}
+                                </button>
+
+                            </div>
+
+                        </div>
+
                     </div>
-
-                    <h2 class="popup-spot">
-                        ${escapeHTML(spotName)}
-                    </h2>
-
-                    <div class="popup-section">
-                        <strong>
-                            登場シーン
-                        </strong>
-
-                        <p>
-                            ${escapeHTML(
-                                data.scene ||
-                                data.spot_info ||
-                                "情報がありません"
-                            )}
-                        </p>
-                    </div>
-
-                    ${imageSrc
-                        ? `<div class="popup-image">
-                            <img
-                                src="${escapeHTML(imageSrc)}"
-                                alt="スポット画像"
-                                onerror="this.parentNode.classList.add('no-image')"
-                            >
-                        </div>`
-                        : '<div class="popup-image no-image"></div>'}
-
-                    <!-- スタンプ取得ボタン -->
-                    ${stampHTML}
-
-                    <div class="popup-buttons">
-
-                        ${homeButtonHTML}
-
-                        <button
-                            type="button"
-                            id="route-btn-${data.id}"
-                            onclick="addSpotToRouteById('${data.id}')"
-                            ${isInRoute ? "disabled" : ""}
-                        >
-                            ${getRouteButtonHTML(isInRoute)}
-                        </button>
-
-                    </div>
-
-                    <!-- この作品のおすすめルート（開いた時に作る） -->
-                    <div class="popup-section popup-courses" data-spot-id="${escapeHTML(String(data.id))}" hidden></div>
-
-                    <!-- 近くの聖地（開いた時に作る） -->
-                    <div class="popup-section popup-nearby" hidden></div>
-
-                </div>
-            `;
+                `;
+            };
 
 
             const spotMarker =
@@ -2385,7 +2623,7 @@ if (zoom <= 10) {
                     ])
                     .setPopup(
                         createSpotPopup(
-                            popupHTML,
+                            buildPopupHTML,
                             data,
                             longitude,
                             latitude
@@ -2403,11 +2641,39 @@ if (zoom <= 10) {
                 .dataset
                 .spotId =
                     String(data.id);
-            
+
+            // 立体のピンの色（作品の色）
             spotMarker
-              .getElement()
-               .dataset
-                 .pinColor = titleColor;
+                .getElement()
+                .dataset
+                .pinColor =
+                    titleColor;
+
+            // 読み上げでは、どの作品の聖地か分かるようにする
+            spotMarker
+                .getElement()
+                .setAttribute(
+                    "aria-label",
+                    titleName + "の聖地"
+                );
+
+            if (!droppedPinIds.has(String(data.id))) {
+                droppedPinIds.add(String(data.id));
+                const element = spotMarker.getElement();
+                element.classList.add("pin-drop");
+                element.style.setProperty(
+                    "--pin-delay",
+                    Math.min(dropCount * 18, 600) + "ms"
+                );
+                dropCount++;
+                element.addEventListener(
+                    "animationend",
+                    function () {
+                        element.classList.remove("pin-drop");
+                    },
+                    { once: true }
+                );
+            }
 
 
             if (
@@ -2432,9 +2698,305 @@ if (zoom <= 10) {
             );
         }
     );
-    // 生成した個別マーカーを3Dレイヤーと同期する
-pin3DLayer.setMarkers(spotMarkers);
+
+    showRouteOrderOnMarkers();
+
+    // 画面の上で重なったピンを1つにまとめる（3D表示の立体のピンにも、ここで今のピンを渡す）
+    updateOverlapGroups(true);
 }
+
+// ルート案内に入れた聖地のピンに、回る順番の番号を出す（入れかえ・削除のたびに付け直す）
+function showRouteOrderOnMarkers() {
+    document.querySelectorAll(".route-order-badge").forEach(function (badge) {
+        badge.remove();
+    });
+
+    const orderById = new Map();
+    selectedSpots.forEach(function (spot, index) {
+        if (!orderById.has(String(spot.id))) orderById.set(String(spot.id), index + 1);
+    });
+
+    spotMarkers.forEach(function (marker) {
+        const element = marker.getElement();
+        const order = orderById.get(element.dataset.spotId);
+        if (!order) return;
+
+        const badge = document.createElement("span");
+        badge.className = "route-order-badge";
+        badge.textContent = String(order);
+        badge.setAttribute("aria-hidden", "true");
+        element.appendChild(badge);
+    });
+}
+
+
+// =========================================================
+// 画面の上で重なったピンを、1つのピンにまとめる
+// ・作品の色で縦に塗り分ける（4作品までは全部の色。5作品以上は、聖地の多い3作品＋その他の灰色）
+// ・右上に、まとめた聖地の数を出す
+// ・押すと、ピンが分かれて見える所まで寄る。地図の一番近くでも重なったままなら、聖地を選ぶ一覧を出す
+// 1か所ずつのピンは消さずに隠すだけにする（開いている詳細やスタンプ・ルートの印がそのまま使えるように）
+// =========================================================
+const OVERLAP_RADIUS_PX_2D = 26;   // 2D のピン（幅 27px・高さ 41px）が重なって押しにくくなる近さ
+const OVERLAP_RADIUS_PX_3D = 32;   // 3D の立体のピン（高さ 42px）は少し大きい
+const OVERLAP_MAX_COLORS = 4;
+const OVERLAP_OTHER_COLOR = "#78909C";
+const PIN_PATH =
+    "M27,13.5 C27,19.07 20.25,27 14.75,34.5 C14.02,35.5 12.98,35.5 12.25,34.5 " +
+    "C6.75,27 0,19.22 0,13.5 C0,6.04 6.04,0 13.5,0 C20.96,0 27,6.04 27,13.5 Z";
+
+let overlapMarkers = [];
+let overlapSignature = "";
+let overlapGradientId = 0;
+
+function clearOverlapGroups() {
+    overlapMarkers.forEach(function (marker) {
+        marker.remove();
+    });
+    overlapMarkers = [];
+    overlapSignature = "";
+}
+
+// まとめたピンの色（作品の色。多い順。5作品以上は多い3作品＋灰色）
+function getOverlapColors(group) {
+    const counts = new Map();
+    group.forEach(function (spot) {
+        const title = getTitleName(spot);
+        counts.set(title, (counts.get(title) || 0) + 1);
+    });
+    const titles = Array.from(counts.keys()).sort(function (a, b) {
+        return counts.get(b) - counts.get(a) || a.localeCompare(b, "ja");
+    });
+    const colors = titles.map(function (title) {
+        return titleColorMap[title] || getTitleColor(title);
+    });
+    return {
+        titles: titles,
+        colors: colors.length > OVERLAP_MAX_COLORS
+            ? colors.slice(0, OVERLAP_MAX_COLORS - 1).concat(OVERLAP_OTHER_COLOR)
+            : colors
+    };
+}
+
+function createOverlapMarker(group, lngLat) {
+    const { titles, colors } = getOverlapColors(group);
+    const gradient = "overlap-pin-" + (++overlapGradientId);
+    const width = 100 / colors.length;
+    const stops = colors.map(function (color, index) {
+        return `<stop offset="${index * width}%" stop-color="${color}"/>` +
+            `<stop offset="${(index + 1) * width}%" stop-color="${color}"/>`;
+    }).join("");
+
+    const element = document.createElement("div");
+    element.className = "overlap-pin";
+    element.setAttribute("role", "button");
+    element.tabIndex = 0;
+    element.innerHTML =
+        `<svg viewBox="0 0 27 41" width="27" height="41" aria-hidden="true">` +
+        `<defs><linearGradient id="${gradient}" x1="0" x2="1" y1="0" y2="0">${stops}</linearGradient></defs>` +
+        `<ellipse cx="13.5" cy="37" rx="7" ry="2.5" fill="rgba(0,0,0,.2)"/>` +
+        `<path d="${PIN_PATH}" fill="url(#${gradient})" stroke="rgba(0,0,0,.25)" stroke-width=".6"/>` +
+        `<circle cx="13.5" cy="13.5" r="5.5" fill="#fff"/></svg>` +
+        `<span class="overlap-pin-count">${group.length}</span>`;
+
+    const ids = group.map(function (spot) { return String(spot.id); }).sort();
+    element.dataset.groupKey = "group:" + ids.join(",");
+    element.dataset.pinColors = colors.join(",");
+
+    const label =
+        titles.slice(0, 3).join("・") + (titles.length > 3 ? " ほか" : "") +
+        `の聖地 ${group.length}か所（重なっています。押すと分かれて見えます）`;
+    element.setAttribute("aria-label", label);
+    element.title = label;
+
+    onActivate(element, function () {
+        openOverlapGroup(group, lngLat);
+    });
+
+    return new mapboxgl.Marker({ element: element, anchor: "bottom" })
+        .setLngLat(lngLat)
+        .addTo(map);
+}
+
+// 押した時：寄れば分かれるなら寄る。地図の一番近く（ズーム18）でも重なったままなら、一覧から選ぶ
+function openOverlapGroup(group, lngLat) {
+    const radius = is3D ? OVERLAP_RADIUS_PX_3D : OVERLAP_RADIUS_PX_2D;
+    let farthest = 0;
+    group.forEach(function (a) {
+        group.forEach(function (b) {
+            farthest = Math.max(farthest, getDistanceMeters(
+                { latitude: a.coord.latitude, longitude: a.coord.longitude },
+                { latitude: b.coord.latitude, longitude: b.coord.longitude }
+            ));
+        });
+    });
+    // 一番近くまで寄った時に、ピンの間が何 px になるか（ズーム18で 1px ≒ 0.6m × cos(緯度)）
+    const metersPerPixelAtMax =
+        (40075016.686 * Math.cos(lngLat.lat * Math.PI / 180)) / (512 * Math.pow(2, map.getMaxZoom()));
+    const separatesAtMax = farthest / metersPerPixelAtMax > radius * 1.2;
+
+    if (!separatesAtMax || map.getZoom() >= map.getMaxZoom() - 0.2) {
+        showOverlapList(group, lngLat);
+        return;
+    }
+
+    // ピンの間が重ならない広さになるまで寄る（少なくとも1段）
+    const needed = Math.log2((radius * 1.6) / Math.max(farthest / metersPerPixelAtMax, 1));
+    const zoom = Math.min(
+        map.getMaxZoom(),
+        Math.max(map.getZoom() + 1, map.getMaxZoom() + needed)
+    );
+    map.easeTo({
+        center: lngLat,
+        zoom: zoom,
+        duration: prefersReducedMotion() ? 0 : 600
+    });
+}
+
+// 同じ所にある聖地を選ぶ一覧（押すとその聖地の詳細を開く）
+function showOverlapList(group, lngLat) {
+    if (hoverPopup) {
+        hoverPopup.remove();
+    }
+
+    const box = document.createElement("div");
+    box.className = "overlap-list";
+
+    const heading = document.createElement("p");
+    heading.className = "overlap-list-title";
+    heading.textContent = `この場所の聖地（${group.length}か所）`;
+    box.appendChild(heading);
+
+    group.forEach(function (spot) {
+        const title = getTitleName(spot);
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "overlap-list-item";
+
+        const dot = document.createElement("span");
+        dot.className = "overlap-list-dot";
+        dot.style.background = titleColorMap[title] || getTitleColor(title);
+
+        const name = document.createElement("span");
+        name.className = "overlap-list-name";
+        name.textContent = spot.spot_name || "無題のスポット";
+
+        const work = document.createElement("span");
+        work.className = "overlap-list-work";
+        work.textContent = title;
+
+        button.append(dot, name, work);
+        button.addEventListener("click", function () {
+            if (hoverPopup) {
+                hoverPopup.remove();
+                hoverPopup = null;
+            }
+            openSpotMarker(spot.id);
+        });
+        box.appendChild(button);
+    });
+
+    // ピンを押した同じクリックで閉じないよう、地図を押した時に閉じるのは「地図をクリックしたら…」の処理に任せる
+    hoverPopup = new mapboxgl.Popup({ offset: 30, maxWidth: "280px", className: "overlap-list-popup", closeOnClick: false })
+        .setLngLat(lngLat)
+        .setDOMContent(box)
+        .addTo(map);
+}
+
+// 今の見え方で重なっているピンを調べて、まとめ直す（地図を動かし終わった時・詳細を開け閉めした時）
+// force：ピンを描き直した後（まとめ方が同じでも 3D のピンに渡し直す）
+function updateOverlapGroups(force) {
+    if (drawnMarkerMode !== "spots") {
+        clearOverlapGroups();
+        if (pin3DLayer && force) {
+            pin3DLayer.setMarkers(spotMarkers);
+        }
+        return;
+    }
+
+    const radius = is3D ? OVERLAP_RADIUS_PX_3D : OVERLAP_RADIUS_PX_2D;
+    const spotById = new Map(currentSpots.map(function (spot) { return [String(spot.id), spot]; }));
+
+    // 画面の中（と少し外）のピンだけを調べる。詳細を開いているピンはまとめない
+    // （3D では遠くのピンが地平線の近くに集まって見えるので、画面の外まで調べると、離れた聖地どうしをまとめてしまう）
+    const canvas = map.getCanvas();
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const margin = 60;
+    const candidates = [];
+    spotMarkers.forEach(function (marker) {
+        const element = marker.getElement();
+        const spot = spotById.get(element.dataset.spotId);
+        if (!spot || element.classList.contains("is-selected")) {
+            return;
+        }
+        const point = map.project(marker.getLngLat());
+        if (
+            !Number.isFinite(point.x) || !Number.isFinite(point.y) ||
+            point.x < -margin || point.x > width + margin ||
+            point.y < -margin || point.y > height + margin
+        ) {
+            return;
+        }
+        candidates.push({ marker: marker, spot: spot, point: point });
+    });
+
+    // 近いものからまとめる（件数が少ないので、全部の組み合わせを調べる）
+    const groups = [];
+    candidates.forEach(function (item) {
+        const near = groups.find(function (group) {
+            return Math.hypot(group.x - item.point.x, group.y - item.point.y) <= radius;
+        });
+        if (near) {
+            near.items.push(item);
+        } else {
+            groups.push({ x: item.point.x, y: item.point.y, items: [item] });
+        }
+    });
+    const overlapping = groups.filter(function (group) { return group.items.length > 1; });
+
+    const signature = (is3D ? "3d|" : "2d|") + overlapping.map(function (group) {
+        return group.items.map(function (item) { return item.spot.id; }).sort().join(",");
+    }).sort().join("|");
+    if (signature === overlapSignature && !force) {
+        return;
+    }
+
+    clearOverlapGroups();
+    overlapSignature = signature;
+
+    const hidden = new Set();
+    overlapping.forEach(function (group) {
+        const spotsInGroup = group.items.map(function (item) { return item.spot; });
+        // 一番手前（画面の下）の聖地の場所に置く
+        const front = group.items.reduce(function (a, b) { return b.point.y > a.point.y ? b : a; });
+        overlapMarkers.push(createOverlapMarker(spotsInGroup, front.marker.getLngLat()));
+        group.items.forEach(function (item) {
+            hidden.add(item.marker);
+        });
+    });
+
+    spotMarkers.forEach(function (marker) {
+        const element = marker.getElement();
+        const isHidden = hidden.has(marker);
+        element.classList.toggle("is-overlapped", isHidden);
+        if (isHidden) {
+            // 隠したピンは落ちてくる動きが終わらないので、印を外しておく
+            element.classList.remove("pin-drop");
+            element.dataset.overlapped = "1";
+        } else {
+            delete element.dataset.overlapped;
+        }
+    });
+
+    if (pin3DLayer) {
+        pin3DLayer.setMarkers(spotMarkers.concat(overlapMarkers));
+    }
+}
+
+map.on("moveend", function () {
+    updateOverlapGroups();
+});
 
 
 // =========================================================
@@ -2608,8 +3170,9 @@ function initializeSearchBox() {
             marker:
                 true,
 
+            // スマホの幅でも切れずに読める長さにする
             placeholder:
-                "場所・住所・駅名・スポットを検索",
+                "聖地・駅・住所で検索",
 
             localGeocoder:
                 searchCustomSpots,
@@ -2678,6 +3241,15 @@ function initializeSearchBox() {
         geocoder.onAdd(map)
     );
 
+    // 入力を消すボタンの説明（読み上げ）も日本語にする
+    container
+        .querySelectorAll(".mapboxgl-ctrl-geocoder--button")
+        .forEach(
+            function (button) {
+                button.setAttribute("aria-label", "入力を消す");
+            }
+        );
+
 
     geocoder.on(
         "result",
@@ -2720,23 +3292,40 @@ function initializeSearchBox() {
                     }
 
                     // 地図の移動（ズーム）が終わるとピンが描き直されて
-                    // 先に開いた吹き出しが消えるため、移動と描画が終わってから開く
+                    // 先に開いた吹き出しが消えるため、移動と描画が終わってから開く。
+                    // 地図の絵を全部読み終わる（idle）まで待つと、電波が弱い時になかなか開かないので、
+                    // 移動が終わって少ししたら、読み終わっていなくても開く
+                    const openSelectedPopup =
+                        function () {
+                            if (
+                                spotMarkers
+                                    .length > 0 &&
+                                spotMarkers[0].getPopup() &&
+                                !spotMarkers[0].getPopup().isOpen()
+                            ) {
+                                spotMarkers[0]
+                                    .togglePopup();
+                            }
+                        };
+
                     setTimeout(
                         function () {
                             map.once(
                                 "idle",
-                                function () {
-                                    if (
-                                        spotMarkers
-                                            .length > 0 &&
-                                        spotMarkers[0].getPopup() &&
-                                        !spotMarkers[0].getPopup().isOpen()
-                                    ) {
-                                        spotMarkers[0]
-                                            .togglePopup();
-                                    }
-                                }
+                                openSelectedPopup
                             );
+
+                            if (map.isMoving()) {
+                                map.once(
+                                    "moveend",
+                                    function () {
+                                        setTimeout(openSelectedPopup, 300);
+                                    }
+                                );
+                            } else {
+                                // 動きを減らす設定などで、移動がもう終わっている時
+                                setTimeout(openSelectedPopup, 300);
+                            }
                         },
                         100
                     );
@@ -2834,9 +3423,12 @@ map.on(
         // ログインしていればお気に入りを読み込む（待たずに進める）
         loadFavoriteIds();
 
+        // AI でつくるマイプラン（おすすめルートの画面の下）
+        startMyPlan();
+
         // おすすめルートを読み込む（待たずに進める）。
         // 作品ページの「このルートで巡る」（map.html?course=ID）から来た時は、読み込めたらそのルートを始める
-        loadCourses().then(
+        coursesReady.then(
             function () {
                 const courseId =
                     new URLSearchParams(location.search).get("course");
@@ -2862,15 +3454,21 @@ map.on(
             );
         }
 
-        // 現在地取得
-        try {
-            if (!openedSpot) geolocate.trigger();
-        } catch (error) {
-            console.warn(
-                "現在地の取得に失敗:",
-                error
-            );
-        }
+        // 現在地取得（許可済みならすぐ取る。まだなら、使い方の説明や理由を出してから聞く。onboarding.js）
+        // 聖地を指定して開いた時は、地図がその聖地から動かないよう、現在地へは動かさない
+        startOnboarding(
+            function () {
+                try {
+                    geolocate.trigger();
+                } catch (error) {
+                    console.warn(
+                        "現在地の取得に失敗:",
+                        error
+                    );
+                }
+            },
+            !openedSpot
+        );
     }
 );
 
@@ -2921,11 +3519,16 @@ window.toggleView =
         if (!is3D) {
             map.touchPitch.enable();
 
+            // 傾ける前に 3D にしておく（2D の間は傾きを 0 に戻す決まりなので、先に傾くと戻されてしまう）
+            is3D = true;
+
             map.easeTo({
                 pitch: 70,
                 bearing: -20,
                 duration: 1500
             });
+            // 傾け終わる前に現在地ボタンを押しても 3D のまま動く
+            keepGeolocatePitch(70, true);
 
             button.classList.add(
                 "mode3d"
@@ -2938,8 +3541,17 @@ window.toggleView =
                 "true"
             );
 
-            is3D = true;
-            pin3DLayer.refreshVisibility(true);
+            show3DHintOnce();
+
+            // 3D表示の時だけ使うもの（キャラクター・立体のピン）を、初めての時に読み込む
+            loadThreeDExtras();
+
+            // 2D と 3D でピンの大きさが違うので、重なりのまとめ方を合わせ直す
+            updateOverlapGroups(true);
+
+            if (pin3DLayer) {
+                pin3DLayer.refreshVisibility();
+            }
         } else {
             map.touchPitch.disable();
 
@@ -2950,6 +3562,7 @@ window.toggleView =
                 bearing: 0,
                 duration: 1500
             });
+            keepGeolocatePitch(0, false);
 
             button.classList.remove(
                 "mode3d"
@@ -2962,10 +3575,42 @@ window.toggleView =
             );
 
             is3D = false;
-            pin3DLayer.refreshVisibility(true);
+
+            // 2D と 3D でピンの大きさが違うので、重なりのまとめ方を合わせ直す
+            updateOverlapGroups(true);
+
+            if (pin3DLayer) {
+                pin3DLayer.refreshVisibility();
+            }
         }
     };
 
+
+// =========================================================
+// 3D の向き・角度の変え方を、初めて 3D にした時だけ知らせる
+// （ボタンを増やすと画面がごちゃつくので、指やマウスでの変え方を伝える）
+// =========================================================
+const HINT_3D_KEY = "seiti3DHintShown";
+
+function show3DHintOnce() {
+    try {
+        if (localStorage.getItem(HINT_3D_KEY)) {
+            return;
+        }
+        localStorage.setItem(HINT_3D_KEY, "1");
+    } catch (error) {
+        // 覚えておけない環境では、毎回出さないよう何もしない
+        return;
+    }
+
+    // 指で触る端末（スマホ・タブレット）と、マウスの端末（パソコン）で、操作の書き方を変える
+    const touch = window.matchMedia("(pointer: coarse)").matches;
+    window.showToast(
+        touch
+            ? "2本指でひねると向き、上下になぞると角度が変わります"
+            : "右クリックしたまま動かすと、向きと角度が変わります"
+    );
+}
 
 // =========================================================
 // 現在地ボタン
@@ -2981,10 +3626,26 @@ window.moveToCurrentLocation =
 // =========================================================
 
 // 今かかっている絞り込み（チェックした作品名と、入力したキーワード）
+// episodes：作品名 → 選んだ話の目印（episode.js の getSpotEpisodeKey）。無い・空ならその作品の全部
 const activeFilter = {
     titles: [],
+    episodes: {},
     keyword: ""
 };
+
+// 作品で選んだ話に入る聖地か（話を選んでいなければ全部）
+function matchesEpisodeFilter(spot, title) {
+    const keys = activeFilter.episodes[title];
+    return !keys || keys.length === 0 || keys.includes(getSpotEpisodeKey(spot));
+}
+
+// 札に出す、選んだ話（「1期 EP3・EP5」。選んでいなければ空文字）
+function getEpisodeFilterText(title) {
+    const keys = activeFilter.episodes[title] || [];
+    if (keys.length === 0) return "";
+    if (keys.length > 3) return keys.length + "話分";
+    return keys.slice().sort(compareEpisodeKeys).map(formatEpisodeKey).join("・");
+}
 
 // 絞り込みの条件に合うスポットを返す（条件が無ければ全件）
 function filterSpots() {
@@ -3010,7 +3671,8 @@ function filterSpots() {
                 normalizeText(rawTitle).includes(keyword);
 
             const isMatchCheck =
-                activeFilter.titles.includes(rawTitle);
+                activeFilter.titles.includes(rawTitle) &&
+                matchesEpisodeFilter(spot, rawTitle);
 
             return isMatchKeyword || isMatchCheck;
         }
@@ -3055,8 +3717,10 @@ function renderFilterChips() {
                                     return item !== title;
                                 }
                             );
+                        delete activeFilter.episodes[title];
                         applyActiveFilter();
-                    }
+                    },
+                    getEpisodeFilterText(title)
                 )
             );
         }
@@ -3087,7 +3751,8 @@ function renderFilterChips() {
         );
 }
 
-function createFilterChip(label, color, onRemove) {
+// detail：作品名のあとに付ける選んだ話（長い作品名は省略しても、こちらは必ず見せる）
+function createFilterChip(label, color, onRemove, detail) {
     const chip =
         document.createElement(
             "button"
@@ -3096,7 +3761,7 @@ function createFilterChip(label, color, onRemove) {
     chip.className = "filter-chip";
     chip.setAttribute(
         "aria-label",
-        `${label} の絞り込みを解除`
+        `${label}${detail ? " " + detail : ""} の絞り込みを解除`
     );
 
     if (color) {
@@ -3109,11 +3774,23 @@ function createFilterChip(label, color, onRemove) {
         chip.appendChild(dot);
     }
 
-    chip.appendChild(
-        document.createTextNode(
-            label
-        )
-    );
+    const name =
+        document.createElement(
+            "span"
+        );
+    name.className = "chip-label";
+    name.textContent = label;
+    chip.appendChild(name);
+
+    if (detail) {
+        const episodes =
+            document.createElement(
+                "span"
+            );
+        episodes.className = "chip-detail";
+        episodes.textContent = detail;
+        chip.appendChild(episodes);
+    }
 
     const cross =
         document.createElement(
@@ -3202,11 +3879,102 @@ function populateAnimeList() {
                 count
             );
 
+            const item =
+                document.createElement(
+                    "div"
+                );
+            item.className = "anime-item";
+            item.dataset.title = title;
+            item.appendChild(label);
+
+            // 作品にチェックを付けると、何期の何話かでも選べる
+            const episodePanel =
+                createEpisodePanel(title);
+            if (episodePanel) {
+                episodePanel.hidden = !checkbox.checked;
+                checkbox.addEventListener(
+                    "change",
+                    function () {
+                        episodePanel.hidden = !checkbox.checked;
+                    }
+                );
+                item.appendChild(episodePanel);
+            }
+
             listContainer.appendChild(
-                label
+                item
             );
         }
     );
+}
+
+// 作品の話の選択欄（話が2つ以上分かる作品だけ。押すと選ぶ・もう一度押すと外す）
+function createEpisodePanel(title) {
+    const counts = {};
+    spots.forEach(
+        function (spot) {
+            if (getTitleName(spot) !== title) {
+                return;
+            }
+            const key = getSpotEpisodeKey(spot);
+            counts[key] = (counts[key] || 0) + 1;
+        }
+    );
+
+    const keys = Object.keys(counts).sort(compareEpisodeKeys);
+    const known = keys.filter(
+        function (key) {
+            return key !== "";
+        }
+    );
+    if (known.length < 2) {
+        return null;
+    }
+
+    const selected = activeFilter.episodes[title] || [];
+
+    const panel =
+        document.createElement(
+            "div"
+        );
+    panel.className = "episode-filter";
+    panel.setAttribute("role", "group");
+    panel.setAttribute("aria-label", title + " の話で絞り込む");
+
+    const hint =
+        document.createElement(
+            "p"
+        );
+    hint.className = "episode-filter-hint";
+    hint.textContent = "話で絞り込む（選ばなければ全部）";
+    panel.appendChild(hint);
+
+    keys.forEach(
+        function (key) {
+            const option =
+                document.createElement(
+                    "button"
+                );
+            option.type = "button";
+            option.className = "episode-option";
+            option.dataset.key = key;
+            option.setAttribute(
+                "aria-pressed",
+                String(selected.includes(key))
+            );
+            option.textContent =
+                formatEpisodeKey(key) + "（" + counts[key] + "）";
+            option.onclick = function () {
+                option.setAttribute(
+                    "aria-pressed",
+                    String(option.getAttribute("aria-pressed") !== "true")
+                );
+            };
+            panel.appendChild(option);
+        }
+    );
+
+    return panel;
 }
 
 // =========================================================
@@ -3252,14 +4020,34 @@ window.openFilter =
 // =========================================================
 window.closeFilter =
     function () {
-        document
-            .getElementById(
+        closeSheet(
+            document.getElementById(
                 "filter-modal"
             )
-            .style
-            .display =
-                "none";
+        );
     };
+
+// 下から出るシート（絞り込み・おすすめルート）を、下へ引っ込めてから閉じる（style.css の is-closing）
+// 動きを減らす設定の人には、すぐ閉じる
+function closeSheet(sheet) {
+    if (!sheet || sheet.style.display === "none") {
+        return;
+    }
+
+    if (prefersReducedMotion()) {
+        sheet.style.display = "none";
+        return;
+    }
+
+    sheet.classList.add("is-closing");
+    setTimeout(
+        function () {
+            sheet.classList.remove("is-closing");
+            sheet.style.display = "none";
+        },
+        200
+    );
+}
 
 
 // =========================================================
@@ -3276,20 +4064,17 @@ window.searchAnime =
 
         document
             .querySelectorAll(
-                "#anime-list label"
+                "#anime-list .anime-item"
             )
             .forEach(
-                function (label) {
+                function (item) {
                     const title =
                         normalizeText(
-                            label.querySelector("input").value
+                            item.dataset.title
                         );
 
-                    // "" にするとCSS側の表示方法（flex）に戻る
-                    label.style.display =
-                        title.includes(keyword)
-                            ? ""
-                            : "none";
+                    item.hidden =
+                        !title.includes(keyword);
                 }
             );
     };
@@ -3301,6 +4086,7 @@ window.applyFilter =
     function () {
         const previous = {
             titles: activeFilter.titles.slice(),
+            episodes: activeFilter.episodes,
             keyword: activeFilter.keyword
         };
 
@@ -3323,12 +4109,40 @@ window.applyFilter =
                 }
             );
 
+        // チェックした作品ごとに、選んだ話
+        activeFilter.episodes = {};
+        document
+            .querySelectorAll(
+                "#anime-list .anime-item"
+            )
+            .forEach(
+                function (item) {
+                    const title = item.dataset.title;
+                    if (!activeFilter.titles.includes(title)) {
+                        return;
+                    }
+                    const keys = Array.from(
+                        item.querySelectorAll(
+                            ".episode-option[aria-pressed='true']"
+                        )
+                    ).map(
+                        function (option) {
+                            return option.dataset.key;
+                        }
+                    );
+                    if (keys.length > 0) {
+                        activeFilter.episodes[title] = keys;
+                    }
+                }
+            );
+
         // 1件も無い時は元の絞り込みに戻し、画面は閉じずに知らせる
         if (filterSpots().length === 0) {
             activeFilter.titles = previous.titles;
+            activeFilter.episodes = previous.episodes;
             activeFilter.keyword = previous.keyword;
             window.showToast(
-                "入力された作品名のスポットは見つかりませんでした",
+                "条件に合うスポットは見つかりませんでした",
                 "error"
             );
             return;
@@ -3336,7 +4150,29 @@ window.applyFilter =
 
         applyActiveFilter();
         window.closeFilter();
+        fitFilteredSpots();
     };
+
+// 絞り込んだ聖地が全部見えるように地図を動かす
+function fitFilteredSpots() {
+    if (currentSpots.length === 0 || currentSpots === spots) {
+        return;
+    }
+
+    const bounds = new mapboxgl.LngLatBounds();
+    currentSpots.forEach(
+        function (spot) {
+            bounds.extend([Number(spot.coord.longitude), Number(spot.coord.latitude)]);
+        }
+    );
+    map.fitBounds(
+        bounds,
+        getFlyOptions({
+            padding: 80,
+            maxZoom: 15
+        })
+    );
+}
 
 // =========================================================
 // 絞り込みリセット
@@ -3357,9 +4193,30 @@ window.resetFilter =
                 }
             );
 
+        document
+            .querySelectorAll(
+                "#anime-list .episode-option"
+            )
+            .forEach(
+                function (option) {
+                    option.setAttribute("aria-pressed", "false");
+                }
+            );
+
+        document
+            .querySelectorAll(
+                "#anime-list .episode-filter"
+            )
+            .forEach(
+                function (panel) {
+                    panel.hidden = true;
+                }
+            );
+
         window.searchAnime();
 
         activeFilter.titles = [];
+        activeFilter.episodes = {};
         activeFilter.keyword = "";
         applyActiveFilter();
     };
@@ -3469,6 +4326,11 @@ window.addSpotToRouteById =
             );
         }
 
+        // 道に沿ったルートを出している時は、足した聖地も入れて作り直す
+        if (isMapboxRouteActive) {
+            generateMapboxRoute();
+        }
+
     };
 
 
@@ -3492,6 +4354,14 @@ window.removeSpotFromRoute =
                 index,
                 1
             );
+            // 道に沿ったルートを出している時は、残りの聖地で作り直す（無くなったら解除）
+            if (isMapboxRouteActive) {
+                if (selectedSpots.length >= 1) {
+                    generateMapboxRoute();
+                } else {
+                    unsetMapboxRoute(false);
+                }
+            }
 
             updateRouteList();
             syncRouteButtons();
@@ -3515,8 +4385,55 @@ window.removeSpotFromRoute =
 // =========================================================
 // ルートを全削除
 // =========================================================
+// ---------- 消したルートを元に戻す ----------
+// 消す前のルート（聖地の並びと、道に沿ったルートを出していたか）
+function snapshotRoute() {
+    return {
+        spots: selectedSpots.map(function (spot) {
+            return Object.assign({}, spot);
+        }),
+        active: isMapboxRouteActive
+    };
+}
+
+function restoreRoute(snapshot) {
+    selectedSpots.length = 0;
+    snapshot.spots.forEach(function (spot) {
+        selectedSpots.push(spot);
+    });
+
+    document.getElementById("routePanel").style.display =
+        selectedSpots.length > 0 ? "flex" : "none";
+    updateRouteList();
+    syncRouteButtons();
+
+    // 道に沿ったルートを出していたら、作り直す
+    if (snapshot.active && selectedSpots.length > 0) {
+        generateMapboxRoute();
+    }
+
+    window.showToast("元に戻しました");
+}
+
+// ルート案内の「全削除」・「×」は、押し間違えても戻せるように「元に戻す」を出す
+function removeWithUndo(message, remove) {
+    const snapshot = snapshotRoute();
+    if (snapshot.spots.length === 0) {
+        return;
+    }
+    remove();
+    window.showToast(message, "", {
+        label: "元に戻す",
+        onClick: function () {
+            restoreRoute(snapshot);
+        }
+    });
+}
+
 window.clearSelectedSpots =
     function () {
+        unsetMapboxRoute(false);
+
         selectedSpots.length = 0;
 
         updateRouteList();
@@ -3547,6 +4464,10 @@ function updateRouteList() {
 
     routeList.innerHTML = "";
 
+    // ピンの回る順番の番号と、回る順に結ぶ線
+    showRouteOrderOnMarkers();
+    updateRoutePreview();
+
     // パネルの見出しに件数を表示
     const routeCount =
         document.getElementById(
@@ -3557,8 +4478,11 @@ function updateRouteList() {
             selectedSpots.length;
     }
 
-    // ルートが変わったら「このルートを保存」を押せるようにする
+    // ルートが変わったら「保存」を押せるようにする
     updateSaveRouteButton();
+
+    // たたんだ時の「次：○○」
+    updateRouteNext();
 
     if (
         selectedSpots.length === 0
@@ -3571,12 +4495,14 @@ function updateRouteList() {
 
     selectedSpots.forEach(
         function (spot, index) {
-            // 前の聖地（1か所目は現在地）からの行き方
+            // 前の聖地（1か所目は現在地）からの行き方。現在地から出発しない時は、1か所目の上に「現在地から出発する」を出す
             routeList.appendChild(
-                createRouteLeg(
-                    selectedSpots[index - 1] || null,
-                    spot
-                )
+                index === 0 && !routeFromCurrent
+                    ? createRouteOriginAdd()
+                    : createRouteLeg(
+                        selectedSpots[index - 1] || null,
+                        spot
+                    )
             );
 
             const routeItem =
@@ -3590,11 +4516,15 @@ function updateRouteList() {
             routeItem.dataset.index =
                 index;
 
-            // ドラッグで並べ替えるためのつまみ（スマホのタッチでも動く）
+            // 並べ替えのつまみ（ドラッグで動かす。スマホのタッチでも動く）。
+            // キーボードでは、つまみを選んで ↑↓ キーで1つずつ動かす
             const handle =
                 document.createElement(
-                    "span"
+                    "button"
                 );
+
+            handle.type =
+                "button";
 
             handle.className =
                 "route-handle";
@@ -3603,16 +4533,39 @@ function updateRouteList() {
                 "⠿";
 
             handle.title =
-                "ドラッグで並べ替え";
+                "つまんで動かすと順番を変えられます";
 
             handle.setAttribute(
-                "aria-hidden",
-                "true"
+                "aria-label",
+                `「${spot.name}」の順番を変える（上下の矢印キーで動かせます）`
             );
 
             handle.addEventListener(
                 "pointerdown",
                 startRouteDrag
+            );
+
+            handle.addEventListener(
+                "keydown",
+                function (event) {
+                    const step =
+                        event.key === "ArrowUp" ? -1
+                            : event.key === "ArrowDown" ? 1
+                                : 0;
+                    const toIndex = index + step;
+                    if (!step || toIndex < 0 || toIndex >= selectedSpots.length) {
+                        return;
+                    }
+                    event.preventDefault();
+                    window.moveRouteSpot(index, toIndex);
+                    // 続けて動かせるように、動かした先のつまみを選んだままにする
+                    const moved = document.querySelector(
+                        `#routeList .routeItem[data-index="${toIndex}"] .route-handle`
+                    );
+                    if (moved) {
+                        moved.focus();
+                    }
+                }
             );
 
             const nameSpan =
@@ -3625,33 +4578,6 @@ function updateRouteList() {
 
             nameSpan.textContent =
                 `${index + 1}. ${spot.name}`;
-
-            // ▲▼ボタンで1つずつ入れ替える
-            const moveButtons =
-                document.createElement(
-                    "div"
-                );
-
-            moveButtons.className =
-                "route-move";
-
-            moveButtons.appendChild(
-                createRouteMoveButton(
-                    "▲",
-                    `「${spot.name}」を1つ前へ`,
-                    index,
-                    index - 1
-                )
-            );
-
-            moveButtons.appendChild(
-                createRouteMoveButton(
-                    "▼",
-                    `「${spot.name}」を1つ後ろへ`,
-                    index,
-                    index + 1
-                )
-            );
 
             const removeButton =
                 document.createElement(
@@ -3674,8 +4600,13 @@ function updateRouteList() {
 
             removeButton.onclick =
                 function () {
-                    window.removeSpotFromRoute(
-                        spot.id
+                    removeWithUndo(
+                        `「${spot.name}」をルートから外しました`,
+                        function () {
+                            window.removeSpotFromRoute(
+                                spot.id
+                            );
+                        }
                     );
                 };
 
@@ -3685,10 +4616,6 @@ function updateRouteList() {
 
             routeItem.appendChild(
                 nameSpan
-            );
-
-            routeItem.appendChild(
-                moveButtons
             );
 
             routeItem.appendChild(
@@ -3712,15 +4639,43 @@ function updateRouteList() {
 // これより遠い区間は、電車で行くのをすすめる
 const TRANSIT_SUGGEST_METERS = 2000;
 
-// 道は直線より長いので 1.3 倍、歩く速さは分速 80m として目安を出す
-function estimateWalk(meters) {
-    const walkMeters = meters * 1.3;
+// 「地図上にルートを生成」で Mapbox から返ってきた、区間ごとの実際の道のりと時間
+// キーは「前の聖地のID>次の聖地のID」（現在地からの区間は「current>次の聖地のID」）、値は { distance: メートル, duration: 秒 }
+// （ルートを解除したら消す。並べ替えて区間が変わったら、その区間は目安に戻る）
+const mapboxRouteLegs = new Map();
+
+// 生成したルートの区間ごとの色（1→2、2→3…の順に使い、足りなければくり返す）
+const ROUTE_LEG_COLORS = ["#1e88e5", "#43a047", "#fb8c00", "#8e24aa", "#e53935", "#00897b", "#6d4c41", "#3949ab"];
+
+function routeLegColor(index) {
+    return ROUTE_LEG_COLORS[index % ROUTE_LEG_COLORS.length];
+}
+
+function routeLegKey(from, to) {
+    return (from ? String(from.id) : "current") + ">" + String(to.id);
+}
+
+// 「57分」「1時間」「27時間48分」（1時間以上は時間と分で出す）
+function formatMinutes(minutes) {
+    const total = Math.max(1, Math.round(minutes));
+    if (total < 60) return total + "分";
+    const rest = total % 60;
+    return Math.floor(total / 60) + "時間" + (rest ? rest + "分" : "");
+}
+
+function formatWalk(walkMeters, minutes) {
     return {
         distanceText: walkMeters < 1000
             ? "約" + Math.round(walkMeters / 10) * 10 + "m"
             : "約" + (walkMeters / 1000).toFixed(1) + "km",
-        minutes: Math.max(1, Math.round(walkMeters / 80))
+        timeText: formatMinutes(minutes)
     };
+}
+
+// 道は直線より長いので 1.3 倍、歩く速さは分速 80m として目安を出す
+function estimateWalk(meters) {
+    const walkMeters = meters * 1.3;
+    return formatWalk(walkMeters, walkMeters / 80);
 }
 
 // Googleマップの乗換案内のURL（from が無ければ現在地から）
@@ -3758,18 +4713,46 @@ function createRouteLeg(from, to) {
     if (from) {
         const meters =
             getDistanceMeters(from, to);
+
+        // ルートを生成してあれば、その実際の道のりと時間（画面下に出る合計と同じ）。
+        // 無ければ直線から出した目安
+        const actual =
+            mapboxRouteLegs.get(routeLegKey(from, to));
         const walk =
-            estimateWalk(meters);
+            actual
+                ? formatWalk(actual.distance, actual.duration / 60)
+                : estimateWalk(meters);
 
         isFar =
             meters >= TRANSIT_SUGGEST_METERS;
 
+        if (actual) {
+            leg.classList.add("has-route-color");
+            leg.style.setProperty("--leg-color", actual.color);
+        }
+
+        const notes = [];
+        if (!actual) notes.push("目安");
+        if (isFar) notes.push("電車がおすすめ");
+
         info.textContent =
-            `徒歩 ${walk.distanceText}・${walk.minutes}分` +
-            (isFar ? "（電車がおすすめ）" : "");
+            `徒歩 ${walk.distanceText}・${walk.timeText}` +
+            (notes.length > 0 ? "（" + notes.join("・") + "）" : "");
     } else {
-        info.textContent =
-            "現在地から";
+        // 現在地から生成したルートなら、その道のりと時間も出す
+        const actual =
+            mapboxRouteLegs.get(routeLegKey(null, to));
+
+        if (actual) {
+            const walk = formatWalk(actual.distance, actual.duration / 60);
+            leg.classList.add("has-route-color");
+            leg.style.setProperty("--leg-color", actual.color);
+            info.textContent =
+                `現在地から 徒歩 ${walk.distanceText}・${walk.timeText}`;
+        } else {
+            info.textContent =
+                "現在地から";
+        }
     }
 
     const transit =
@@ -3803,56 +4786,80 @@ function createRouteLeg(from, to) {
         transit
     );
 
+    // 現在地からの区間は × で外せる（1か所目から出発する）
+    if (!from) {
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "route-origin-remove";
+        remove.textContent = "×";
+        remove.title = "現在地からの出発を外す";
+        remove.setAttribute("aria-label", "現在地からの出発を外す（1か所目から出発する）");
+        remove.addEventListener("click", function () {
+            setRouteFromCurrent(false);
+        });
+        leg.append(remove);
+    }
+
     return leg;
 }
 
+// 現在地から出発しない時に、1か所目の上に出す「＋ 現在地から出発する」
+function createRouteOriginAdd() {
+    const row = document.createElement("div");
+    row.className = "route-leg route-origin-off";
 
-// ▲▼ボタンを作る（端の項目では押せないようにする）
-function createRouteMoveButton(label, ariaLabel, fromIndex, toIndex) {
-    const button =
-        document.createElement(
-            "button"
-        );
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "route-origin-add";
+    add.textContent = "＋ 現在地から出発する";
+    add.addEventListener("click", function () {
+        setRouteFromCurrent(true);
+    });
 
-    button.type =
-        "button";
+    row.append(add);
+    return row;
+}
 
-    button.textContent =
-        label;
+// =========================================================
+// ルートを現在地から出発するか（ルート案内の「現在地から」の × で外せる。端末に覚えておく）
+// 外すと、1か所目から出発する（地図の道順・Googleマップの案内も）
+// =========================================================
+const ROUTE_FROM_CURRENT_KEY = "seitiRouteFromCurrent";
 
-    button.setAttribute(
-        "aria-label",
-        ariaLabel
-    );
+let routeFromCurrent = (function () {
+    try {
+        return localStorage.getItem(ROUTE_FROM_CURRENT_KEY) !== "0";
+    } catch (error) {
+        return true;
+    }
+})();
 
-    button.disabled =
-        toIndex < 0 ||
-        toIndex >= selectedSpots.length;
+function setRouteFromCurrent(on) {
+    routeFromCurrent = on;
+    try {
+        if (on) {
+            localStorage.removeItem(ROUTE_FROM_CURRENT_KEY);
+        } else {
+            localStorage.setItem(ROUTE_FROM_CURRENT_KEY, "0");
+        }
+    } catch (error) {
+        // 覚えておけない環境では、開いている間だけ変える
+    }
 
-    button.onclick =
-        function () {
-            window.moveRouteSpot(
-                fromIndex,
-                toIndex
-            );
+    updateRouteList();
 
-            // 続けて押せるように、移動先の同じボタンにフォーカスを戻す
-            const moved =
-                document.querySelector(
-                    `#routeList .routeItem[data-index="${toIndex}"] .route-move button:nth-child(${label === "▲" ? 1 : 2})`
-                );
+    // 道順を地図に出していれば、出発地を変えて出し直す
+    if (isMapboxRouteActive) {
+        generateMapboxRoute();
+    }
 
-            if (moved && !moved.disabled) {
-                moved.focus();
-            }
-        };
-
-    return button;
+    window.showToast(on ? "現在地から出発します" : "1か所目から出発します");
 }
 
 
 // =========================================================
 // ルートの順番を入れ替える
+// 順番変更後、Mapboxのルートを再生成する
 // =========================================================
 window.moveRouteSpot =
     function (fromIndex, toIndex) {
@@ -3876,7 +4883,13 @@ window.moveRouteSpot =
             moved
         );
 
+        // ルート案内リストを更新
         updateRouteList();
+
+        // Mapboxのルート表示中なら、変更後の順番で再生成
+        if (isMapboxRouteActive) {
+            generateMapboxRoute();
+        }
     };
 
 
@@ -4028,13 +5041,20 @@ window.openGoogleMapsRoute = function () {
     const destination =
         locations[locations.length - 1];
 
+    // 現在地から出発しない時（2か所以上）は、1か所目を出発地にする。それ以外は Googleマップが現在地から出発する
+    const origin =
+        !routeFromCurrent && locations.length >= 2
+            ? locations[0]
+            : null;
+
     const waypoints = locations
-        .slice(0, -1)
+        .slice(origin ? 1 : 0, -1)
         .join("|");
 
     let url =
         "https://www.google.com/maps/dir/?" +
         "api=1" +
+        (origin ? `&origin=${encodeURIComponent(origin)}` : "") +
         `&destination=${encodeURIComponent(destination)}`;
 
     if (waypoints) {
@@ -4105,6 +5125,680 @@ window.openGoogleMapsRoute = function () {
 };
 
 // =========================================================
+// Mapboxでルートを生成して地図上に表示
+// ルート案内のスポットを上から順に通る
+// =========================================================
+
+const MAPBOX_ROUTE_SOURCE_ID = "selected-spots-route";
+const MAPBOX_ROUTE_LAYER_ID = "selected-spots-route-line";
+const MAPBOX_ROUTE_ARROW_LAYER_ID = "selected-spots-route-arrow";
+const MAPBOX_ROUTE_ARROW_IMAGE = "selected-spots-route-arrow";
+
+// 「地図上にルートを生成」を押す前の、回る順に聖地を結ぶ線（道に沿った線。読めない間は直線）
+const ROUTE_PREVIEW_SOURCE_ID = "selected-spots-preview";
+const ROUTE_PREVIEW_LAYER_ID = "selected-spots-preview-line";
+const ROUTE_PREVIEW_ARROW_LAYER_ID = "selected-spots-preview-arrow";
+
+// 進む向きの矢印（右向きの「›」。白い矢印に濃い縁取り）
+function createRouteArrowImage() {
+    const size = 32;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext("2d");
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    const draw = function (color, width) {
+        context.strokeStyle = color;
+        context.lineWidth = width;
+        context.beginPath();
+        context.moveTo(10, 7);
+        context.lineTo(22, 16);
+        context.lineTo(10, 25);
+        context.stroke();
+    };
+    draw("rgba(0, 0, 0, .55)", 8);
+    draw("#ffffff", 4);
+    return context.getImageData(0, 0, size, size);
+}
+
+// ルート表示状態
+let isMapboxRouteActive = false;
+let mapboxRouteSpotIds = new Set();
+// 何回目のルート生成か（順番を続けて入れ替えた時、古い答えで線を描かないため）
+let mapboxRouteRequest = 0;
+
+// ルート表示中は、ルートに含まれるスポットだけを表示
+function applyMapboxRouteSpotVisibility() {
+    const filteredSpots = filterSpots();
+
+    currentSpots = isMapboxRouteActive
+        ? filteredSpots.filter(function (spot) {
+            return mapboxRouteSpotIds.has(String(spot.id));
+        })
+        : filteredSpots;
+
+    drawMarkers(currentSpots);
+}
+
+// ルート生成・解除ボタンの表示を更新
+function updateMapboxRouteButtons() {
+    const generateButton = document.getElementById(
+        "generate-mapbox-route"
+    );
+
+    const clearButton = document.getElementById(
+        "clear-mapbox-route"
+    );
+
+    if (generateButton) {
+        generateButton.textContent = isMapboxRouteActive
+            ? "道順を消す"
+            : "🚶 道順を地図に出す";
+
+        generateButton.disabled = false;
+        generateButton.setAttribute(
+            "aria-pressed",
+            String(isMapboxRouteActive)
+        );
+    }
+
+    if (clearButton) {
+        clearButton.hidden = !isMapboxRouteActive;
+    }
+}
+
+// Mapboxルートを解除
+function unsetMapboxRoute(showMessage = true) {
+    // 頼んでいる途中のルートがあれば、届いても使わない（消した後に線が残らないように）
+    mapboxRouteRequest++;
+    isMapboxRouteActive = false;
+    mapboxRouteSpotIds.clear();
+    mapboxRouteLegs.clear();
+    updateRouteList();
+
+    clearMapboxRoute();
+    applyMapboxRouteSpotVisibility();
+    updateMapboxRouteButtons();
+
+    if (showMessage) {
+        window.showToast("道順を消しました");
+    }
+}
+
+// ---------- 線を、始まりから回る順に伸ばして描く ----------
+const routeLineAnimations = {};
+
+// 2点の間の長さ（線を伸ばす割合を決めるだけなので、平面の近似でよい）
+function lineSegmentLength(from, to) {
+    const dx = (to[0] - from[0]) * Math.cos(from[1] * Math.PI / 180);
+    const dy = to[1] - from[1];
+    return Math.hypot(dx, dy);
+}
+
+function lineLength(coordinates) {
+    let total = 0;
+    for (let i = 1; i < coordinates.length; i++) {
+        total += lineSegmentLength(coordinates[i - 1], coordinates[i]);
+    }
+    return total;
+}
+
+// features（回る順）を、始まりから length の長さまでで切る
+function sliceRouteLines(features, lengths, length) {
+    const result = [];
+    let remaining = length;
+
+    for (let i = 0; i < features.length && remaining > 0; i++) {
+        if (remaining >= lengths[i]) {
+            result.push(features[i]);
+            remaining -= lengths[i];
+            continue;
+        }
+
+        const coordinates = features[i].geometry.coordinates;
+        const partial = [coordinates[0]];
+        for (let j = 1; j < coordinates.length && remaining > 0; j++) {
+            const segment = lineSegmentLength(coordinates[j - 1], coordinates[j]);
+            if (segment <= remaining) {
+                partial.push(coordinates[j]);
+                remaining -= segment;
+            } else {
+                const ratio = remaining / segment;
+                partial.push([
+                    coordinates[j - 1][0] + (coordinates[j][0] - coordinates[j - 1][0]) * ratio,
+                    coordinates[j - 1][1] + (coordinates[j][1] - coordinates[j - 1][1]) * ratio
+                ]);
+                remaining = 0;
+            }
+        }
+        if (partial.length >= 2) {
+            result.push(Object.assign({}, features[i], {
+                geometry: { type: "LineString", coordinates: partial }
+            }));
+        }
+        remaining = 0;
+    }
+
+    return result;
+}
+
+// 線の source に features を入れる。animate なら始まりから伸ばして描く（動きを減らす設定の人にはすぐ全部）
+function setRouteLine(sourceId, features, animate) {
+    cancelAnimationFrame(routeLineAnimations[sourceId]);
+
+    const source = map.getSource(sourceId);
+    if (!source) {
+        return;
+    }
+
+    const full = { type: "FeatureCollection", features: features };
+    const lengths = features.map(function (feature) {
+        return lineLength(feature.geometry.coordinates);
+    });
+    const total = lengths.reduce(function (sum, value) { return sum + value; }, 0);
+
+    if (!animate || prefersReducedMotion() || total === 0) {
+        source.setData(full);
+        return;
+    }
+
+    // 区間が多いほど少し長く（最長 1.8 秒）
+    const duration = Math.min(1800, 700 + features.length * 250);
+    const startTime = performance.now();
+
+    const frame = function (now) {
+        const progress = Math.min(1, (now - startTime) / duration);
+        if (progress >= 1) {
+            source.setData(full);
+            return;
+        }
+        const eased = 1 - Math.pow(1 - progress, 3);
+        source.setData({
+            type: "FeatureCollection",
+            features: sliceRouteLines(features, lengths, total * eased)
+        });
+        routeLineAnimations[sourceId] = requestAnimationFrame(frame);
+    };
+
+    source.setData({ type: "FeatureCollection", features: [] });
+    routeLineAnimations[sourceId] = requestAnimationFrame(frame);
+}
+
+// 回る順に結ぶ線の道のり（聖地の並び → 道に沿った線の座標）。同じ並びでは頼み直さない
+const routePreviewCache = new Map();
+let routePreviewTimer = null;
+// 今描いている線の聖地の並び（同じなら描き直さない）
+let routePreviewShownKey = "";
+
+function getRoutePreviewKey() {
+    return selectedSpots.map(function (spot) {
+        return `${spot.longitude},${spot.latitude}`;
+    }).join(";");
+}
+
+// ルート案内の聖地を回る順に、道に沿った線で結ぶ（道に沿ったルートを出している間は出さない）
+// 並びが変わったら線を消して道のりを頼み、届いたら1番目から伸ばして描く。頼めなかった時は直線で結ぶ
+function updateRoutePreview() {
+    setupMapboxRouteLayer();
+    if (!map.getSource(ROUTE_PREVIEW_SOURCE_ID)) {
+        return;
+    }
+
+    if (isMapboxRouteActive || selectedSpots.length < 2) {
+        clearTimeout(routePreviewTimer);
+        routePreviewShownKey = "";
+        setRouteLine(ROUTE_PREVIEW_SOURCE_ID, [], false);
+        return;
+    }
+
+    const coordinates = getRoutePreviewKey();
+    if (coordinates === routePreviewShownKey) {
+        return;
+    }
+
+    clearTimeout(routePreviewTimer);
+
+    const draw = function (line) {
+        routePreviewShownKey = coordinates;
+        setRouteLine(
+            ROUTE_PREVIEW_SOURCE_ID,
+            [{
+                type: "Feature",
+                properties: {},
+                geometry: { type: "LineString", coordinates: line }
+            }],
+            true
+        );
+    };
+
+    if (routePreviewCache.has(coordinates)) {
+        draw(routePreviewCache.get(coordinates));
+        return;
+    }
+
+    routePreviewShownKey = "";
+    setRouteLine(ROUTE_PREVIEW_SOURCE_ID, [], false);
+
+    const straight = selectedSpots.map(function (spot) {
+        return [Number(spot.longitude), Number(spot.latitude)];
+    });
+
+    // 待っている間に並びが変わっていなければ描く
+    const stillCurrent = function () {
+        return getRoutePreviewKey() === coordinates && !isMapboxRouteActive;
+    };
+
+    // 続けて聖地を入れた時に何度も頼まないよう、少し待ってから頼む
+    routePreviewTimer = setTimeout(async function () {
+        let line = null;
+        try {
+            const data = await fetchWalkingRoute(coordinates, false);
+            line = data.code === "Ok" && data.routes && data.routes[0] &&
+                data.routes[0].geometry && data.routes[0].geometry.coordinates;
+        } catch (error) {
+            console.warn("回る順に結ぶ道のりを読めませんでした（直線で出します）:", error);
+        }
+
+        if (line && line.length >= 2) {
+            routePreviewCache.set(coordinates, line);
+        }
+        if (stillCurrent()) {
+            draw(line && line.length >= 2 ? line : straight);
+        }
+    }, 400);
+}
+
+// ルートの線を地図に登録
+function setupMapboxRouteLayer() {
+    if (!map.isStyleLoaded()) {
+        return;
+    }
+
+    if (!map.getSource(ROUTE_PREVIEW_SOURCE_ID)) {
+        // 地図のスタイルを読み直した時は、線を描き直す
+        routePreviewShownKey = "";
+        map.addSource(ROUTE_PREVIEW_SOURCE_ID, {
+            type: "geojson",
+            data: {
+                type: "FeatureCollection",
+                features: []
+            }
+        });
+    }
+
+    // すでに存在する場合は重複登録しない
+    if (!map.getSource(MAPBOX_ROUTE_SOURCE_ID)) {
+        map.addSource(MAPBOX_ROUTE_SOURCE_ID, {
+            type: "geojson",
+            data: {
+                type: "FeatureCollection",
+                features: []
+            }
+        });
+    }
+
+    // 進む向きの矢印の画像
+    if (!map.hasImage(MAPBOX_ROUTE_ARROW_IMAGE)) {
+        map.addImage(MAPBOX_ROUTE_ARROW_IMAGE, createRouteArrowImage());
+    }
+
+    if (!map.getLayer(ROUTE_PREVIEW_LAYER_ID)) {
+        map.addLayer({
+            id: ROUTE_PREVIEW_LAYER_ID,
+            type: "line",
+            source: ROUTE_PREVIEW_SOURCE_ID,
+            layout: {
+                "line-join": "round",
+                "line-cap": "round"
+            },
+            paint: {
+                "line-color": "#1976D2",
+                "line-width": 4,
+                "line-opacity": 0.7
+            }
+        });
+    }
+
+    if (!map.getLayer(ROUTE_PREVIEW_ARROW_LAYER_ID)) {
+        map.addLayer({
+            id: ROUTE_PREVIEW_ARROW_LAYER_ID,
+            type: "symbol",
+            source: ROUTE_PREVIEW_SOURCE_ID,
+            layout: {
+                "symbol-placement": "line",
+                "symbol-spacing": 90,
+                "icon-image": MAPBOX_ROUTE_ARROW_IMAGE,
+                "icon-size": 0.45,
+                "icon-allow-overlap": true,
+                "icon-ignore-placement": true,
+                "icon-rotation-alignment": "map"
+            }
+        });
+    }
+
+    if (!map.getLayer(MAPBOX_ROUTE_LAYER_ID)) {
+        map.addLayer({
+            id: MAPBOX_ROUTE_LAYER_ID,
+            type: "line",
+            source: MAPBOX_ROUTE_SOURCE_ID,
+            layout: {
+                "line-join": "round",
+                "line-cap": "round"
+            },
+            paint: {
+                // 区間ごとの色（1→2、2→3…）
+                "line-color": ["coalesce", ["get", "color"], "#1976D2"],
+                "line-width": 5,
+                "line-opacity": 0.9,
+                // 進む向きの右側に少しずらす（行きと帰りで同じ道を通っても重ならない）
+                "line-offset": 3
+            }
+        });
+    }
+
+    if (!map.getLayer(MAPBOX_ROUTE_ARROW_LAYER_ID)) {
+        map.addLayer({
+            id: MAPBOX_ROUTE_ARROW_LAYER_ID,
+            type: "symbol",
+            source: MAPBOX_ROUTE_SOURCE_ID,
+            layout: {
+                "symbol-placement": "line",
+                "symbol-spacing": 70,
+                "icon-image": MAPBOX_ROUTE_ARROW_IMAGE,
+                "icon-size": 0.5,
+                "icon-allow-overlap": true,
+                "icon-ignore-placement": true,
+                "icon-rotation-alignment": "map",
+                // 線と同じだけ右にずらす（矢印の画像の「下」が進む向きの右）
+                "icon-offset": [0, 6]
+            }
+        });
+    }
+}
+
+// 生成済みルートを消す
+function clearMapboxRoute() {
+    setRouteLine(MAPBOX_ROUTE_SOURCE_ID, [], false);
+}
+
+// Mapbox Directions API に、聖地を順に通る徒歩の道のりを頼む（coordinates は「経度,緯度;経度,緯度…」）
+// withSteps：区間の中の道のり（steps）も受け取る（回る順に結ぶ線だけなら要らない）
+async function fetchWalkingRoute(coordinates, withSteps) {
+    const url =
+        "https://api.mapbox.com/directions/v5/mapbox/walking/" +
+        coordinates +
+        "?geometries=geojson" +
+        "&overview=full" +
+        // 区間ごとに線を分けて色を変えるため、区間の中の道のり（steps）も受け取る
+        // （船の区間かどうかも steps で分かる）
+        "&steps=" + (withSteps ? "true" : "false") +
+        "&access_token=" +
+        encodeURIComponent(mapboxgl.accessToken);
+
+    // 徒歩でも、川や海の近くでは渡し船の航路を使うことがあるので、船を除いて頼む
+    // （船を使わないと行けない区間があって断られた時は、除かずに頼み直す）
+    let response = await fetch(url + "&exclude=ferry");
+    if (response.status === 422) {
+        response = await fetch(url);
+    }
+
+    if (!response.ok) {
+        throw new Error(
+            `Directions API エラー: ${response.status}`
+        );
+    }
+
+    return response.json();
+}
+
+// 現在地から歩くルートにする距離の上限（これより1か所目が遠ければ、1か所目から作る）
+const ROUTE_ORIGIN_MAX_METERS = 20000;
+
+// ルートの出発地にする現在地（取れなければ null。地図の現在地ボタンで取った位置を先に使う）
+function getRouteOrigin() {
+    const last = geolocate && geolocate._lastKnownPosition;
+    if (last && last.coords) {
+        return Promise.resolve({ latitude: last.coords.latitude, longitude: last.coords.longitude });
+    }
+    if (!navigator.geolocation) {
+        return Promise.resolve(null);
+    }
+    return new Promise(function (resolve) {
+        navigator.geolocation.getCurrentPosition(
+            function (position) {
+                resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+            },
+            function () {
+                resolve(null);
+            },
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+        );
+    });
+}
+
+// Mapbox Directions APIでルートを生成
+async function generateMapboxRoute() {
+    const button = document.getElementById(
+        "generate-mapbox-route"
+    );
+
+    if (selectedSpots.length === 0) {
+        window.showToast(
+            "行きたい場所を追加してください",
+            "error"
+        );
+        return;
+    }
+
+    const request = ++mapboxRouteRequest;
+
+    // 座標が有効なスポットだけを使う
+    const routeSpots = selectedSpots.filter(function (spot) {
+        return (
+            Number.isFinite(Number(spot.longitude)) &&
+            Number.isFinite(Number(spot.latitude)) &&
+            Number(spot.longitude) >= -180 &&
+            Number(spot.longitude) <= 180 &&
+            Number(spot.latitude) >= -90 &&
+            Number(spot.latitude) <= 90
+        );
+    });
+
+    if (routeSpots.length !== selectedSpots.length) {
+        window.showToast(
+            "座標が正しくないスポットがあります",
+            "error"
+        );
+        return;
+    }
+
+    const originalText = button.textContent;
+
+    button.disabled = true;
+    button.textContent = "道順を調べています…";
+
+    try {
+        // 現在地から歩くルートにする（外している・取れない・1か所目から遠すぎる時は、1か所目から作る）
+        const position = routeFromCurrent ? await getRouteOrigin() : null;
+        if (request !== mapboxRouteRequest) {
+            return;
+        }
+        const origin =
+            position &&
+            getDistanceMeters(position, routeSpots[0]) <= ROUTE_ORIGIN_MAX_METERS
+                ? { id: "current", name: "現在地", latitude: position.latitude, longitude: position.longitude }
+                : null;
+
+        if (!origin && routeSpots.length < 2) {
+            // 前に作ったルートが出ていれば消す（消した聖地を通るルートを残さない）
+            if (isMapboxRouteActive) {
+                unsetMapboxRoute(false);
+            }
+            window.showToast(
+                !routeFromCurrent
+                    ? "1か所だけでは道順を作れません。2か所以上追加するか、「現在地から出発する」を押してください"
+                    : position
+                        ? "現在地から遠いため、ルートを作れません。2か所以上追加してください"
+                        : "現在地を取得できないため、ルートを作れません。2か所以上追加してください",
+                "error"
+            );
+            return;
+        }
+
+        // 回る地点（現在地 → 1か所目 → 2か所目…）
+        const routePoints = origin ? [origin].concat(routeSpots) : routeSpots;
+
+        // 地図のスタイル読み込みが終わるまで待つ
+        if (!map.isStyleLoaded()) {
+            await new Promise(function (resolve) {
+                map.once("idle", resolve);
+            });
+        }
+
+        setupMapboxRouteLayer();
+
+        // ルート案内リストの順番をそのまま使用
+        // Mapboxの座標形式は「経度,緯度」
+        const coordinates = routePoints.map(function (spot) {
+            return `${spot.longitude},${spot.latitude}`;
+        }).join(";");
+
+        const data = await fetchWalkingRoute(coordinates, true);
+
+        // 待っている間に、もっと新しい順番で頼み直していれば、この答えは使わない
+        if (request !== mapboxRouteRequest) {
+            return;
+        }
+
+        if (
+            data.code !== "Ok" ||
+            !data.routes ||
+            data.routes.length === 0
+        ) {
+            throw new Error(
+                data.message || "ルートが見つかりませんでした"
+            );
+        }
+
+        const route = data.routes[0];
+
+        // それでも船の区間が残った時（橋やトンネルが無い）は、出来上がりの知らせに書き添える
+        const usesFerry = (route.legs || []).some(function (leg) {
+            return (leg.steps || []).some(function (step) { return step.mode === "ferry"; });
+        });
+
+        // 道路に沿った経路を、区間ごとに色を変えて地図上の線として表示
+        const legFeatures = (route.legs || []).map(function (leg, index) {
+            const coordinates = [];
+            (leg.steps || []).forEach(function (step) {
+                ((step.geometry && step.geometry.coordinates) || []).forEach(function (coord) {
+                    const last = coordinates[coordinates.length - 1];
+                    if (!last || last[0] !== coord[0] || last[1] !== coord[1]) coordinates.push(coord);
+                });
+            });
+            return {
+                type: "Feature",
+                properties: { index: index, color: routeLegColor(index) },
+                geometry: { type: "LineString", coordinates: coordinates }
+            };
+        }).filter(function (feature) {
+            return feature.geometry.coordinates.length >= 2;
+        });
+
+        // 1番目の聖地から順に、線を伸ばして描く
+        setRouteLine(
+            MAPBOX_ROUTE_SOURCE_ID,
+            // 区間に分けられなかった時は、全体を1本の線で出す
+            legFeatures.length > 0
+                ? legFeatures
+                : [{ type: "Feature", properties: { index: 0 }, geometry: route.geometry }],
+            true
+        );
+
+        isMapboxRouteActive = true;
+        mapboxRouteSpotIds = new Set(
+            routeSpots.map(function (spot) {
+                return String(spot.id);
+            })
+        );
+
+        applyMapboxRouteSpotVisibility();
+        updateMapboxRouteButtons();
+
+        // 全スポットが画面に収まるよう地図を調整
+        const bounds = new mapboxgl.LngLatBounds();
+
+        route.geometry.coordinates.forEach(function (coord) {
+            bounds.extend(coord);
+        });
+
+        map.fitBounds(bounds, {
+            padding: 90,
+            maxZoom: 16,
+            duration: 800
+        });
+
+        // 区間ごとの道のりと時間を、ルート案内の区間の表示に使う
+        mapboxRouteLegs.clear();
+        (route.legs || []).forEach(function (leg, index) {
+            // 現在地からの区間は from を null にする（ルート案内の「現在地から」の区間）
+            const from = origin && index === 0 ? null : routePoints[index];
+            const to = routePoints[index + 1];
+            if (to) {
+                mapboxRouteLegs.set(routeLegKey(from, to), {
+                    distance: leg.distance,
+                    duration: leg.duration,
+                    color: routeLegColor(index)
+                });
+            }
+        });
+        updateRouteList();
+
+        const distanceKm = (route.distance / 1000).toFixed(1);
+
+        window.showToast(
+            `${origin ? "現在地からの" : ""}道順を出しました（約${distanceKm}km・徒歩約${formatMinutes(route.duration / 60)}）` +
+            (usesFerry ? "。歩いて渡れない所があるため、船の区間を含みます" : "")
+        );
+
+    } catch (error) {
+        console.error("ルート生成に失敗しました:", error);
+
+        window.showToast(
+            "道順を調べられませんでした。通信状態やスポットの座標を確認してください",
+            "error"
+        );
+
+    } finally {
+        // 新しい頼み直しを待っている間は、ボタンをそのままにする
+        if (request === mapboxRouteRequest) {
+            button.disabled = false;
+            updateMapboxRouteButtons();
+        }
+    }
+}
+
+// ルート生成・解除ボタンのクリック処理
+document
+    .getElementById("generate-mapbox-route")
+    ?.addEventListener("click", function () {
+        if (isMapboxRouteActive) {
+            unsetMapboxRoute();
+        } else {
+            generateMapboxRoute();
+        }
+    });
+
+
+
+// 地図のスタイルが切り替わった場合にも線を再登録する
+map.on("style.load", function () {
+    setupMapboxRouteLayer();
+    updateRoutePreview();
+});
+
+// =========================================================
 // HTML読み込み後に経路ボタンを接続
 // =========================================================
 // type="module" はHTML読み込み後に実行されるので、待たずにそのまま接続できる
@@ -4123,7 +5817,12 @@ document
     )
     ?.addEventListener(
         "click",
-        window.clearSelectedSpots
+        function () {
+            removeWithUndo(
+                "ルートを全削除しました",
+                window.clearSelectedSpots
+            );
+        }
     );
 
 
@@ -4143,6 +5842,73 @@ function getRouteKey() {
         )
         .join(",");
 }
+
+// =========================================================
+// ルートを人に送る（map.html?route=ID,ID&name=名前 のリンク。開いた人の地図に同じ順番で入る）
+// =========================================================
+function getRouteShareName() {
+    const titles =
+        [...new Set(
+            selectedSpots.map(
+                function (item) {
+                    const spot = findSpotById(item.id);
+                    return spot ? getTitleName(spot) : "";
+                }
+            )
+        )].filter(Boolean);
+
+    return titles.length === 1
+        ? `「${titles[0]}」の巡礼ルート`
+        : "聖地巡礼ルート";
+}
+
+function getRouteShareURL(name) {
+    const url = new URL("map.html", location.href);
+    url.searchParams.set("route", getRouteKey());
+    url.searchParams.set("name", name);
+    return url.href;
+}
+
+async function shareRoute() {
+    if (selectedSpots.length === 0) {
+        return;
+    }
+
+    const name = getRouteShareName();
+    const url = getRouteShareURL(name);
+    const text =
+        `${name}（${selectedSpots.length}か所：` +
+        selectedSpots.map(function (item) { return item.name; }).join("→") +
+        "）";
+
+    if (navigator.share) {
+        try {
+            await navigator.share({ title: name, text: text, url: url });
+            return;
+        } catch (error) {
+            // 共有メニューを閉じただけの時は何もしない
+            if (error && error.name === "AbortError") {
+                return;
+            }
+        }
+    }
+
+    try {
+        await navigator.clipboard.writeText(text + "\n" + url);
+        window.showToast("ルートのリンクをコピーしました。LINE などに貼って送れます");
+    } catch (error) {
+        window.prompt("このリンクをコピーしてください", url);
+    }
+}
+
+document
+    .getElementById(
+        "share-route"
+    )
+    ?.addEventListener(
+        "click",
+        shareRoute
+    );
 
 // 今のルートを保存済みなら「保存済み」にする
 function updateSaveRouteButton() {
@@ -4165,7 +5931,7 @@ function updateSaveRouteButton() {
             ? "保存中…"
             : saved
                 ? "保存済み"
-                : "このルートを保存";
+                : "保存";
 }
 
 document
@@ -4180,9 +5946,10 @@ document
             }
 
             if (!(await getCurrentUser())) {
-                window.showToast(
+                // ログインしたら、同じルートで地図に戻る（map.html?route=）
+                showLoginPrompt(
                     "ルートの保存はログインすると使えます",
-                    "error"
+                    "map.html?route=" + encodeURIComponent(getRouteKey())
                 );
                 return;
             }
@@ -4233,3 +6000,41 @@ map.on(
         };
     }
 );
+
+// ==========================================
+// 聖地の詳細の画像を押すと、画面いっぱいに大きく見る
+// ==========================================
+function openImageViewer(src, alt) {
+    const viewer = document.createElement("div");
+    viewer.className = "image-viewer";
+    viewer.setAttribute("role", "dialog");
+    viewer.setAttribute("aria-modal", "true");
+    viewer.setAttribute("aria-label", "画像を大きく表示");
+
+    const image = document.createElement("img");
+    image.src = src;
+    image.alt = alt || "";
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "image-viewer-close";
+    close.setAttribute("aria-label", "閉じる");
+    close.textContent = "×";
+    viewer.append(image, close);
+
+    function onKey(event) {
+        if (event.key === "Escape") closeViewer();
+    }
+    function closeViewer() {
+        viewer.remove();
+        document.removeEventListener("keydown", onKey);
+    }
+    viewer.addEventListener("click", closeViewer);
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(viewer);
+    close.focus();
+}
+
+document.addEventListener("click", function (event) {
+    const image = event.target.closest(".popup-image:not(.no-image) img");
+    if (image) openImageViewer(image.currentSrc || image.src, image.alt);
+});

@@ -1,21 +1,36 @@
 // ==========================================
 // 作品ページ（work.html?title=作品名）
-// その作品の聖地（話数の順）・おすすめルート・スタンプの進み具合・公式サイトを出す。
+// その作品の説明・聖地（話数の順）・おすすめルート・スタンプの進み具合・公式サイトを出す。
 // 「地図で見る」「このルートで巡る」は地図画面を開いて、その状態にする
 // ==========================================
-import { getTitleColor, getTitleName } from "./title-colors.js?v=5c634da9";
-import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=feb7ee57";
-import { getSpotImageSrc } from "./spot-image.js?v=9f48db08";
+import { getTitleColor, getTitleName } from "./title-colors.js?v=62cd810d";
+import { compareEpisodeKeys, formatEpisodeKey, getSpotEpisodeKey, getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=9a2ff22f";
+import { getSpotImageSrc } from "./spot-image.js?v=59165daf";
 import { courseDistance, formatCourseLength } from "./course.js?v=5729311e";
-import { loadCourses, loadMyStampCounts, loadSpots, readCachedSpots } from "./public-data.js?v=c815b81a";
-import { getCurrentUser } from "./firebase-db.js?v=917161b9";
-import { isAiPlanAvailable, readSavedPlan, requestAiPlan, savePlan } from "./ai-plan.js?v=f1670a90";
+import { loadCourses, loadMyStampCounts, loadSpots, loadWorkDescriptions, readCachedSpots } from "./public-data.js?v=5183f404";
 
 const title = new URLSearchParams(location.search).get("title") || "";
+
+// 聖地一覧で選んでいる話（episode.js の getSpotEpisodeKey。null ならすべて）
+// 地図の聖地の詳細の話の札から来た時は work.html?title=…&ep=1-3 で選んだ状態にする
+// （話数の分からない聖地は ep=- ）
+const EP_UNKNOWN = "-";
+let selectedEpisode = (function () {
+    const ep = new URLSearchParams(location.search).get("ep");
+    if (ep === null) return null;
+    return ep === EP_UNKNOWN ? "" : ep;
+})();
+
+// 話を選び直した時に、一覧を作り直すための今のデータ
+let shownSpots = [];
+let shownStampCounts = null;
 
 function showNotice(icon, text, link) {
     const notice = document.getElementById("work-notice");
     notice.innerHTML = "";
+    notice.classList.remove("is-loading");
+    notice.removeAttribute("role");
+    notice.removeAttribute("aria-label");
     const iconEl = document.createElement("div");
     iconEl.className = "empty-state-icon";
     iconEl.textContent = icon;
@@ -80,14 +95,32 @@ function renderHero(spots, stampCounts) {
     const label = document.getElementById("work-progress-label");
     if (stampCounts) {
         const got = spots.filter(function (spot) { return stampCounts[spot.id]; }).length;
-        document.getElementById("work-progress-bar").style.width = Math.round(got / spots.length * 100) + "%";
-        label.textContent = "スタンプ " + got + " / " + spots.length + (got === spots.length ? "　コンプリート！" : "");
+        // バーは 0 から伸ばし、数はカウントアップする（work.css・common.js）
+        requestAnimationFrame(function () {
+            document.getElementById("work-progress-bar").style.width = Math.round(got / spots.length * 100) + "%";
+        });
+        if (!label.querySelector(".work-progress-got")) {
+            label.textContent = "スタンプ ";
+            const count = el("span", "work-progress-got", "0");
+            label.append(count, el("span", "work-progress-total"));
+        }
+        countUp(label.querySelector(".work-progress-got"), got);
+        label.querySelector(".work-progress-total").textContent =
+            " / " + spots.length + (got === spots.length ? "　コンプリート！" : "");
         progress.hidden = false;
         label.hidden = false;
     } else {
         progress.hidden = true;
         label.hidden = true;
     }
+}
+
+// 作品の説明（無ければ出さない）
+function renderDescription(descriptions) {
+    const description = document.getElementById("work-description");
+    const text = descriptions && descriptions[title];
+    description.textContent = text || "";
+    description.hidden = !text;
 }
 
 function renderRoutes(courses, spotById) {
@@ -118,89 +151,70 @@ function renderRoutes(courses, spotById) {
     });
 }
 
-// ---------- AI におまかせプラン ----------
-
-// 「約3時間10分」
-function formatMinutes(minutes) {
-    if (minutes < 60) return "約" + minutes + "分";
-    return "約" + Math.floor(minutes / 60) + "時間" + (minutes % 60 ? minutes % 60 + "分" : "");
-}
-
-function renderAiPlan(plan) {
-    const result = document.getElementById("ai-plan-result");
-    result.innerHTML = "";
-
-    result.appendChild(el("h3", "", plan.title));
-    if (plan.summary) result.appendChild(el("p", "ai-plan-summary", plan.summary));
-    result.appendChild(el("p", "work-meta",
-        plan.stops.length + "か所・" + formatCourseLength(plan.walk_meters) + "・滞在を入れて合計 " + formatMinutes(plan.total_minutes)));
-
-    const stops = el("ol", "work-route-stops ai-plan-stops");
-    plan.stops.forEach(function (stop) {
-        const li = el("li");
-        const head = el("div", "ai-plan-stop-head");
-        head.appendChild(el("span", "ai-plan-stop-name", stop.name));
-        const episode = getSpotEpisodeLabel(stop);
-        if (episode) head.appendChild(el("span", "work-ep", episode));
-        head.appendChild(el("span", "ai-plan-stay", "滞在 " + formatMinutes(stop.stay_minutes)));
-        li.appendChild(head);
-        if (stop.comment) li.appendChild(el("p", "ai-plan-comment", stop.comment));
-        stops.appendChild(li);
+// 話の札（「すべて」「1期 EP1（2）」…）。話が2つ以上分かる作品だけ出す
+function renderEpisodeChips(spots) {
+    const area = document.getElementById("work-episodes");
+    const counts = {};
+    spots.forEach(function (spot) {
+        const key = getSpotEpisodeKey(spot);
+        counts[key] = (counts[key] || 0) + 1;
     });
-    result.appendChild(stops);
+    const keys = Object.keys(counts).sort(compareEpisodeKeys);
 
-    const start = el("a", "btn btn-primary", "地図でこのプランを開く");
-    start.href = "map.html?route=" + encodeURIComponent(plan.stops.map(function (stop) { return stop.id; }).join(","));
-    result.appendChild(start);
+    // 選んでいた話がもう無ければ、すべてに戻す
+    if (selectedEpisode !== null && !counts[selectedEpisode]) selectedEpisode = null;
 
-    result.appendChild(el("p", "ai-plan-note",
-        "AI が作った目安です。電車の乗換は、地図のルート案内の「🚃 電車で」から確かめてください。"));
-
-    result.hidden = false;
-    document.getElementById("ai-plan-btn").textContent = "別のプランを作ってもらう";
-}
-
-let aiSectionReady = false;
-
-async function setupAiSection() {
-    if (aiSectionReady || !isAiPlanAvailable()) return;
-    aiSectionReady = true;
-
-    const button = document.getElementById("ai-plan-btn");
-    const status = document.getElementById("ai-plan-status");
-    document.getElementById("ai-section").hidden = false;
-
-    const saved = readSavedPlan(title);
-    if (saved) renderAiPlan(saved);
-
-    if (!await getCurrentUser()) {
-        document.getElementById("ai-plan-login").hidden = false;
-        status.textContent = "ログインすると使えます（1日の回数に限りがあります）。";
+    area.innerHTML = "";
+    area.hidden = keys.filter(function (key) { return key !== ""; }).length < 2;
+    if (area.hidden) {
+        selectedEpisode = null;
         return;
     }
-    button.hidden = false;
 
-    button.addEventListener("click", async function () {
-        button.disabled = true;
-        status.textContent = "AI がプランを考えています…（数十秒かかることがあります）";
-        try {
-            const { plan, remaining } = await requestAiPlan(title);
-            savePlan(title, plan);
-            renderAiPlan(plan);
-            status.textContent = "プランができました。今日はあと " + remaining + " 回作れます。";
-        } catch (error) {
-            status.textContent = error.message;
-        } finally {
-            button.disabled = false;
-        }
+    const addChip = function (key, label) {
+        const chip = el("button", "work-episode", label);
+        chip.type = "button";
+        chip.setAttribute("aria-pressed", String(key === selectedEpisode));
+        chip.addEventListener("click", function () {
+            selectEpisode(key);
+        });
+        area.appendChild(chip);
+    };
+
+    addChip(null, "すべて（" + spots.length + "）");
+    keys.forEach(function (key) {
+        addChip(key, formatEpisodeKey(key) + "（" + counts[key] + "）");
     });
+}
+
+// 話を選び直す（アドレスも合わせて、戻る・共有でも同じ表示にする）
+function selectEpisode(key) {
+    selectedEpisode = key;
+    const params = new URLSearchParams(location.search);
+    if (key === null) {
+        params.delete("ep");
+    } else {
+        params.set("ep", key === "" ? EP_UNKNOWN : key);
+    }
+    history.replaceState(null, "", "?" + params.toString() + "#work-spots-section");
+    renderSpots(shownSpots, shownStampCounts);
 }
 
 function renderSpots(spots, stampCounts) {
+    shownSpots = spots;
+    shownStampCounts = stampCounts;
+    renderEpisodeChips(spots);
+
     const list = document.getElementById("work-spots");
     list.innerHTML = "";
 
-    spots.slice().sort(compareEpisode).forEach(function (spot) {
+    document.getElementById("work-spots-note").textContent = selectedEpisode === null
+        ? "（話数の順）"
+        : "（" + formatEpisodeKey(selectedEpisode) + "）";
+
+    spots.slice().sort(compareEpisode).filter(function (spot) {
+        return selectedEpisode === null || getSpotEpisodeKey(spot) === selectedEpisode;
+    }).forEach(function (spot) {
         const li = el("li", "card work-spot");
 
         const imageSrc = getSpotImageSrc(spot.image_url);
@@ -246,7 +260,6 @@ function render(allSpots, courses, stampCounts) {
     renderHero(spots, stampCounts);
     renderRoutes(courses, spotById);
     renderSpots(spots, stampCounts);
-    setupAiSection();
 
     document.getElementById("work-notice").hidden = true;
     document.getElementById("work-main").hidden = false;
@@ -263,6 +276,13 @@ function render(allSpots, courses, stampCounts) {
     const cached = readCachedSpots();
     const shownFromCache = cached ? render(cached, [], null) : false;
 
+    // 作品の説明は、聖地を待たずに出す（読めなければ出さない）
+    loadWorkDescriptions()
+        .then(renderDescription)
+        .catch(function (error) {
+            console.warn("作品の説明を読み込めませんでした:", error);
+        });
+
     const [spots, courses, counts] = await Promise.all([
         loadSpots().catch(function (error) {
             console.error("聖地を読み込めませんでした:", error);
@@ -278,4 +298,9 @@ function render(allSpots, courses, stampCounts) {
     }
 
     render(spots, courses, counts);
+
+    // 地図の話の札から来た時は、聖地一覧まで送る
+    if (location.hash === "#work-spots-section") {
+        document.getElementById("work-spots-section").scrollIntoView({ block: "start" });
+    }
 })();

@@ -16,8 +16,14 @@ import {
     where
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-import { db, getCurrentUser } from "./firebase-db.js?v=917161b9";
+import { db, getCurrentUser } from "./firebase-db.js?v=61accae5";
 import { COURSE_COLLECTION, sortCourses } from "./course.js?v=5729311e";
+import { registerTitles } from "./title-colors.js?v=62cd810d";
+
+// 読み込んだ聖地の作品名をまとめて渡し、作品ごとの色がかぶらないように決める（title-colors.js）
+function registerSpotTitles(list) {
+    registerTitles(list.map(function (spot) { return spot.title_name || "その他"; }));
+}
 
 const FIRESTORE_TIMEOUT_MS = 8000;
 const DATABASE_PATH = "projects/sisukai-121cf/databases/(default)/documents";
@@ -229,7 +235,9 @@ function normalizeSpots(list) {
 export function readCachedSpots() {
     try {
         const list = JSON.parse(localStorage.getItem(SPOT_CACHE_KEY) || "null");
-        return Array.isArray(list) ? list : null;
+        if (!Array.isArray(list)) return null;
+        registerSpotTitles(list);
+        return list;
     } catch (error) {
         return null;
     }
@@ -237,12 +245,27 @@ export function readCachedSpots() {
 
 export async function loadSpots() {
     const list = normalizeSpots(await fetchCollection("spot"));
+    registerSpotTitles(list);
     try {
         localStorage.setItem(SPOT_CACHE_KEY, JSON.stringify(list));
     } catch (error) {
         // 保存できない環境では何もしない
     }
     return list;
+}
+
+// 作品の説明（work コレクション。作品名 → 説明文）
+export const WORK_COLLECTION = "work";
+
+export async function loadWorkDescriptions() {
+    const list = await fetchCollection(WORK_COLLECTION);
+    const descriptions = {};
+    list.forEach(function (work) {
+        if (typeof work.title_name === "string" && typeof work.description === "string" && work.description.trim()) {
+            descriptions[work.title_name] = work.description.trim();
+        }
+    });
+    return descriptions;
 }
 
 export async function loadCourses() {

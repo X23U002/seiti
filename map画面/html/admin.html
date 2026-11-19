@@ -5,18 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex">
     <title>管理ページ - 聖地巡礼NAVI</title>
-    <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
-    <link rel="stylesheet" href="../css/admin.css?v=c58b12db">
+    <link rel="stylesheet" href="../css/common.css?v=f9624d5f">
+    <link rel="stylesheet" href="../css/admin.css?v=3dfc8b44">
 
     <!-- 位置の確認・調整に使う地図 -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js"></script>
+    <!-- アプリとして使う（ホーム画面に追加・オフライン。pwa.js） -->
+    <link rel="manifest" href="../manifest.webmanifest">
+    <meta name="theme-color" content="#0b3c5d">
+    <link rel="apple-touch-icon" href="../images/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" href="../images/icons/icon-192.png">
+    <script src="../js/pwa.js?v=c08113cc" defer></script>
 </head>
 <body>
 
     <!-- アプリ共通ヘッダー -->
     <header class="app-header">
-        <a href="mypage.html" class="back-btn" aria-label="マイページに戻る">＜ 戻る</a>
+        <a href="mypage.html" class="back-btn" aria-label="マイページに戻る">＜ マイページ</a>
         <h1>管理ページ</h1>
     </header>
 
@@ -43,6 +49,9 @@
                 <button type="button" class="admin-tab" role="tab" id="tab-episodes" aria-selected="false" aria-controls="panel-episodes">
                     期・話
                 </button>
+                <button type="button" class="admin-tab" role="tab" id="tab-works" aria-selected="false" aria-controls="panel-works">
+                    作品
+                </button>
                 <button type="button" class="admin-tab" role="tab" id="tab-courses" aria-selected="false" aria-controls="panel-courses">
                     ルート <span class="tab-count" id="count-courses">0</span>
                 </button>
@@ -66,6 +75,7 @@
             <!-- 登録済みの聖地（新しく登録・編集） -->
             <section id="panel-spots" role="tabpanel" aria-labelledby="tab-spots" hidden>
                 <button type="button" class="btn btn-success" id="spot-new">＋ 新しい聖地を登録</button>
+                <a class="btn btn-secondary spot-table-link" href="spot-table.html">表でまとめて編集・追加（CSV も使えます）</a>
                 <label class="spot-search">
                     <span class="visually-hidden">聖地を探す</span>
                     <input type="search" id="spot-search" placeholder="スポット名・作品名・説明で探す">
@@ -80,6 +90,10 @@
                     地図の詳細に「1期 EP12」のように表示されます。まだ入力していない聖地には、説明文から読み取った値を<span class="guess-mark">推測</span>として入れています。
                     確認して「保存」を押してください。分からない・劇場版などは空欄のままで大丈夫です（説明文から表示します）。
                 </p>
+                <div class="episode-bulk">
+                    <button type="button" class="btn btn-secondary" id="episode-bulk">説明文から読み取れた分を、全作品まとめて保存</button>
+                    <p class="episode-bulk-note" id="episode-bulk-note"></p>
+                </div>
                 <label class="episode-filter">
                     作品
                     <select id="episode-title"></select>
@@ -88,6 +102,28 @@
                 <div class="episode-save">
                     <button type="button" class="btn btn-primary" id="episode-save" disabled>変更はありません</button>
                 </div>
+            </section>
+
+            <!-- 作品の説明（作品ページの見出しの下に出す） -->
+            <section id="panel-works" role="tabpanel" aria-labelledby="tab-works" hidden>
+                <p class="episode-lead">
+                    作品ページの見出しの下に表示される、作品の紹介文です。あらすじや見どころを書いてください（公式サイトなどの文章をそのまま写さないでください）。
+                </p>
+                <form id="work-form" class="work-form">
+                    <label class="episode-filter">
+                        作品
+                        <select id="work-title"></select>
+                    </label>
+                    <label class="work-form-field">
+                        <span>説明<span class="work-count" id="work-count"></span></span>
+                        <textarea id="work-description" maxlength="1000" rows="8" placeholder="(例) 京都府宇治市を舞台に、高校の吹奏楽部で全国大会を目指す青春物語。"></textarea>
+                    </label>
+                    <p class="form-alert" id="work-error" role="alert" hidden></p>
+                    <div class="work-form-actions">
+                        <a class="btn btn-secondary" id="work-preview" target="_blank" rel="noopener">作品ページで見る</a>
+                        <button type="submit" class="btn btn-primary" id="work-save">保存する</button>
+                    </div>
+                </form>
             </section>
 
             <!-- 作品ごとのおすすめ聖地巡礼ルート -->
@@ -155,11 +191,16 @@
                     <input type="url" id="ap-title-url" placeholder="https://" maxlength="300">
                 </div>
 
+                <!-- 訪れる人への情報（任意。地図の聖地の詳細の「訪れる前に」に出す。admin.js で作る） -->
+                <fieldset class="visit-fields" id="ap-visit-fields">
+                    <legend>訪れる人への情報（任意）</legend>
+                </fieldset>
+
                 <div class="form-group">
                     <label for="ap-image">画像</label>
                     <input type="text" id="ap-image" placeholder="(例) real/s11.jpg" maxlength="300" aria-describedby="ap-image-help">
                     <p class="form-hint" id="ap-image-help">
-                        GitHub の <code>map画面/images/spots/</code> の中の、種類のフォルダ（<code>anime/</code>：アニメの場面、<code>real/</code>：現地の写真）とファイル名を入れてください。ファイル名は聖地のID（一覧に表示）にします。GitHub の画像ページのURLを貼っても大丈夫です。空欄なら画像なし。
+                        GitHub の <code>map画面/images/spots/</code> の中の、作品のフォルダとファイル名（例：<code>eupho/eupho_s0701.jpg</code>）を入れてください。GitHub の画像ページのURLを貼っても大丈夫です。空欄なら画像なし。<strong>現地で撮った写真など、使ってよい写真だけ</strong>にしてください（アニメの場面の画像は著作権上使えないので、入れても表示しません）。
                     </p>
                     <img class="image-preview" id="ap-image-preview" alt="画像のプレビュー" hidden>
                     <p class="form-hint" id="ap-image-status" aria-live="polite"></p>
@@ -185,6 +226,11 @@
                 <div class="form-group">
                     <label for="cs-title">作品<span class="required">必須</span></label>
                     <select id="cs-title" class="course-select"></select>
+                </div>
+
+                <div class="course-ai" id="cs-ai-box" hidden>
+                    <button type="button" class="btn btn-secondary" id="cs-ai">AI で下書きを作る</button>
+                    <p class="form-hint" id="cs-ai-status" aria-live="polite"></p>
                 </div>
 
                 <div class="form-group">
@@ -255,8 +301,8 @@
         </div>
     </div>
 
-    <script src="../js/common.js?v=d714509d"></script>
-    <script src="../js/toast.js?v=720dc155"></script>
-    <script type="module" src="../js/admin.js?v=dc45af83"></script>
+    <script src="../js/common.js?v=bdcf06ca"></script>
+    <script src="../js/toast.js?v=09b35151"></script>
+    <script type="module" src="../js/admin.js?v=8b10c0fb"></script>
 </body>
 </html>

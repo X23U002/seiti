@@ -742,6 +742,21 @@ button:active {
    検索バーの虫眼鏡位置調整
 ===================================== */
 
+/* 入力を消す「×」は、文字が入っている間はいつも出す
+   （ライブラリは候補を選んだ後や候補が0件の時に消し、マウスを乗せた時だけ出すため、スマホでは消えたままになる） */
+.mapboxgl-ctrl-geocoder:has(input:not(:placeholder-shown)) .mapboxgl-ctrl-geocoder--button {
+    display: block !important;
+}
+
+.mapboxgl-ctrl-geocoder:has(input:placeholder-shown) .mapboxgl-ctrl-geocoder--button {
+    display: none !important;
+}
+
+/* 探している間は、同じ場所に出る読み込み中の印を見せる */
+.mapboxgl-ctrl-geocoder:has(.mapboxgl-ctrl-geocoder--icon-loading[style*="block"]) .mapboxgl-ctrl-geocoder--button {
+    display: none !important;
+}
+
 .mapboxgl-ctrl-geocoder--icon-search {
 
     top: 13px !important;
@@ -1326,6 +1341,39 @@ body {
     filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .4)) brightness(1.08);
 }
 
+/* 初めて出すピンは、上から落ちてきて少し弾む。
+   位置は Mapbox が transform で決めているので、それとは別の translate で動かす（✓ や番号も一緒に動く） */
+.mapboxgl-marker.pin-drop {
+    animation: pin-drop .55s cubic-bezier(.3, 1.35, .5, 1) var(--pin-delay, 0ms) backwards;
+}
+
+@keyframes pin-drop {
+    0% { translate: 0 -48px; opacity: 0; }
+    55% { translate: 0 3px; opacity: 1; }
+    75% { translate: 0 -5px; }
+    100% { translate: 0 0; }
+}
+
+/* 押したピンは、ぴょんと跳ねる */
+.mapboxgl-marker.is-selected {
+    animation: pin-hop .5s ease-out;
+}
+
+@keyframes pin-hop {
+    0% { translate: 0 0; }
+    35% { translate: 0 -16px; }
+    65% { translate: 0 0; }
+    80% { translate: 0 -4px; }
+    100% { translate: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mapboxgl-marker.pin-drop,
+    .mapboxgl-marker.is-selected {
+        animation: none;
+    }
+}
+
 /* スタンプ取得済みのピンに ✓ バッジを付ける */
 .mapboxgl-marker.stamp-completed-marker::after {
     content: "✓";
@@ -1347,9 +1395,132 @@ body {
     pointer-events: none;
 }
 
+/* 地図上にルートを生成している間の、回る順番の番号（左上。右上は ✓） */
+.mapboxgl-marker .route-order-badge {
+    position: absolute;
+    top: -6px;
+    left: -8px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 4px;
+    border-radius: 10px;
+    border: 2px solid #fff;
+    background: #0b3c5d;
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+    line-height: 1;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+    pointer-events: none;
+}
+
 /* ---------- ズームアウト時のまとめピン ----------
    外側の輪：作品の色（作品ごとの件数の割合）　真ん中：件数
    大きさは件数に合わせて Script.js で決める（32〜52px） */
+/* ---------- 画面の上で重なったピンをまとめたピン（Script.js の updateOverlapGroups） ---------- */
+/* まとめた聖地の1か所ずつのピンは隠す（消さないのは、開いた詳細やスタンプ・ルートの印をそのまま使うため） */
+.mapboxgl-marker.is-overlapped {
+    display: none !important;
+}
+
+.overlap-pin {
+    position: relative;
+    width: 27px;
+    height: 41px;
+    cursor: pointer;
+}
+
+.overlap-pin svg {
+    display: block;
+}
+
+/* 右上の数（3D 表示でピンを立体にしている間も、数だけは出す） */
+.overlap-pin-count {
+    position: absolute;
+    top: -7px;
+    right: -11px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    box-sizing: border-box;
+    border: 1.5px solid #0b3c5d;
+    border-radius: 10px;
+    background: #fff;
+    color: #0b3c5d;
+    font-size: 12px;
+    font-weight: bold;
+    line-height: 17px;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .35);
+    visibility: visible;
+    pointer-events: none;
+}
+
+/* 3D の立体のピンは少し大きいので、数も上へずらす */
+#map.is-3d .overlap-pin-count {
+    top: -12px;
+    right: -14px;
+}
+
+/* 同じ場所の聖地を選ぶ一覧 */
+.overlap-list-popup .mapboxgl-popup-content {
+    padding: 10px 10px 6px;
+    border-radius: 12px;
+}
+
+.overlap-list-title {
+    margin: 0 0 6px;
+    padding-right: 18px;
+    font-size: 13px;
+    font-weight: bold;
+    color: #0b3c5d;
+}
+
+.overlap-list-item {
+    display: grid;
+    grid-template-columns: 12px 1fr;
+    column-gap: 8px;
+    align-items: center;
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+    padding: 6px 8px;
+    border: none;
+    border-top: 1px solid #eef2f5;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    text-align: left;
+    color: #2c3e50;
+}
+
+.overlap-list-item:hover,
+.overlap-list-item:focus-visible {
+    background: #e6f0f6;
+    transform: none;
+}
+
+.overlap-list-dot {
+    grid-row: 1 / span 2;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.overlap-list-name {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.overlap-list-work {
+    font-size: 11px;
+    color: #6b7b8c;
+}
+
 .spot-cluster {
     display: flex;
     align-items: center;
@@ -1440,8 +1611,52 @@ body {
 
 .popup-image img {
     display: block;
-    height: 110px;
+    /* 場面の写真（16:9）を上下を切らずに見せる。縦に長い写真は高さを抑える */
+    height: auto;
+    aspect-ratio: 16 / 9;
+    max-height: 38vh;
     border-radius: 0;
+    cursor: zoom-in;
+}
+
+/* 押すと画面いっぱいに大きく見る */
+.image-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, .88);
+    cursor: zoom-out;
+    animation: image-viewer-in .15s ease;
+}
+
+.image-viewer img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+.image-viewer-close {
+    position: absolute;
+    top: max(12px, env(safe-area-inset-top));
+    right: 12px;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .18);
+    color: #fff;
+    font-size: 24px;
+    cursor: pointer;
+}
+
+@keyframes image-viewer-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .popup-title {
@@ -1473,10 +1688,9 @@ body {
     color: #6b7b8c;
 }
 
-/* 長い説明は3行まで表示し、残りは枠内でスクロール */
+/* 説明は全部表示し、詳細のパネル全体でスクロールする
+   （3行の小さな枠の中でスクロールさせると、スマホでは指で動かしにくく、パネルを動かす操作とも取り合うため） */
 .popup-section p {
-    max-height: 5.1em;
-    overflow-y: auto;
     font-size: 14px;
     line-height: 1.7;
     color: #2c3e50;
@@ -1541,10 +1755,165 @@ body {
     transform: none;
 }
 
+/* 聖地に近づくほど、ボタンの色を濃くする（あと1km以内・200m以内） */
+.popup-card .stamp-button:disabled[data-stamp-stage="closer"] {
+    background: #fff4d6 !important;
+    color: #b9770e !important;
+    transition: background .4s, color .4s;
+}
+
+.popup-card .stamp-button:disabled[data-stamp-stage="near"] {
+    background: #ffe2a3 !important;
+    color: #94590a !important;
+    transition: background .4s, color .4s;
+}
+
+/* スタンプが取れる距離に入ったら、ボタンが光ってドクドクと脈打つ */
+.popup-card .stamp-button[data-stamp-stage="ready"] {
+    animation: stamp-ready 1.2s ease-in-out infinite;
+}
+
+@keyframes stamp-ready {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 3px 8px rgba(245, 158, 11, .35), 0 0 0 0 rgba(245, 158, 11, .55);
+    }
+    50% {
+        transform: scale(1.03);
+        box-shadow: 0 3px 8px rgba(245, 158, 11, .35), 0 0 0 10px rgba(245, 158, 11, 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .popup-card .stamp-button[data-stamp-stage="ready"] {
+        animation: none;
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, .45);
+    }
+}
+
 /* ---------- 公式サイト・ルート追加ボタン ---------- */
 .popup-buttons {
     gap: 10px;
     margin-top: 10px;
+}
+
+/* 訪れる前に（入れる時間・定休日など。入力がある聖地だけ） */
+.popup-visit {
+    margin-top: 12px;
+}
+
+.popup-visit strong {
+    font-size: 13px;
+    color: #0b3c5d;
+}
+
+.popup-visit-list {
+    margin: 6px 0 0;
+}
+
+.popup-visit-item {
+    display: flex;
+    gap: 10px;
+    padding: 5px 0;
+    border-top: 1px solid #eef1f3;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.popup-visit-item:first-child {
+    border-top: none;
+}
+
+.popup-visit-item dt {
+    flex-shrink: 0;
+    width: 5.5em;
+    color: #6b7b8c;
+}
+
+.popup-visit-item dd {
+    margin: 0;
+    color: #2c3e50;
+    overflow-wrap: anywhere;
+}
+
+.popup-visit-item.is-caution dd {
+    color: #b9770e;
+    font-weight: bold;
+}
+
+/* スタンプ・ルートに追加のボタンは、詳細の一番下に固定して、いつでも押せるようにする
+   （詳細の中をスクロールしても、下に残る） */
+.popup-action-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin: 12px -16px -16px;
+    padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
+    border-top: 1px solid #e3e8ec;
+    background: #fff;
+    box-shadow: 0 -8px 16px -12px rgba(0, 0, 0, .35);
+}
+
+.popup-action-bar .stamp-popup-area {
+    margin-top: 0 !important;
+}
+
+/* 下に固定する部分を小さくする：距離の文は上に小さく、
+   スタンプ・ルートに追加（・公式サイト）は横1段に並べる */
+.popup-action-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    align-items: stretch;
+    column-gap: 8px;
+    row-gap: 6px;
+    padding-top: 8px;
+}
+
+.popup-action-bar .stamp-popup-area,
+.popup-action-bar .popup-buttons {
+    display: contents;
+}
+
+.popup-action-bar .stamp-distance-message {
+    grid-column: 1 / -1;
+    display: -webkit-box;
+    margin: 0 !important;
+    overflow: hidden;
+    color: #4a5a6a !important;
+    font-size: 12px !important;
+    line-height: 1.5;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.popup-action-bar .stamp-button {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 46px !important;
+    padding: 6px 8px !important;
+    font-size: 13px !important;
+    line-height: 1.3;
+}
+
+.popup-action-bar .popup-buttons button[id^="route-btn-"] {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 46px;
+    padding: 6px 8px;
+    font-size: 13px;
+    line-height: 1.3;
+}
+
+.popup-action-bar .popup-home {
+    grid-column: 3;
+    grid-row: 2;
+    width: 46px;
+    height: 46px;
+}
+
+/* 公式サイトが無い聖地は、2つで横いっぱいに使う */
+.popup-action-bar:not(:has(.popup-home)) {
+    grid-template-columns: 1fr 1fr;
 }
 
 .popup-home {
@@ -1583,8 +1952,12 @@ body {
     margin-bottom: 6px;
 }
 
+/* 作品名の札は、話数の札と上下の真ん中・高さをそろえる（ふだんの .popup-title は上寄せなので打ち消す） */
 .popup-meta .popup-title {
+    align-self: center;
     margin-bottom: 0;
+    padding: 4px 12px;
+    line-height: 1.3;
 }
 
 /* お気に入り・共有（札の行の右端） */
@@ -1630,6 +2003,39 @@ body {
     fill: currentColor;
 }
 
+/* お気に入りにした瞬間：ハートがポンとふくらみ、小さなハートが散る */
+.popup-fav {
+    position: relative;
+    overflow: visible;
+}
+
+.popup-fav.is-burst .icon {
+    animation: heart-pop .45s cubic-bezier(.3, 1.6, .5, 1);
+}
+
+.heart-particle {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin: -7px 0 0 -5px;
+    color: #e74c3c;
+    font-size: 12px;
+    line-height: 1;
+    pointer-events: none;
+    animation: heart-fly .65s ease-out forwards;
+}
+
+@keyframes heart-pop {
+    0% { transform: scale(.6); }
+    60% { transform: scale(1.35); }
+    100% { transform: scale(1); }
+}
+
+@keyframes heart-fly {
+    0% { opacity: 1; transform: rotate(var(--heart-angle)) translateY(-6px) scale(.6); }
+    100% { opacity: 0; transform: rotate(var(--heart-angle)) translateY(-30px) scale(1); }
+}
+
 .popup-ep {
     display: inline-block;
     flex-shrink: 0;
@@ -1642,6 +2048,18 @@ body {
     font-weight: bold;
     line-height: 1.3;
     white-space: nowrap;
+}
+
+/* 押すと、作品ページでその話の聖地の一覧を出す */
+.popup-ep-link {
+    text-decoration: none;
+}
+
+.popup-ep-link:hover,
+.popup-ep-link:focus-visible {
+    transform: none;
+    background: #0b3c5d;
+    color: white;
 }
 
 /* ---------- 近くの聖地 ---------- */
@@ -1756,6 +2174,30 @@ body {
 
 #toast.toast-error {
     background: rgba(192, 57, 43, .95);
+}
+
+/* ボタン付き（元に戻す・ログインする など）の時は押せるようにする */
+#toast.has-action.show {
+    pointer-events: auto;
+}
+
+.toast-action {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 4px 12px;
+    border: 1.5px solid rgba(255, 255, 255, .85);
+    border-radius: 14px;
+    background: transparent;
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.toast-action:hover {
+    transform: none;
+    background: rgba(255, 255, 255, .15);
 }
 
 /* =========================================================
@@ -1915,6 +2357,11 @@ body {
 }
 
 /* ---------- 現在地ボタンは右下の1つにまとめる（Mapbox標準の◎は隠す） ---------- */
+/* ---------- 北が上で傾いていない時は、方位ボタンを隠す（Script.js の updateNorthUp） ---------- */
+#map.is-north-up .mapboxgl-ctrl-compass {
+    display: none;
+}
+
 .mapboxgl-ctrl-group:has(> .mapboxgl-ctrl-geolocate) {
     display: none !important;
 }
@@ -2022,6 +2469,33 @@ body {
     background: #f6f8f9;
 }
 
+/* 長い作品名は省略し、選んだ話は必ず見せる */
+#filter-chips {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.filter-chip {
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.chip-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chip-detail {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #eef1f3;
+    color: #0b3c5d;
+    font-size: 12px;
+}
+
 .chip-x {
     display: flex;
     align-items: center;
@@ -2065,6 +2539,50 @@ body {
 #anime-list .anime-count {
     font-size: 12px;
     color: #6b7b8c;
+}
+
+#anime-list .anime-item[hidden] {
+    display: none;
+}
+
+/* 作品の話で絞り込む（チェックした作品の下に出す） */
+.episode-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 10px 12px 40px;
+}
+
+.episode-filter[hidden] {
+    display: none;
+}
+
+.episode-filter-hint {
+    width: 100%;
+    margin: 0;
+    font-size: 12px;
+    color: #6b7b8c;
+}
+
+.episode-option {
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid #c9d3dc;
+    border-radius: 16px;
+    background: white;
+    color: #2c3e50;
+    font-size: 13px;
+}
+
+.episode-option:hover {
+    transform: none;
+    background: #f6f8f9;
+}
+
+.episode-option[aria-pressed="true"] {
+    border-color: #0b3c5d;
+    background: #0b3c5d;
+    color: white;
 }
 
 /* ---------- ルート案内パネル ---------- */
@@ -2171,6 +2689,81 @@ body {
     transform: none;
 }
 
+/* 「Googleマップ」「保存」「送る」は小さく1段に並べる（聖地の一覧を広く使う） */
+.route-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.route-actions > button {
+    flex: 1;
+    width: auto !important;
+    min-width: 0;
+    min-height: 38px;
+    margin-top: 0 !important;
+    padding: 6px 4px !important;
+    border-radius: 8px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.route-actions > #open-google-route {
+    flex: 1.4;
+}
+
+/* ルートを生成するボタンも少し低くする */
+#generate-mapbox-route {
+    min-height: 40px !important;
+    margin-bottom: 0 !important;
+    padding: 8px 12px !important;
+}
+
+#routeList {
+    margin-bottom: 10px;
+}
+
+/* たたんだ時だけ「次：○○・あと約Nm」を出す（見出しの「ルート案内」の代わり） */
+#route-toggle {
+    min-width: 0;
+}
+
+.route-next {
+    display: none;
+    min-width: 0;
+    overflow: hidden;
+    color: #2c3e50;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#routePanel.collapsed .route-next:not(:empty) {
+    display: block;
+}
+
+#routePanel.collapsed:has(.route-next:not(:empty)) .route-title {
+    display: none;
+}
+
+/* 「ルートを送る」も同じ控えめなボタンに */
+#share-route {
+    width: 100%;
+    margin-top: 8px;
+    padding: 12px;
+    background: white;
+    border: 2px solid #0b3c5d;
+    border-radius: 8px;
+    color: #0b3c5d;
+    font-weight: bold;
+    box-shadow: none;
+}
+
+#share-route:hover {
+    background: #e6f0f6;
+    transform: none;
+}
+
 #save-route:disabled {
     border-color: #dcdde1;
     background: #f4f7f6;
@@ -2227,6 +2820,11 @@ body {
         display: none !important;
     }
 
+    /* 方位ボタンも隠れている時（北が上）は、ボタンの白い枠ごと隠す */
+    #map.is-north-up .mapboxgl-ctrl-group:has(> .mapboxgl-ctrl-compass) {
+        display: none;
+    }
+
     /* 2D｜3D は縦に並べて右側を細くし、ルート案内と重ならないようにする */
     #toggle-view-btn,
     #toggle-view-btn.mode3d {
@@ -2253,7 +2851,7 @@ body {
         left: 16px;
         right: 80px;
         width: auto;
-        max-height: 45vh;
+        max-height: 62vh;
     }
 
     /* ---------- スポット詳細：画面下からせり上がるパネル ---------- */
@@ -2271,7 +2869,8 @@ body {
 
     /* Mapboxのロゴより手前に出す */
     .mapboxgl-popup:has(.popup-card) {
-        z-index: 3;
+        /* 見ているピン（強調表示は z-index: 10）より前に出す */
+        z-index: 20;
     }
 
     .mapboxgl-popup:has(.popup-card) .mapboxgl-popup-tip {
@@ -2304,10 +2903,11 @@ body {
         left: 16px !important;
         right: auto !important;
         bottom: auto !important;
-        width: 360px !important;
+        width: 440px !important;
         max-width: calc(100vw - 32px) !important;
         transform: none !important;
-        z-index: 3;
+        /* 見ているピン（強調表示は z-index: 10）より前に出す */
+        z-index: 20;
         animation: panel-in .2s ease;
     }
 
@@ -2318,10 +2918,6 @@ body {
     .mapboxgl-popup:has(.popup-card) .mapboxgl-popup-content {
         max-height: calc(100vh - 148px);
         max-height: calc(100dvh - 148px);
-    }
-
-    .mapboxgl-popup:has(.popup-card) .popup-image img {
-        height: 160px;
     }
 }
 
@@ -2351,18 +2947,132 @@ body {
     to { translate: 0 0; opacity: 1; }
 }
 
+/* =========================================================
+   画面の出入りの動き
+========================================================= */
+/* 絞り込み・おすすめルートのシートは下からせり上がり、閉じる時は下へ引っ込む */
+#filter-modal[style*="block"],
+#course-modal[style*="block"] {
+    animation: sheet-rise .32s cubic-bezier(.2, .9, .3, 1);
+}
 
-/* ---------- ルートの並べ替え（つまみ・▲▼ボタン） ---------- */
+#filter-modal.is-closing,
+#course-modal.is-closing {
+    animation: sheet-sink .2s ease-in forwards;
+}
+
+#filter-modal[style*="block"] + #filter-backdrop,
+#course-modal[style*="block"] + #course-backdrop,
+#side-menu.open + #menu-backdrop {
+    animation: backdrop-in .25s ease;
+}
+
+#filter-modal.is-closing + #filter-backdrop,
+#course-modal.is-closing + #course-backdrop {
+    animation: backdrop-out .2s ease-in forwards;
+}
+
+@keyframes sheet-rise {
+    from { translate: 0 100%; }
+    to { translate: 0 0; }
+}
+
+@keyframes sheet-sink {
+    from { translate: 0 0; }
+    to { translate: 0 100%; }
+}
+
+@keyframes backdrop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes backdrop-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+/* ルート案内のパネルは、出てくる時にふわっと */
+#routePanel {
+    animation: route-panel-in .3s cubic-bezier(.2, .9, .3, 1);
+}
+
+@keyframes route-panel-in {
+    from { translate: 0 16px; opacity: 0; }
+    to { translate: 0 0; opacity: 1; }
+}
+
+/* 一覧は上から順にふわっと出す（最初の数件だけずらす） */
+#course-list > *,
+#anime-list > .anime-item,
+#side-menu.open li,
+.popup-card > * {
+    animation: list-in .32s ease-out backwards;
+}
+
+#course-list > :nth-child(2),
+#anime-list > .anime-item:nth-child(2),
+#side-menu.open li:nth-child(2),
+.popup-card > :nth-child(2) { animation-delay: .04s; }
+
+#course-list > :nth-child(3),
+#anime-list > .anime-item:nth-child(3),
+#side-menu.open li:nth-child(3),
+.popup-card > :nth-child(3) { animation-delay: .08s; }
+
+#course-list > :nth-child(4),
+#anime-list > .anime-item:nth-child(4),
+#side-menu.open li:nth-child(4),
+.popup-card > :nth-child(4) { animation-delay: .12s; }
+
+#course-list > :nth-child(5),
+#anime-list > .anime-item:nth-child(5),
+#side-menu.open li:nth-child(5),
+.popup-card > :nth-child(5) { animation-delay: .16s; }
+
+#course-list > :nth-child(n + 6),
+#anime-list > .anime-item:nth-child(n + 6),
+#side-menu.open li:nth-child(n + 6),
+.popup-card > :nth-child(n + 6) { animation-delay: .2s; }
+
+@keyframes list-in {
+    from { translate: 0 10px; opacity: 0; }
+    to { translate: 0 0; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #filter-modal,
+    #course-modal,
+    #filter-backdrop,
+    #course-backdrop,
+    #menu-backdrop,
+    #routePanel,
+    #course-list > *,
+    #anime-list > .anime-item,
+    #side-menu li,
+    .popup-card > * {
+        animation: none !important;
+    }
+}
+
+
+/* ---------- ルートの並べ替え（つまみ。ドラッグ、またはキーボードの ↑↓） ---------- */
 .routeItem {
     gap: 6px;
     background: rgba(255, 255, 255, 0.95);
 }
 
-.route-handle {
+.routeItem .route-handle {
     flex-shrink: 0;
-    width: 24px;
-    padding: 6px 0;
-    font-size: 18px;
+    width: 32px;
+    height: 36px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    font-size: 20px;
     line-height: 1;
     color: #95a5a6;
     text-align: center;
@@ -2371,36 +3081,17 @@ body {
     user-select: none;
 }
 
+.routeItem .route-handle:hover,
+.routeItem .route-handle:focus-visible {
+    background: #e6f0f6;
+    color: #0b3c5d;
+    transform: none;
+}
+
 .route-name {
     flex: 1;
     min-width: 0;
     overflow-wrap: anywhere;
-}
-
-.route-move {
-    display: flex;
-    flex-direction: column;
-    flex-shrink: 0;
-    gap: 2px;
-}
-
-.routeItem .route-move button {
-    width: 28px;
-    height: 18px;
-    margin: 0;
-    border-radius: 4px;
-    background: #e6f0f6;
-    color: #0b3c5d;
-    font-size: 10px;
-}
-
-.routeItem .route-move button:hover:not(:disabled) {
-    background: #cfe0ec;
-}
-
-.routeItem .route-move button:disabled {
-    opacity: 0.35;
-    cursor: default;
 }
 
 .routeItem .route-remove {
@@ -2413,7 +3104,7 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 4px 0 4px 30px;      /* つまみの幅だけ右へ寄せて、項目の間の「つなぎ」に見せる */
+    padding: 4px 0 4px 38px;      /* つまみの幅だけ右へ寄せて、項目の間の「つなぎ」に見せる */
     font-size: 12px;
     color: #6b7b8c;
 }
@@ -2441,6 +3132,47 @@ body {
     background: #e6f0f6;
 }
 
+/* 「現在地から」の区間を外す × と、外した時の「＋ 現在地から出発する」 */
+.route-leg .route-origin-remove {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    box-shadow: none;
+    color: #95a5a6;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.route-leg .route-origin-remove:hover,
+.route-leg .route-origin-remove:focus-visible {
+    background: #e6f0f6;
+    color: #0b3c5d;
+    transform: none;
+}
+
+.route-leg .route-origin-add {
+    margin: 0;
+    padding: 4px 10px;
+    border: 1px dashed #b8cad8;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: none;
+    color: #0b3c5d;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.route-leg .route-origin-add:hover,
+.route-leg .route-origin-add:focus-visible {
+    background: #e6f0f6;
+    transform: none;
+}
+
 /* 遠い区間は電車をすすめる */
 .route-leg-transit.is-recommended {
     border-color: #0b3c5d;
@@ -2451,6 +3183,13 @@ body {
 .route-leg-transit.is-recommended:hover,
 .route-leg-transit.is-recommended:focus-visible {
     background: #145a87;
+}
+
+/* 地図上にルートを生成した区間は、地図の線と同じ色の印を左に付ける */
+.route-leg.has-route-color {
+    margin-left: 34px;
+    padding-left: 8px;
+    border-left: 4px solid var(--leg-color);
 }
 
 /* 並べ替え中は区間を隠す（離すと描き直す） */
@@ -2465,7 +3204,8 @@ body {
     opacity: 0.95;
 }
 
-.routeItem.dragging .route-handle {
+.routeItem.dragging .route-handle,
+.routeItem.dragging .route-handle:hover {
     cursor: grabbing;
 }
 
@@ -2507,17 +3247,72 @@ body {
     background: #fff;
     box-shadow: 0 12px 32px rgba(0, 0, 0, .25);
     text-align: center;
-    animation: stamp-card-in .25s ease;
+    /* 出てきて、ハンコが当たった瞬間に「ドン」と少し沈む */
+    animation:
+        stamp-card-in .25s ease,
+        stamp-card-thud .3s ease-out .33s;
+}
+
+/* 文字はハンコが押されてから、下から順にふわっと出す */
+.stamp-celebration-card > p,
+.stamp-celebration-card > button {
+    animation: stamp-text-in .35s ease-out both;
+}
+
+.stamp-celebration-card > :nth-child(2) { animation-delay: .42s; }
+.stamp-celebration-card > :nth-child(3) { animation-delay: .5s; }
+.stamp-celebration-card > :nth-child(4) { animation-delay: .56s; }
+.stamp-celebration-card > :nth-child(5) { animation-delay: .62s; }
+.stamp-celebration-card > :nth-child(6) { animation-delay: .68s; }
+.stamp-celebration-card > :nth-child(n + 7) { animation-delay: .74s; }
+
+/* ハンコと、押した瞬間のインクのにじみ・はじける光を重ねる台 */
+.stamp-celebration-impact {
+    position: relative;
+    width: 104px;
+    height: 104px;
+    margin: 0 auto 14px;
+}
+
+/* 押した瞬間に、ハンコのまわりへインクがにじんで広がる */
+.stamp-ink {
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 6px solid rgba(229, 57, 53, .55);
+    opacity: 0;
+    animation: stamp-ink .7s ease-out .33s both;
+}
+
+/* はじける光（10本。--spark-angle の向きへ飛ぶ） */
+.stamp-sparks span {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 6px;
+    height: 16px;
+    margin: -8px 0 0 -3px;
+    border-radius: 3px;
+    background: #f59e0b;
+    opacity: 0;
+    transform: rotate(var(--spark-angle)) translateY(0);
+    animation: stamp-spark .6s ease-out .33s both;
+}
+
+.stamp-sparks span:nth-child(even) {
+    background: #e53935;
+    height: 11px;
 }
 
 /* 上から「ポン」と押されるスタンプ */
 .stamp-celebration-stamp {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
     width: 104px;
     height: 104px;
-    margin: 0 auto 14px;
+    margin: 0;
     border-radius: 50%;
     border: 5px solid #fff;
     box-shadow: 0 0 0 4px #f59e0b, 0 8px 18px rgba(0, 0, 0, .2);
@@ -2558,6 +3353,17 @@ body {
     color: #6b7b8c;
 }
 
+/* 圏外で押した時（電波が戻ったら保存する） */
+.stamp-celebration-pending {
+    margin: 8px 0 4px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: #fff7e6;
+    color: #8a5a00;
+    font-size: 13px;
+    font-weight: bold;
+}
+
 .stamp-celebration-complete {
     margin: 12px 0 6px;
     padding: 10px;
@@ -2583,6 +3389,24 @@ body {
 
 .stamp-celebration-close:hover {
     background: #14537f;
+}
+
+/* コンプリートを画像にして共有 */
+.stamp-celebration-share {
+    width: 100%;
+    min-height: 46px;
+    margin-top: 14px;
+    border: 2px solid #f2c94c;
+    border-radius: 10px;
+    background: #fff4d6;
+    color: #94590a;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.stamp-celebration-share + .stamp-celebration-close {
+    margin-top: 8px;
 }
 
 /* コンプリートの時は金色の縁取り */
@@ -2616,6 +3440,27 @@ body {
     100% { opacity: 1; transform: scale(1) rotate(-8deg); }
 }
 
+@keyframes stamp-ink {
+    0% { opacity: .9; transform: scale(.7); }
+    100% { opacity: 0; transform: scale(1.45); }
+}
+
+@keyframes stamp-spark {
+    0% { opacity: 1; transform: rotate(var(--spark-angle)) translateY(-40px) scaleY(.4); }
+    100% { opacity: 0; transform: rotate(var(--spark-angle)) translateY(-84px) scaleY(1); }
+}
+
+@keyframes stamp-card-thud {
+    0% { transform: none; }
+    35% { transform: translateY(4px) scale(.985); }
+    100% { transform: none; }
+}
+
+@keyframes stamp-text-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+}
+
 @keyframes confetti-fall {
     from { transform: translateY(0) rotate(0deg); opacity: 1; }
     to { transform: translateY(105vh) rotate(540deg); opacity: .7; }
@@ -2625,11 +3470,15 @@ body {
 @media (prefers-reduced-motion: reduce) {
     .stamp-celebration,
     .stamp-celebration-card,
+    .stamp-celebration-card > p,
+    .stamp-celebration-card > button,
     .stamp-celebration-stamp {
         animation: none;
     }
 
-    .stamp-celebration .confetti {
+    .stamp-celebration .confetti,
+    .stamp-ink,
+    .stamp-sparks {
         display: none;
     }
 }
@@ -2766,6 +3615,160 @@ body {
 .course-card .course-start:hover {
     background: #14537f;
     transform: none;
+}
+
+/* ---------- AI でつくるマイプラン（おすすめルートの画面の一番上。目立つ色の枠） ---------- */
+.my-plan[hidden],
+.my-plan-login[hidden],
+.my-plan-form[hidden],
+#my-plan-result[hidden] {
+    display: none;
+}
+
+.my-plan {
+    position: relative;
+    margin: 4px 0 8px;
+    padding: 16px;
+    border: 2px solid transparent;
+    border-radius: 16px;
+    background:
+        linear-gradient(135deg, #f6f1ff, #eef6ff) padding-box,
+        linear-gradient(135deg, #7c4dff, #2f8cff) border-box;
+    box-shadow: 0 6px 18px rgba(92, 64, 200, .18);
+}
+
+.my-plan h3 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    margin: 0 0 6px;
+    font-size: 17px;
+    color: #3a1f8f;
+}
+
+.my-plan-badge {
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #7c4dff, #2f8cff);
+    color: #fff;
+    font-size: 12px;
+    letter-spacing: .04em;
+}
+
+/* 運営のおすすめルートの見出し（AI の枠の下） */
+.course-list-heading {
+    margin: 20px 0 4px;
+    font-size: 15px;
+    color: #6b7b8c;
+}
+
+.my-plan-lead {
+    margin: 0 0 12px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #2c3e50;
+}
+
+.my-plan-form {
+    display: grid;
+    gap: 10px;
+}
+
+.my-plan-field {
+    display: grid;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: bold;
+    color: #6b7b8c;
+}
+
+.my-plan-field select,
+.my-plan-field input,
+.my-plan-field textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #c9d3dc;
+    border-radius: 8px;
+    background: #fff;
+    color: #2c3e50;
+    font: inherit;
+    font-size: 16px;
+    font-weight: normal;
+}
+
+.my-plan-field textarea {
+    resize: vertical;
+}
+
+.my-plan-submit,
+.my-plan-login {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    border-radius: 10px;
+    background: #0b3c5d;
+    color: #fff;
+    font-size: 15px;
+    font-weight: bold;
+    line-height: 44px;
+    text-align: center;
+    text-decoration: none;
+}
+
+.my-plan-submit {
+    line-height: normal;
+    background: linear-gradient(135deg, #7c4dff, #2f8cff);
+    box-shadow: 0 3px 10px rgba(92, 64, 200, .3);
+}
+
+.my-plan-submit:hover {
+    background: linear-gradient(135deg, #6a3bf0, #1f7bef);
+    transform: none;
+}
+
+.my-plan-submit:disabled {
+    background: #8a9aa8;
+    box-shadow: none;
+    cursor: wait;
+}
+
+.my-plan-status {
+    margin: 10px 0;
+    font-size: 13px;
+    color: #6b7b8c;
+}
+
+.my-plan-status:empty {
+    display: none;
+}
+
+.my-plan-stop-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+}
+
+.my-plan-stop-name {
+    font-weight: bold;
+}
+
+.my-plan-stay {
+    font-size: 12px;
+    color: #6b7b8c;
+}
+
+.my-plan-comment {
+    margin: 2px 0 6px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.my-plan-note {
+    margin: 10px 0 0;
+    font-size: 12px;
+    color: #6b7b8c;
 }
 
 /* 聖地の詳細の「この聖地を通るおすすめルート」 */
@@ -2907,4 +3910,606 @@ a.popup-title {
 a.popup-title:hover,
 a.popup-title:focus-visible {
     text-decoration: underline;
+}
+
+
+
+/* ==========================================
+   Mapboxルート生成ボタン
+========================================== */
+
+#generate-mapbox-route {
+    display: block;
+    width: 100%;
+    min-height: 46px;
+    margin: 0 0 8px;
+    padding: 12px;
+
+    border: none;
+    border-radius: 8px;
+
+    background: #f39c12;
+    color: #ffffff;
+
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 1.5;
+
+    cursor: pointer;
+    box-shadow: 0 3px 8px rgba(243, 156, 18, 0.25);
+
+    transition:
+        background-color 0.2s ease,
+        opacity 0.2s ease,
+        transform 0.2s ease;
+}
+
+/* マウスを乗せたとき */
+#generate-mapbox-route:hover:not(:disabled) {
+    background: #e08e0b;
+    transform: none;
+}
+
+/* 押したとき */
+#generate-mapbox-route:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+/* 生成中など、操作できないとき */
+#generate-mapbox-route:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+/* キーボード操作時 */
+#generate-mapbox-route:focus-visible {
+    outline: 3px solid rgba(243, 156, 18, 0.45);
+    outline-offset: 2px;
+}
+
+/* Googleマップ・保存ボタンとの間隔 */
+#open-google-route {
+    margin-top: 0;
+}
+
+#save-route {
+    margin-top: 8px;
+}
+
+/* =========================================================
+   はじめての人への使い方の説明・現在地を使うかの確認（onboarding.js）
+========================================================= */
+.onboarding {
+    position: fixed;
+    inset: 0;
+    z-index: 10002;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, .45);
+    animation: backdrop-in .25s ease;
+}
+
+.onboarding-card {
+    width: min(360px, 100%);
+    padding: 28px 22px 20px;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .25);
+    text-align: center;
+    animation: stamp-card-in .25s ease;
+}
+
+.onboarding-icon {
+    font-size: 52px;
+    line-height: 1;
+}
+
+.onboarding-title {
+    margin: 14px 0 8px;
+    font-size: 20px;
+    color: #0b3c5d;
+}
+
+.onboarding-text {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.8;
+    color: #2c3e50;
+    text-align: left;
+}
+
+.onboarding-dots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin: 18px 0 16px;
+}
+
+.onboarding-dots span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #dcdde1;
+}
+
+.onboarding-dots span.is-current {
+    width: 20px;
+    border-radius: 4px;
+    background: #0b3c5d;
+}
+
+.onboarding-buttons,
+.location-card-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.onboarding-primary,
+.onboarding-secondary {
+    flex: 1;
+    min-height: 46px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.onboarding-primary {
+    background: #0b3c5d;
+    color: #fff;
+}
+
+.onboarding-secondary {
+    background: #eef1f3;
+    color: #2c3e50;
+}
+
+.onboarding-primary:hover,
+.onboarding-secondary:hover {
+    transform: none;
+}
+
+/* 2回目からの小さな案内（地図の下に出し、地図は使えるまま） */
+.location-card {
+    position: fixed;
+    left: 50%;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    z-index: 9000;
+    width: min(420px, calc(100vw - 32px));
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+    transform: translateX(-50%);
+    animation: route-panel-in .3s cubic-bezier(.2, .9, .3, 1);
+}
+
+.location-card-text {
+    margin: 0 0 10px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: #2c3e50;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .onboarding,
+    .onboarding-card,
+    .location-card {
+        animation: none;
+    }
+}
+
+/* =========================================================
+   スマホの画面下のタブ（tab-bar.css）がある時は、地図の下のボタン・パネルをその上へ
+========================================================= */
+@media (max-width: 600px) {
+    body.has-tab-bar {
+        padding-bottom: 0;
+    }
+
+    /* 下のタブにあるもの（マイページ・作品一覧・スタンプ帳）は、右上のボタンとメニューに重ねて出さない。
+       右上のボタンが無い分、検索欄を広くする */
+    body.has-tab-bar #profile-btn,
+    body.has-tab-bar .menu-in-tab-bar {
+        display: none;
+    }
+
+    body.has-tab-bar #search-container {
+        right: 18px;
+    }
+
+    body.has-tab-bar #routePanel {
+        bottom: calc(16px + var(--tab-bar-height));
+        max-height: calc(62vh - var(--tab-bar-height));
+    }
+
+    body.has-tab-bar #location-btn {
+        bottom: calc(132px + var(--tab-bar-height));
+    }
+
+    body.has-tab-bar #toggle-view-btn,
+    body.has-tab-bar #toggle-view-btn.mode3d {
+        bottom: calc(30px + var(--tab-bar-height));
+    }
+
+    body.has-tab-bar .mapboxgl-ctrl-bottom-left,
+    body.has-tab-bar .mapboxgl-ctrl-bottom-right {
+        bottom: var(--tab-bar-height);
+    }
+
+    body.has-tab-bar .location-card {
+        bottom: calc(12px + var(--tab-bar-height));
+    }
+
+    body.has-tab-bar #walk-test-panel {
+        bottom: calc(40px + var(--tab-bar-height));
+    }
+
+    /* 聖地の詳細を開いている間は、詳細が画面の下を使うのでタブを隠す（ルート案内などと同じ） */
+    body:has(.mapboxgl-popup .popup-card) .tab-bar {
+        display: none;
+    }
+}
+
+/* =========================================================
+   聖地の詳細パネル：なぞって閉じる・全画面に広げる（スマホ。sheet-drag.js）
+========================================================= */
+.sheet-handle {
+    display: none;
+}
+
+@media (max-width: 600px) {
+    /* 取っ手（画像の上に重ねる）。ここをなぞって閉じる・広げる（中はふつうにスクロールする）。
+       右上の閉じるボタンにかからないよう、真ん中だけにする */
+    .sheet-handle {
+        display: block;
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        width: 120px;
+        height: 28px;
+        margin: 0 auto -28px;
+        touch-action: none;
+        cursor: grab;
+    }
+
+    .sheet-handle::before {
+        content: "";
+        position: absolute;
+        top: 9px;
+        left: 50%;
+        width: 44px;
+        height: 5px;
+        border-radius: 3px;
+        /* 写真の上でも白い背景の上でも見えるよう、灰色に白い縁 */
+        background: #9aa6b2;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, .85), 0 1px 4px rgba(0, 0, 0, .25);
+        translate: -50% 0;
+    }
+
+    .mapboxgl-popup:has(.popup-card) .mapboxgl-popup-content {
+        transition: max-height .25s ease;
+    }
+
+    /* 全画面に広げている間は、上の検索欄・メニュー・絞り込み・方角のボタンを隠す
+       （詳細は地図（#map の z-index: 1）の中にあり、これらより手前に出られないので、
+       隠さないと取っ手がその後ろになって触れず、下ろせなくなる） */
+    body:has(.mapboxgl-popup.is-sheet-expanded .popup-card) #search-container,
+    body:has(.mapboxgl-popup.is-sheet-expanded .popup-card) #hamburger-btn,
+    body:has(.mapboxgl-popup.is-sheet-expanded .popup-card) #filter-bar,
+    body:has(.mapboxgl-popup.is-sheet-expanded .popup-card) .mapboxgl-ctrl-top-right {
+        visibility: hidden;
+    }
+
+    /* 全画面の時は、閉じる × も中と一緒にスクロールさせず、右上に残す */
+    .mapboxgl-popup.is-sheet-expanded .mapboxgl-popup-content:has(.popup-card) .mapboxgl-popup-close-button {
+        position: fixed;
+        top: calc(20px + env(safe-area-inset-top));
+        right: 8px;
+        z-index: 4;
+    }
+
+    /* 全画面に広げた時 */
+    .mapboxgl-popup.is-sheet-expanded:has(.popup-card) .mapboxgl-popup-content {
+        max-height: calc(100vh - 12px);
+        max-height: calc(100dvh - 12px - env(safe-area-inset-top));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mapboxgl-popup:has(.popup-card) .mapboxgl-popup-content {
+        transition: none;
+    }
+}
+
+/* =========================================================
+   近くの聖地の一覧（地図の「一覧」ボタンから開くシート）
+========================================================= */
+#spot-list-btn {
+    position: static;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 40px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 20px;
+    background: white;
+    color: #0b3c5d;
+    font-size: 15px;
+    font-weight: bold;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, .25);
+    cursor: pointer;
+}
+
+#spot-list-btn .icon {
+    width: 18px;
+    height: 18px;
+}
+
+#spot-list-modal {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    width: 100%;
+    max-width: 640px;
+    height: 80%;
+    max-height: 680px;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    border-radius: 20px 20px 0 0;
+    background: #ffffff;
+    box-shadow: 0 -4px 15px rgba(0, 0, 0, .2);
+    z-index: 9999;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+#spot-list-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .35);
+    z-index: 9998;
+}
+
+#spot-list-modal[style*="block"] + #spot-list-backdrop {
+    display: block;
+    animation: backdrop-in .25s ease;
+}
+
+#spot-list-modal[style*="block"] {
+    animation: sheet-rise .32s cubic-bezier(.2, .9, .3, 1);
+}
+
+#spot-list-modal.is-closing {
+    animation: sheet-sink .2s ease-in forwards;
+}
+
+#spot-list-modal.is-closing + #spot-list-backdrop {
+    animation: backdrop-out .2s ease-in forwards;
+}
+
+.spot-list {
+    margin: 4px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.spot-list > li + li {
+    border-top: 1px solid #edf1f4;
+}
+
+.spot-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 72px;
+    padding: 8px 4px;
+    border: none;
+    border-radius: 12px;
+    background: none;
+    color: #2c3e50;
+    text-align: left;
+    cursor: pointer;
+}
+
+.spot-list-item:hover,
+.spot-list-item:focus-visible {
+    background: #f3f6f8;
+}
+
+/* 写真（無ければ作品の色と1文字目） */
+.spot-list-thumb {
+    position: relative;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 48px;
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+.spot-list-initial {
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.spot-list-thumb img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.spot-list-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.spot-list-name {
+    overflow: hidden;
+    font-size: 15px;
+    font-weight: bold;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.spot-list-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.spot-list-title {
+    min-width: 0;
+    overflow: hidden;
+    color: #6b7b8c;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.spot-list-meta .popup-ep {
+    padding: 1px 7px;
+    font-size: 11px;
+}
+
+.spot-list-side {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.spot-list-distance {
+    color: #0b3c5d;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.spot-list-done {
+    color: #2e7d32;
+    font-size: 11px;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #spot-list-modal,
+    #spot-list-backdrop {
+        animation: none !important;
+    }
+}
+
+/* =========================================================
+   スタンプを押した後の「次の聖地へ」（stampsyori.js のお祝いの画面）
+========================================================= */
+.stamp-celebration-goto {
+    margin: 12px 0 4px;
+    padding: 12px;
+    border-radius: 14px;
+    background: #f3f6f8;
+    text-align: left;
+}
+
+.stamp-celebration-goto-label {
+    margin: 0;
+    color: #6b7b8c;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.stamp-celebration-goto-name {
+    margin: 2px 0 10px;
+    color: #2c3e50;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.stamp-celebration-goto-name small {
+    margin-left: 6px;
+    color: #0b3c5d;
+    font-size: 13px;
+}
+
+.stamp-celebration-goto-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.stamp-celebration-goto-buttons > * {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 21px;
+    font-size: 14px;
+    font-weight: bold;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.stamp-celebration-goto-detail {
+    background: #0b3c5d;
+    color: white;
+}
+
+.stamp-celebration-goto-walk {
+    border: 1.5px solid #0b3c5d !important;
+    background: white;
+    color: #0b3c5d;
+}
+
+/* 巡礼の前の注意（アプリを開いた時と、はじめての説明の1枚。onboarding.js） */
+.safety-list {
+    margin: 4px 0 18px;
+    padding: 0;
+    list-style: none;
+    text-align: left;
+}
+
+.safety-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 7px 0;
+    color: #2c3e50;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.safety-list li + li {
+    border-top: 1px solid #eef1f3;
+}
+
+.safety-icon {
+    flex-shrink: 0;
+    width: 24px;
+    font-size: 18px;
+    line-height: 1.3;
+    text-align: center;
+}
+
+/* はじめての説明の中では、何枚目かの印との間を詰める */
+.onboarding-card .safety-list + .onboarding-dots {
+    margin-top: 0;
 }

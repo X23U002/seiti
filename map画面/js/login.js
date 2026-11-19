@@ -5,15 +5,22 @@ import {
     signInWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
 
-import { auth } from "./firebase-db.js?v=917161b9";
+import { auth } from "./firebase-db.js?v=61accae5";
 // 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
-import { getOneDoc } from "./public-data.js?v=c815b81a";
+import { getOneDoc } from "./public-data.js?v=5183f404";
 import { authErrorMessage, saveLoginState } from "./login-state.js?v=3858a481";
 
 // 「メールアドレスを保存する」で使う保存先
 const SAVED_EMAIL_KEY = "seitiSavedEmail";
 
 // フォームの上にエラーメッセージを表示する（空文字で消す）
+// ログインした後に開くページ（login.html?next=map.html?spot=s1 など。無ければ地図）
+// ほかのサイトへ飛ばされないよう、このアプリのページ（○○.html）だけにする
+function getNextPage() {
+    const next = new URLSearchParams(location.search).get("next") || "";
+    return /^[a-z0-9_-]+\.html([?#][^\\]*)?$/i.test(next) ? next : "map.html";
+}
+
 function showLoginError(message) {
     const box = document.getElementById("login-error");
     box.textContent = message;
@@ -69,7 +76,7 @@ async function login() {
 
         saveLoginState(uid, nickname, email);
 
-        window.location.href = "map.html";
+        window.location.href = getNextPage();
     } catch (error) {
         console.error("ログインエラー:", error);
         showLoginError(authErrorMessage(error));

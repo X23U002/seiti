@@ -26,6 +26,41 @@
         return next ? { rank: next, remaining: next.min - count } : null;
     };
 
+    // 聖地の画像の URL（spot-image.js の getSpotImageSrc と同じ。html/ の中のページから見た場所）
+    // 画像が無ければ空文字。アニメの場面の画像（images/spots/anime/）は著作権上使わない
+    function stampImageSrc(imageUrl) {
+        if (!imageUrl || imageUrl === "no_image" || imageUrl === "not_image") return "";
+        if (/(^|\/)images\/spots\/anime\//.test(String(imageUrl))) return "";
+        if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+        return "../" + encodeURI(String(imageUrl).replace(/^\/+/, ""));
+    }
+
+    // スタンプの丸の中に、その聖地に登録した画像を入れる
+    // 画像が無い・読み込めない時は ⛩️ を出す
+    window.setStampImage = function (element, imageUrl) {
+        element.textContent = "";
+        element.classList.remove("has-image");
+
+        const src = stampImageSrc(imageUrl);
+        if (!src) {
+            element.textContent = "⛩️";
+            return;
+        }
+
+        const image = document.createElement("img");
+        image.className = "stamp-image";
+        image.src = src;
+        image.alt = "";
+        image.decoding = "async";
+        image.onerror = function () {
+            image.remove();
+            element.classList.remove("has-image");
+            element.textContent = "⛩️";
+        };
+        element.classList.add("has-image");
+        element.appendChild(image);
+    };
+
     // スタンプの丸にランクの枠を付ける（fill は中の色＝作品の色）
     window.applyStampRank = function (element, count, fill) {
         STAMP_RANKS.forEach(function (rank) {

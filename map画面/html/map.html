@@ -40,11 +40,12 @@
     <!-- 自作CSS -->
     <link
         rel="stylesheet"
-        href="../css/style.css?v=baf7d97d"
+        href="../css/style.css?v=ce1e3086"
     >
 
     <!-- スタンプのランク（回数で枠の色が変わる） -->
-    <link rel="stylesheet" href="../css/stamp-rank.css?v=63a337bd">
+    <link rel="stylesheet" href="../css/stamp-rank.css?v=966a0ec6">
+    <link rel="stylesheet" href="../css/tab-bar.css?v=82026e7c">
 
     <style>
         .popup-img {
@@ -54,6 +55,12 @@
             border-radius: 8px;
         }
     </style>
+    <!-- アプリとして使う（ホーム画面に追加・オフライン。pwa.js） -->
+    <link rel="manifest" href="../manifest.webmanifest">
+    <meta name="theme-color" content="#0b3c5d">
+    <link rel="apple-touch-icon" href="../images/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" href="../images/icons/icon-192.png">
+    <script src="../js/pwa.js?v=c08113cc" defer></script>
 </head>
 
 <body>
@@ -85,16 +92,17 @@
                 <a href="#" onclick="openCourses(); return false;"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16"/></svg>おすすめルート</a>
             </li>
 
-            <li>
+            <!-- 作品一覧・マイページ・スタンプ帳は、スマホでは下のタブにあるのでメニューには出さない -->
+            <li class="menu-in-tab-bar">
                 <a href="works.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16M3 9h5M3 14h5"/></svg>作品一覧</a>
             </li>
 
-            <li>
+            <li class="menu-in-tab-bar">
                 <a href="mypage.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>マイページ</a>
             </li>
 
-            <li>
-                <a href="stamp.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="6"/><path d="M8.5 14 7 22l5-3 5 3-1.5-8"/></svg>獲得スタンプ</a>
+            <li class="menu-in-tab-bar">
+                <a href="stamp.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="6"/><path d="M8.5 14 7 22l5-3 5 3-1.5-8"/></svg>スタンプ帳</a>
             </li>
 
             <li>
@@ -107,6 +115,10 @@
 
             <li>
                 <a href="guide.html"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4z"/><path d="M20 4h-6a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h7z"/></svg>操作ガイド</a>
+            </li>
+
+            <li>
+                <a href="#" onclick="installApp(); return false;"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M12 7v7M9 11l3 3 3-3"/></svg>ホーム画面に追加</a>
             </li>
         </ul>
 
@@ -159,6 +171,17 @@
         >
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>
             作品で絞り込み
+        </button>
+
+        <!-- 近くの聖地を一覧で見る -->
+        <button
+            id="spot-list-btn"
+            type="button"
+            onclick="openSpotList()"
+            aria-label="近くの聖地を一覧で見る"
+        >
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor"/></svg>
+            一覧
         </button>
 
         <div
@@ -228,6 +251,40 @@
     ></div>
 
 
+    <!-- 近くの聖地の一覧（下から出るシート） -->
+    <div
+        id="spot-list-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="spot-list-heading"
+    >
+
+        <div class="filter-header">
+
+            <h2 id="spot-list-heading">近くの聖地</h2>
+
+            <button
+                type="button"
+                onclick="closeSpotList()"
+                aria-label="閉じる"
+            >
+                ✕
+            </button>
+
+        </div>
+
+        <p class="filter-note" id="spot-list-note"></p>
+
+        <ul id="spot-list" class="spot-list"></ul>
+
+    </div>
+
+    <div
+        id="spot-list-backdrop"
+        onclick="closeSpotList()"
+    ></div>
+
+
     <!-- おすすめ聖地巡礼ルート（下から出るシート） -->
     <div
         id="course-modal"
@@ -250,6 +307,39 @@
 
         </div>
 
+        <!-- AI でつくるマイプラン（条件を入れると、その人向けのプランを AI が作る）。目立つように一覧の上に出す -->
+        <section class="my-plan" id="my-plan" aria-labelledby="my-plan-heading" hidden>
+            <h3 id="my-plan-heading"><span class="my-plan-badge" aria-hidden="true">✨ AI</span>あなた専用のマイプランを作る</h3>
+            <p class="my-plan-lead">使える時間や出発地、希望を入れると、あなた向けの巡礼プランを AI が作ります。</p>
+            <form id="my-plan-form" class="my-plan-form">
+                <label class="my-plan-field">
+                    <span>作品</span>
+                    <select id="my-plan-title"></select>
+                </label>
+                <label class="my-plan-field">
+                    <span>使える時間</span>
+                    <select id="my-plan-duration">
+                        <option value="short">2時間くらい</option>
+                        <option value="half" selected>半日（3〜4時間）</option>
+                        <option value="day">1日（6〜8時間）</option>
+                    </select>
+                </label>
+                <label class="my-plan-field">
+                    <span>出発地（任意）</span>
+                    <input type="text" id="my-plan-start" maxlength="40" placeholder="(例) 京阪宇治駅">
+                </label>
+                <label class="my-plan-field">
+                    <span>希望（任意）</span>
+                    <textarea id="my-plan-wishes" maxlength="100" rows="2" placeholder="(例) ベンチは必ず行きたい・坂は少なめ"></textarea>
+                </label>
+                <button type="submit" class="my-plan-submit" id="my-plan-submit">マイプランを作ってもらう</button>
+            </form>
+            <a class="my-plan-login" id="my-plan-login" href="login.html" hidden>ログインして使う</a>
+            <p class="my-plan-status" id="my-plan-status" role="status" aria-live="polite"></p>
+            <div id="my-plan-result" hidden></div>
+        </section>
+
+        <h3 class="course-list-heading" id="course-list-heading">運営のおすすめルート</h3>
         <p class="filter-note">選ぶと、そのルートがルート案内に入ります。距離と時間は直線距離からの目安です。</p>
 
         <div id="course-list"></div>
@@ -304,11 +394,16 @@
                 onclick="toggleRoutePanel()"
             >
                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16"/></svg>
-                <span>ルート案内</span>
+                <span class="route-title">ルート案内</span>
                 <span
                     id="route-count"
                     class="route-count"
                 >0</span>
+                <!-- たたんだ時だけ出す「次：○○・あと約Nm」 -->
+                <span
+                    id="route-next"
+                    class="route-next"
+                ></span>
                 <svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </button>
 
@@ -327,20 +422,43 @@
                 <!-- 追加したスポットが表示される -->
             </div>
 
+            <!-- Mapboxでルートを生成して地図上に表示 -->
             <button
-                id="open-google-route"
+                id="generate-mapbox-route"
                 type="button"
             >
-                Googleマップで徒歩案内
+                🚶 道順を地図に出す
             </button>
 
-            <!-- ログイン中は、マイページから開けるように保存できる -->
-            <button
-                id="save-route"
-                type="button"
-            >
-                このルートを保存
-            </button>
+            <!-- Googleマップ・保存・送るは小さく1段に並べる（スマホで聖地の一覧が狭くならないように） -->
+            <div class="route-actions">
+
+                <button
+                    id="open-google-route"
+                    type="button"
+                    title="Googleマップで徒歩案内"
+                >
+                    Googleマップ
+                </button>
+
+                <!-- ログイン中は、マイページから開けるように保存できる -->
+                <button
+                    id="save-route"
+                    type="button"
+                >
+                    保存
+                </button>
+
+                <!-- リンクにして LINE などで送る（開いた人の地図に同じルートが入る） -->
+                <button
+                    id="share-route"
+                    type="button"
+                    title="このルートを LINE などで送る"
+                >
+                    送る
+                </button>
+
+            </div>
 
         </div>
 
@@ -363,12 +481,14 @@
          type="module"は付けない
     ====================================================== -->
     <!-- 画面下の通知メッセージ（stampsyori.js・Script.jsから使う） -->
-    <script src="../js/toast.js?v=720dc155"></script>
+    <script src="../js/toast.js?v=09b35151"></script>
+    <script src="../js/tab-bar.js?v=f5e177d7"></script>
+    <script src="../js/share-card.js?v=2da8df97"></script>
 
     <!-- スタンプのランク（回数で枠の色が変わる） -->
-    <script src="../js/stamp-rank.js?v=5854d0d9"></script>
+    <script src="../js/stamp-rank.js?v=c4ce732e"></script>
 
-    <script src="../js/stampsyori.js?v=ff39bec0"></script>
+    <script src="../js/stampsyori.js?v=d220e187"></script>
 
 
     <!-- =====================================================
@@ -377,7 +497,7 @@
     ====================================================== -->
     <script
         type="module"
-        src="../js/Script.js?v=6d25d527"
+        src="../js/Script.js?v=368fdf56"
     ></script>
 
 
@@ -387,6 +507,7 @@
             const panel = document.getElementById("routePanel");
             const collapsed = panel.classList.toggle("collapsed");
             document.getElementById("route-toggle").setAttribute("aria-expanded", String(!collapsed));
+            if (typeof window.updateRouteNext === "function") window.updateRouteNext();
         }
 
         document.addEventListener("keydown", function (event) {
@@ -402,6 +523,10 @@
 
             if (document.getElementById("course-modal").style.display === "block") {
                 window.closeCourses();
+            }
+
+            if (document.getElementById("spot-list-modal").style.display === "block") {
+                window.closeSpotList();
             }
         });
     </script>

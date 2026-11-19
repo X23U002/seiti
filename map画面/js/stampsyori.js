@@ -50,8 +50,23 @@ const COLLECTED_STAMPS_STORAGE_KEY =
     "collectedStamps";
 
 let currentStampPosition = null;
+
+// スタンプのボタンから現在地を取りにいっている間（locateForStamp）
+let stampLocating = false;
 let stampDb = null;
 let stampUserRef = null;
+let stampUserId = null;
+
+// 圏外で開いて、DBのスタンプを読めなかった時（電波が戻ったら読み直す）
+let stampLoadedOffline = false;
+
+// 圏外で押したスタンプ（端末に残し、電波が戻ったら送る）
+// [{ uid, spotId, latitude, longitude, at }]
+const PENDING_STAMPS_KEY = "seitiPendingStamps";
+let isFlushingPendingStamps = false;
+
+// 電波が弱くて保存に時間がかかっている時に知らせるまでの時間
+const SLOW_STAMP_SAVE_MS = 8000;
 let stampLoadPromise = null;
 let geolocateListenersAttached = false;
 
@@ -70,6 +85,157 @@ const stampCounts = {};
 
 window.stampHistory =
     stampHistory;
+
+
+// ==========================================
+// 圏外で押したスタンプ（端末に残す）
+// ==========================================
+function isStampOffline() {
+    return navigator.onLine === false;
+}
+
+function readPendingStamps() {
+    try {
+        const list = JSON.parse(localStorage.getItem(PENDING_STAMPS_KEY));
+        return Array.isArray(list) ? list : [];
+    } catch (error) {
+        return [];
+    }
+}
+
+function writePendingStamps(list) {
+    try {
+        if (list.length > 0) {
+            localStorage.setItem(PENDING_STAMPS_KEY, JSON.stringify(list));
+        } else {
+            localStorage.removeItem(PENDING_STAMPS_KEY);
+        }
+    } catch (error) {
+        // 保存できない環境では何もしない
+    }
+}
+
+// ログイン中の人の、まだ送っていないスタンプ
+function getMyPendingStamps() {
+    return readPendingStamps().filter(
+        function (item) {
+            return item.uid === stampUserId;
+        }
+    );
+}
+
+function removePendingStamp(target) {
+    writePendingStamps(
+        readPendingStamps().filter(
+            function (item) {
+                return !(
+                    item.uid === target.uid &&
+                    String(item.spotId) === String(target.spotId) &&
+                    item.at === target.at
+                );
+            }
+        )
+    );
+}
+
+function queuePendingStamp(spotId) {
+    const list = readPendingStamps();
+    list.push({
+        uid: stampUserId,
+        spotId: String(spotId),
+        latitude: currentStampPosition.latitude,
+        longitude: currentStampPosition.longitude,
+        at: Date.now()
+    });
+    writePendingStamps(list);
+}
+
+// 送っていないスタンプも、取った回数・待ち時間・✓ に入れる
+function applyPendingStamps() {
+    getMyPendingStamps().forEach(
+        function (item) {
+            const spotId = String(item.spotId);
+            stampCounts[spotId] = (stampCounts[spotId] || 0) + 1;
+            if (item.at > Number(stampHistory[spotId] || 0)) {
+                stampHistory[spotId] = item.at;
+            }
+        }
+    );
+}
+
+// 電波が戻ったら、圏外で押したスタンプを送る
+async function flushPendingStamps() {
+    if (
+        isFlushingPendingStamps ||
+        stampStorageState !== "ready" ||
+        stampLoadedOffline ||
+        isStampOffline() ||
+        !stampUserRef
+    ) {
+        return;
+    }
+
+    const pending = getMyPendingStamps();
+    if (pending.length === 0) {
+        return;
+    }
+
+    isFlushingPendingStamps = true;
+    let saved = 0;
+    let rejected = 0;
+
+    try {
+        for (const item of pending) {
+            try {
+                await stampDb
+                    .collection(STAMP_COLLECTION_NAME)
+                    .add(createStampDocument(item.spotId, item));
+                saved++;
+                removePendingStamp(item);
+            } catch (error) {
+                if (error && error.code === "permission-denied") {
+                    // ルールで受け付けられない（もう一度送っても同じ）ので、端末からも消す
+                    rejected++;
+                    removePendingStamp(item);
+                } else {
+                    // 通信の問題は、次に電波が戻った時にもう一度送る
+                    break;
+                }
+            }
+        }
+    } finally {
+        isFlushingPendingStamps = false;
+    }
+
+    if (saved > 0) {
+        notifyStamp(`圏外で押したスタンプ（${saved}件）を保存しました`);
+    }
+
+    if (rejected > 0) {
+        notifyStamp(`保存できなかったスタンプが${rejected}件ありました`, "error");
+    }
+}
+
+window.addEventListener(
+    "online",
+    function () {
+        refreshStampUI();
+
+        // 圏外で開いていた時は、DBのスタンプを読み直してから送る
+        if (stampLoadedOffline) {
+            initializeStampStorage();
+        } else {
+            flushPendingStamps();
+        }
+    }
+);
+
+window.addEventListener(
+    "offline",
+    function () {
+        refreshStampUI();
+    }
+);
 
 
 // ==========================================
@@ -469,18 +635,22 @@ function getStampState(
             spot
         );
 
-    // 現在地未取得
+    // 現在地未取得：押すと、その場で現在地を取りにいく（何をすればいいか分かるように、押せるボタンにする）
     if (
         !currentStampPosition
     ) {
         return {
-            disabled: true,
+            disabled: stampLocating,
+
+            action: "locate",
 
             label:
-                "📍 現在地を取得してください",
+                stampLocating
+                    ? "📍 現在地を取得中…"
+                    : "📍 現在地を確かめる",
 
             message:
-                `半径${radius}m以内で取得できます`
+                `聖地の半径${radius}m以内に入るとスタンプを取得できます`
         };
     }
 
@@ -489,23 +659,25 @@ function getStampState(
             spot
         );
 
-    // GPS精度が低い
+    const accuracy =
+        Math.round(
+            currentStampPosition
+                .accuracy
+        );
+
+    // GPS精度が低い（屋内や建物の陰など）。近くにいても遠くにいても正しく判定できない
     if (
-        currentStampPosition
-            .accuracy >
+        accuracy >
         MAX_STAMP_ACCURACY_METERS
     ) {
         return {
             disabled: true,
 
             label:
-                "現在地から離れています。",
+                "📡 位置の誤差が大きいです",
 
             message:
-                `GPS誤差 ±${Math.round(
-                    currentStampPosition
-                        .accuracy
-                )}m`
+                `GPS誤差 ±${accuracy}m。建物の外や空の開けた所で、少し待ってからお試しください`
         };
     }
 
@@ -519,13 +691,19 @@ function getStampState(
         return {
             disabled: false,
 
+            // 取れる距離に入った（ボタンを光らせる。style.css）
+            stage: "ready",
+
             label:
                 "🎫 スタンプを取得",
 
             message:
                 `スポットまで${formatStampDistance(
                     distance
-                )}・取得可能`
+                )}・取得可能` +
+                (isStampOffline()
+                    ? "（圏外のため、電波が戻ったら保存します）"
+                    : "")
         };
     }
 
@@ -545,6 +723,14 @@ function getStampState(
     return {
         disabled: true,
 
+        // 近づくほどボタンの色を変える（あと200m以内・1km以内。style.css）
+        stage:
+            Number.isFinite(remainingDistance) && remainingDistance <= 200
+                ? "near"
+                : Number.isFinite(remainingDistance) && remainingDistance <= 1000
+                    ? "closer"
+                    : "",
+
         label:
             Number.isFinite(
                 remainingDistance
@@ -560,7 +746,12 @@ function getStampState(
             )
                 ? `スポットまで${formatStampDistance(
                     distance
-                )}・半径${radius}m以内で取得できます`
+                )}・半径${radius}m以内で取得できます` +
+                // 誤差の分だけ近いかもしれない時は、少し待つと押せることを伝える
+                (accuracy > 20 &&
+                distance - accuracy <= radius
+                    ? `（GPS誤差 ±${accuracy}m。少し待つと位置が正確になることがあります）`
+                    : "")
                 : "スポットの座標を確認できません"
     };
 }
@@ -636,6 +827,7 @@ function getStampPopupHTML(
                 class="stamp-button"
                 data-stamp-action="collect"
                 data-stamp-spot-id="${spotId}"
+                data-stamp-stage="${state.stage || ""}"
                 ${
                     state.disabled
                         ? "disabled"
@@ -730,8 +922,10 @@ function prepareStampFirebase() {
 // 取った時刻はサーバーの時刻。取った時の現在地（position）も入れ、
 // ルールで「聖地の近くで取ったか」を確かめる
 // ==========================================
+// position：取った時の現在地（圏外で押したスタンプは、押した時の位置）
 function createStampDocument(
-    spotId
+    spotId,
+    position = currentStampPosition
 ) {
     return {
         user_id:
@@ -748,8 +942,8 @@ function createStampDocument(
             new window.firebase
                 .firestore
                 .GeoPoint(
-                    currentStampPosition.latitude,
-                    currentStampPosition.longitude
+                    position.latitude,
+                    position.longitude
                 ),
         time_stamp:
             window.firebase
@@ -810,6 +1004,8 @@ async function initializeStampStorage() {
         return false;
     }
 
+    stampUserId = userId;
+
     try {
 
         stampUserRef =
@@ -820,6 +1016,10 @@ async function initializeStampStorage() {
                 .doc(
                     userId
                 );
+
+        // （読み直す時のために、前に読んだ分を消してから数える）
+        Object.keys(stampCounts).forEach(function (id) { delete stampCounts[id]; });
+        Object.keys(stampHistory).forEach(function (id) { delete stampHistory[id]; });
 
         // このユーザーのスタンプを全部読み、スポットごとに一番新しい取得時刻を使う
         const snapshot =
@@ -866,8 +1066,12 @@ async function initializeStampStorage() {
             }
         );
 
+        // 圏外で押して、まだ送っていないスタンプも入れる
+        applyPendingStamps();
+
         stampStorageState =
             "ready";
+        stampLoadedOffline = false;
 
         clearLegacyLocalStamps();
 
@@ -877,8 +1081,19 @@ async function initializeStampStorage() {
 
         refreshStampUI();
 
+        flushPendingStamps();
+
         return true;
     } catch (error) {
+        // 圏外で開いた時は、スタンプを押せるようにしておく（電波が戻ったら読み直して送る）
+        if (isStampOffline()) {
+            applyPendingStamps();
+            stampLoadedOffline = true;
+            stampStorageState = "ready";
+            refreshStampUI();
+            return false;
+        }
+
         console.error(
             "スタンプの読み込みに失敗しました:",
             error
@@ -919,13 +1134,16 @@ function notifyStamp(
 // スタンプ取得
 // ==========================================
 async function collectStamp(spotId) {
-    // 未ログインならログイン画面へ
+    // 未ログインならログイン画面へ（ログインしたら、この聖地の詳細に戻る）
     if (
         stampStorageState ===
         "guest"
     ) {
         window.location.href =
-            "login.html";
+            "login.html?next=" +
+            encodeURIComponent(
+                "map.html?spot=" + spotId
+            );
 
         return;
     }
@@ -959,6 +1177,12 @@ async function collectStamp(spotId) {
             selectedSpot
         );
 
+    // まだ現在地が分からない時は、現在地を取りにいく
+    if (state.action === "locate") {
+        locateForStamp();
+        return;
+    }
+
     if (
         state.disabled
     ) {
@@ -978,8 +1202,42 @@ async function collectStamp(spotId) {
     const isFirstTime =
         !hasCollectedStamp(key);
 
+    // 圏外の時は端末に残し、電波が戻ったら送る
+    if (isStampOffline()) {
+        queuePendingStamp(key);
+
+        stampHistory[key] =
+            Date.now();
+
+        stampCounts[key] =
+            (stampCounts[key] || 0) + 1;
+
+        showStampCelebration(
+            selectedSpot,
+            stampCounts[key],
+            isFirstTime
+                ? getCompletedTitle(selectedSpot)
+                : null,
+            true
+        );
+
+        refreshStampUI();
+        return;
+    }
+
     collectingSpotIds.add(key);
     refreshStampUI();
+
+    // 電波が弱くて時間がかかっている時は、画面を開いたまま待ってもらう
+    const slowTimer =
+        setTimeout(
+            function () {
+                notifyStamp(
+                    "電波が弱いため、保存に時間がかかっています。このまま画面を開いてお待ちください"
+                );
+            },
+            SLOW_STAMP_SAVE_MS
+        );
 
     try {
         // DBに保存できた時だけ「取得した」ことにする
@@ -1021,6 +1279,7 @@ async function collectStamp(spotId) {
             "error"
         );
     } finally {
+        clearTimeout(slowTimer);
         collectingSpotIds.delete(key);
         refreshStampUI();
     }
@@ -1062,10 +1321,12 @@ function getCompletedTitle(
 // スタンプ獲得の演出（スタンプを押すアニメーション）
 // 作品をコンプリートした時はお祝いも出す
 // ==========================================
+// pending：圏外で押して、まだ保存していない
 function showStampCelebration(
     spot,
     count,
-    completedTitle
+    completedTitle,
+    pending
 ) {
     document
         .querySelectorAll(
@@ -1106,6 +1367,27 @@ function showStampCelebration(
             ? `✨ ${rank.name}にランクアップ！`
             : "";
 
+    // 次に行く聖地（ルートの次、無ければ同じ作品の近くのまだの聖地。Script.js）
+    const nextSpot =
+        !completedTitle &&
+        typeof window.getNextPilgrimageSpot ===
+            "function"
+            ? window.getNextPilgrimageSpot(spot.id)
+            : null;
+
+    const nextSpotHTML =
+        nextSpot
+            ? `<div class="stamp-celebration-goto">
+                <p class="stamp-celebration-goto-label">${nextSpot.reason === "route" ? "ルートの次の聖地" : "近くのまだの聖地"}</p>
+                <p class="stamp-celebration-goto-name">${escapeStampHTML(nextSpot.name)}<small>約${escapeStampHTML(nextSpot.distanceText)}</small></p>
+                <div class="stamp-celebration-goto-buttons">
+                    <button type="button" class="stamp-celebration-goto-detail">詳細を見る</button>
+                    <a class="stamp-celebration-goto-walk" target="_blank" rel="noopener"
+                        href="https://www.google.com/maps/dir/?api=1&amp;destination=${nextSpot.latitude},${nextSpot.longitude}&amp;travelmode=walking">🚶 道案内</a>
+                </div>
+            </div>`
+            : "";
+
     const overlay =
         document.createElement(
             "div"
@@ -1133,7 +1415,13 @@ function showStampCelebration(
     overlay.innerHTML = `
         ${confetti}
         <div class="stamp-celebration-card">
-            <div class="stamp-celebration-stamp" aria-hidden="true">⛩️</div>
+            <div class="stamp-celebration-impact" aria-hidden="true">
+                <span class="stamp-ink"></span>
+                <span class="stamp-sparks">${Array.from({ length: 10 }, function (_, index) {
+                    return `<span style="--spark-angle:${index * 36}deg;"></span>`;
+                }).join("")}</span>
+                <div class="stamp-celebration-stamp">⛩️</div>
+            </div>
             <p class="stamp-celebration-title" id="stamp-celebration-title">${completedTitle ? "🎉 作品コンプリート！" : "スタンプ獲得！"}</p>
             ${rankUpText ? `<p class="stamp-celebration-rankup rank-pill rank-${rank.key}">${rankUpText}</p>` : ""}
             <p class="stamp-celebration-spot">${escapeStampHTML(spot.spot_name || "スポット")}</p>
@@ -1142,6 +1430,13 @@ function showStampCelebration(
                 ? `<p class="stamp-celebration-complete">「${escapeStampHTML(completedTitle)}」の聖地を<br>すべて回りました！</p>`
                 : ""}
             <p class="stamp-celebration-next">${nextText}</p>
+            ${pending
+                ? '<p class="stamp-celebration-pending">📶 圏外のため、電波が戻ったら自動で保存します</p>'
+                : ""}
+            ${nextSpotHTML}
+            ${completedTitle && typeof window.drawShareCard === "function"
+                ? '<button type="button" class="stamp-celebration-share">📤 コンプリートを共有</button>'
+                : ""}
             <button type="button" class="stamp-celebration-close">OK</button>
         </div>
     `;
@@ -1170,6 +1465,46 @@ function showStampCelebration(
         }
     }
 
+    // コンプリートを画像にして共有（share-card.js）
+    const shareButton = overlay.querySelector(".stamp-celebration-share");
+    if (shareButton) {
+        shareButton.addEventListener("click", async function () {
+            const total = getStampSpots().filter(function (item) {
+                return item.title_name === completedTitle;
+            }).length;
+            shareButton.disabled = true;
+            try {
+                const blob = await window.drawShareCard({
+                    heading: "「" + completedTitle + "」",
+                    big: "コンプリート！",
+                    sub: "聖地 " + total + " か所をすべて回りました",
+                    works: [{ title: completedTitle, color: color, got: total, total: total }],
+                    badges: ["🎉", "⛩️"]
+                });
+                await window.shareImage(blob, "seichi-junrei-complete.png",
+                    "「" + completedTitle + "」の聖地をコンプリートしました！ #聖地巡礼NAVI");
+            } finally {
+                shareButton.disabled = false;
+            }
+        });
+    }
+
+    // 次の聖地の詳細へ移る（道案内は Google マップを別のタブで開くので、お祝いはそのまま閉じる）
+    const gotoButton = overlay.querySelector(".stamp-celebration-goto-detail");
+    if (gotoButton) {
+        gotoButton.addEventListener("click", function () {
+            close();
+            if (typeof window.goToSpot === "function") {
+                window.goToSpot(nextSpot.id);
+            }
+        });
+    }
+
+    const walkLink = overlay.querySelector(".stamp-celebration-goto-walk");
+    if (walkLink) {
+        walkLink.addEventListener("click", close);
+    }
+
     overlay.addEventListener(
         "click",
         function (event) {
@@ -1183,11 +1518,21 @@ function showStampCelebration(
         }
     );
 
-    // 中は作品の色、枠は取った回数のランクの色
+    // 中はその聖地に登録した画像（無ければ ⛩️）、枠は取った回数のランクの色
     const stampElement =
         overlay.querySelector(
             ".stamp-celebration-stamp"
         );
+
+    if (
+        typeof window.setStampImage ===
+        "function"
+    ) {
+        window.setStampImage(
+            stampElement,
+            spot.image_url
+        );
+    }
 
     if (
         typeof window.applyStampRank ===
@@ -1207,14 +1552,72 @@ function showStampCelebration(
     document.body.appendChild(overlay);
     overlay.querySelector(".stamp-celebration-close").focus();
 
-    // 普段は少しで自動的に閉じる（コンプリートの時はOKを押すまで残す）
-    if (!completedTitle) {
+    // ハンコが紙に当たる瞬間（style.css の stamp-press の 60%）に、スマホを短く震わせる
+    // （コンプリートの時は「トトン、ドン」）。動きを減らす設定の人には震わせない
+    const reduceMotion =
+        window.matchMedia &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (
+        !reduceMotion &&
+        typeof navigator.vibrate === "function"
+    ) {
+        setTimeout(
+            function () {
+                try {
+                    navigator.vibrate(completedTitle ? [40, 60, 40, 60, 160] : 45);
+                } catch (error) {
+                    // 震わせられない端末では何もしない
+                }
+            },
+            330
+        );
+    }
+
+    // 普段は少しで自動的に閉じる（コンプリートの時と、次の聖地を出した時はOKを押すまで残す）
+    if (!completedTitle && !nextSpot) {
         closeTimer =
             setTimeout(
                 close,
                 4000
             );
     }
+}
+
+
+// ==========================================
+// スタンプのボタンから現在地を取りにいく（地図は動かさない）
+// ==========================================
+function locateForStamp() {
+    if (stampLocating) {
+        return;
+    }
+    if (!navigator.geolocation) {
+        notifyStamp("この端末では現在地を使えません", "error");
+        return;
+    }
+
+    stampLocating = true;
+    refreshStampUI();
+
+    navigator.geolocation.getCurrentPosition(
+        function (position) {
+            stampLocating = false;
+            updateStampPosition(position);
+            refreshStampUI();
+        },
+        function (error) {
+            stampLocating = false;
+            refreshStampUI();
+            notifyStamp(
+                error && error.code === 1
+                    ? "位置情報の利用を許可してください（ブラウザの設定から変えられます）"
+                    : "現在地を取得できませんでした。空の開けた所でもう一度お試しください",
+                "error"
+            );
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+    );
 }
 
 
@@ -1321,6 +1724,11 @@ function attachStampGeolocateListeners() {
 // ボタン・メッセージ更新
 // ==========================================
 function refreshStampUI() {
+    // ルート案内をたたんだ時の「次：○○」も、スタンプに合わせて変える（Script.js）
+    if (typeof window.updateRouteNext === "function") {
+        window.updateRouteNext();
+    }
+
     const spots =
         getStampSpots();
 
@@ -1357,6 +1765,9 @@ function refreshStampUI() {
 
                 button.disabled =
                     state.disabled;
+
+                button.dataset.stampStage =
+                    state.stage || "";
 
                 button.textContent =
                     state.label;
@@ -1467,9 +1878,11 @@ function resetAllStampCooldowns() {
 // テスト用現在地
 // setStampTestLocation("スポットID", 0)
 // ==========================================
+// accuracy：GPSの誤差（m）
 function setStampTestLocation(
     spotId,
-    distanceMeters = 0
+    distanceMeters = 0,
+    accuracy = 5
 ) {
     const spot =
         getStampSpots()
@@ -1513,7 +1926,7 @@ function setStampTestLocation(
             ),
 
         accuracy:
-            5
+            Number(accuracy)
     };
 
     refreshStampUI();

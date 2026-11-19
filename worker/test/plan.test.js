@@ -1,7 +1,7 @@
 // AI への頼み方と、答えの確かめ方のテスト
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_STOPS, buildUserPrompt, finalizePlan, japanDate, parseGeminiResponse } from "../src/plan.js";
+import { DURATIONS, buildUserPrompt, finalizePlan, japanDate, parseGeminiResponse, readOptions } from "../src/plan.js";
 
 // 宇治のあたりに南北に並んだ聖地
 const SPOTS = [
@@ -13,7 +13,7 @@ const SPOTS = [
 test("AI に渡す文：作品名と、ID・名前・期話・場面（短く）・位置", () => {
     const prompt = buildUserPrompt("テスト作品", SPOTS);
     assert.match(prompt, /^作品：テスト作品\n/);
-    const list = JSON.parse(prompt.split("\n").slice(2).join("\n"));
+    const list = JSON.parse(prompt.split("聖地の一覧（JSON）：\n")[1]);
     assert.deepEqual(list[0], { id: "a", name: "北の駅", 期: 1, 話: 1, 場面: "1期1話の場面", lat: 34.9, lng: 135.8 });
     assert.equal(Array.from(list[2].場面).length, 80);
 });
@@ -38,8 +38,9 @@ test("答えの確かめ：ない聖地・2回目は捨て、近い順に並べ�
         ]
     }, SPOTS);
 
-    assert.deepEqual(plan.stops.map((stop) => stop.id), ["a", "b", "c"]);
-    assert.deepEqual(plan.stops.map((stop) => stop.stay_minutes), [5, 20, 120]);
+    // AI が選んだ1つ目（c）から、近い順に回る
+    assert.deepEqual(plan.stops.map((stop) => stop.id), ["c", "b", "a"]);
+    assert.deepEqual(plan.stops.map((stop) => stop.stay_minutes), [120, 20, 5]);
     assert.equal(plan.title, "宇治をめぐる");
     assert.ok(plan.walk_meters > 1000 && plan.walk_meters < 1200);
     assert.equal(plan.total_minutes, 145 + Math.round(plan.walk_meters * 1.3 / 80));
@@ -56,10 +57,31 @@ test("答えの確かめ：多すぎる時は決まった数まで", () => {
         id: "s" + i, spot_name: "聖地" + i, coord: { latitude: 34.9 + i / 1000, longitude: 135.8 }
     }));
     const plan = finalizePlan({ stops: many.map((spot) => ({ spot_id: spot.id, stay_minutes: 10, comment: "" })) }, many);
-    assert.equal(plan.stops.length, MAX_STOPS);
+    assert.equal(plan.stops.length, DURATIONS.half.stops[1]);
+    assert.equal(finalizePlan({ stops: many.map((spot) => ({ spot_id: spot.id, stay_minutes: 10, comment: "" })) }, many, readOptions({ duration: "day" })).stops.length, 10);
+    assert.equal(finalizePlan({ stops: many.map((spot) => ({ spot_id: spot.id, stay_minutes: 10, comment: "" })) }, many, readOptions({ duration: "short" })).stops.length, 4);
 });
 
 test("日本時間の日付で数える", () => {
     assert.equal(japanDate(Date.parse("2026-10-20T14:59:59Z")), "2026-10-20");
     assert.equal(japanDate(Date.parse("2026-10-20T15:00:00Z")), "2026-10-21");
+});
+
+test("条件：使える時間・出発地・希望をそろえ、AI に渡す文に入れる", () => {
+    assert.deepEqual(readOptions({}), { duration: "half", start: "", wishes: "" });
+    assert.deepEqual(readOptions({ duration: "evil", start: 123, wishes: null }), { duration: "half", start: "", wishes: "" });
+    const options = readOptions({ duration: "day", start: "  京都駅  ", wishes: "x".repeat(300) });
+    assert.equal(options.duration, "day");
+    assert.equal(options.start, "京都駅");
+    assert.equal(options.wishes.length, 200);
+
+    const prompt = buildUserPrompt("テスト作品", SPOTS, readOptions({ duration: "short", start: "宇治駅", wishes: "ベンチは必ず" }));
+    assert.match(prompt, /使える時間：2時間くらい/);
+    assert.match(prompt, /選ぶ聖地の数：2〜4か所/);
+    assert.match(prompt, /出発地：宇治駅/);
+    assert.match(prompt, /希望：ベンチは必ず/);
+    // 何も無ければ半日で、出発地・希望の行は無い
+    const plain = buildUserPrompt("テスト作品", SPOTS);
+    assert.match(plain, /使える時間：半日/);
+    assert.doesNotMatch(plain, /出発地|希望/);
 });

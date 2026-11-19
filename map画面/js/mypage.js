@@ -107,22 +107,27 @@ function renderRecord(stamps, state, spotSummary) {
             .map(function (s) { return s.anime; })
             .filter(function (anime) { return isWorkTitle(anime); })
     );
-    document.getElementById("stamp-count").textContent = uniqueStamps.length;
-    document.getElementById("anime-count").textContent = animeNames.size;
+    // 数字はカウントアップして出す（common.js）
+    countUp(document.getElementById("stamp-count"), uniqueStamps.length);
+    countUp(document.getElementById("anime-count"), animeNames.size);
 
     if (summary && summary.total > 0) {
-        document.getElementById("progress-rate").textContent =
-            Math.round(uniqueStamps.length / summary.total * 100);
+        countUp(
+            document.getElementById("progress-rate"),
+            Math.round(uniqueStamps.length / summary.total * 100)
+        );
     }
 
     // その作品の聖地をすべて回った作品（作品ごとの聖地の件数が分かる時だけ数える）
     if (summary && summary.titles) {
-        document.getElementById("complete-count").textContent =
+        countUp(
+            document.getElementById("complete-count"),
             Object.keys(summary.titles).filter(function (title) {
                 const total = summary.titles[title].count;
                 const got = uniqueStamps.filter(function (s) { return s.anime === title; }).length;
                 return isWorkTitle(title) && total > 0 && got >= total;
-            }).length;
+            }).length
+        );
     }
 
     // --- 作品ごとの達成度 ---
@@ -194,6 +199,9 @@ function renderRecord(stamps, state, spotSummary) {
         setupProgressToggle(Object.keys(summary.titles).length);
     }
 
+    // --- 実績・バッジ（取ったものを先に。まだのものは、あとどれくらいかを出す） ---
+    renderBadges(state === "ready" ? stamps : [], summary);
+
     // --- 最近獲得したスタンプ（新しい順に3件） ---
     const recentList = document.getElementById("recent-list");
     recentList.innerHTML = "";
@@ -217,8 +225,8 @@ function renderRecord(stamps, state, spotSummary) {
             const badge = document.createElement("span");
             badge.className = "recent-badge";
             badge.setAttribute("aria-hidden", "true");
-            badge.textContent = "⛩️";
-            // 中は作品の色、枠は取った回数のランクの色
+            // 中はその聖地に登録した画像（無ければ ⛩️）、枠は取った回数のランクの色
+            setStampImage(badge, stamp.image);
             applyStampRank(
                 badge,
                 stamp.count || 1,
@@ -242,6 +250,40 @@ function renderRecord(stamps, state, spotSummary) {
             recentList.appendChild(li);
         });
     }
+}
+
+function renderBadges(stamps, summary) {
+    const list = document.getElementById("badge-list");
+    if (!list || typeof window.getBadges !== "function") return;
+
+    const badges = window.getBadges(stamps, summary);
+    const earned = badges.filter(function (badge) { return badge.earned; });
+    document.getElementById("badge-count").textContent = earned.length + " / " + badges.length;
+
+    list.innerHTML = "";
+    earned.concat(badges.filter(function (badge) { return !badge.earned; })).forEach(function (badge) {
+        const li = document.createElement("li");
+        li.className = "badge-item" + (badge.earned ? " is-earned" : "");
+
+        const icon = document.createElement("span");
+        icon.className = "badge-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = badge.icon;
+
+        const name = document.createElement("strong");
+        name.className = "badge-name";
+        name.textContent = badge.name;
+
+        const text = document.createElement("span");
+        text.className = "badge-text";
+        text.textContent = badge.earned
+            ? badge.text
+            : badge.text + (badge.progress.goal > 1 ? "（あと " + (badge.progress.goal - badge.progress.now) + "）" : "");
+
+        li.setAttribute("aria-label", badge.name + (badge.earned ? "（獲得）" : "（まだ）") + "：" + text.textContent);
+        li.append(icon, name, text);
+        list.appendChild(li);
+    });
 }
 
 // DBから読み込むまでは「読み込み中」と表示しておく

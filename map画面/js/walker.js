@@ -12,6 +12,9 @@
 import * as THREE from "three";
 import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 
+// キャラクターの大きさ（画面上の高さを、キャラクターがいる場所の縮尺で決める）
+import { MODEL_HEIGHT_METERS, isModelVisible, metersPerPixel } from "./walker-size.js?v=9dbb121e";
+
 // ---------------------------------------------------------
 // 設定
 // ---------------------------------------------------------
@@ -19,14 +22,11 @@ import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 // 3Dモデル（Mixamoの歩行アニメーション付きFBX）
 const MODEL_URL = "../models/walking.fbx";
 
-// 画面上でのキャラクターの高さ（px）
-// ズーム FIXED_SIZE_ZOOM 以上ではこの大きさで一定。それより引くと、
-// 実際の大きさ（ズーム17で130px分 ≒ 約60m）のまま小さくなる（引いても巨人にならない）
-const MODEL_HEIGHT_PX = 130;
-const FIXED_SIZE_ZOOM = 17;
+// キャラクターの大きさは walker-size.js で決める（実際の大きさを固定し、建物や道と同じように写す。
+// 引いて画面上で小さくなりすぎたら隠して、青い現在地の点にする）
 
-// 画面上でこれより小さくなったらキャラクターを隠し、青い現在地の点を表示する（px）
-const MIN_VISIBLE_PX = 20;
+// 3D表示に切りかえた時に、キャラクターの所へ寄るズーム（これより引いていた時だけ寄る）
+const FIXED_SIZE_ZOOM = 17;
 
 // キャラクターのテクスチャ（画像）。walking.fbx と同じ時に書き出した画像を置く
 // ※ FBXの中にテクスチャが埋め込まれている場合は、そちらを優先して使う
@@ -44,6 +44,16 @@ const MAX_MOVE_DURATION_MS = 2000;
 
 // 体の向きを変える速さ（大きいほど素早く向く。8で約0.3秒）
 const TURN_SPEED = 8;
+
+// 歩き出す時に、立ち姿から歩く姿へ切りかえる時間（秒）
+const WALK_START_SECONDS = 0.3;
+
+// 止まる時に、歩く姿から立ち姿へ切りかえる時間（秒）。足の動きもゆるめながら切りかえる
+const WALK_STOP_SECONDS = 0.45;
+
+// 立ち姿で、モデル本来の姿勢（まっすぐ立った脚）にする骨
+// （歩くアニメーションのどのコマで止めても、片足が上がっていたり、足が開いていたりするため）
+const STAND_BONES = /(Hips|UpLeg|Leg|Foot|ToeBase)\.(quaternion|position)$/;
 
 const LAYER_ID = "walker-3d";
 
@@ -95,11 +105,6 @@ function bearingBetween(a, b) {
     const dLng = (b.lng - a.lng) * Math.cos(a.lat * Math.PI / 180);
     const dLat = b.lat - a.lat;
     return Math.atan2(dLng, dLat);
-}
-
-// 地図上で 1px が何mか（Mapboxのタイルは512px）
-function metersPerPixel(lat, zoom) {
-    return 40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * Math.pow(2, zoom));
 }
 
 // 角度の差を -π〜π に収める（遠回りして回転しないように）
@@ -220,6 +225,10 @@ function createWalkerLayer(map) {
     let character = null;
     let mixer = null;
     let walkAction = null;
+    // 立ち姿（1コマだけのアニメーション）
+    let standAction = null;
+    // 歩く姿の割合（0＝立ち姿、1＝歩く姿）。歩き出し・止まる時に少しずつ変える
+    let walkBlend = 0;
     let modelLoaded = false;
     let lastFrameTime = performance.now();
 
@@ -236,11 +245,30 @@ function createWalkerLayer(map) {
                 const clip = model.animations[0];
 
                 if (clip) {
+                    // モデル本来の姿勢（アニメーションを当てる前の骨の向き・位置）
+                    const bindPose = {};
+                    model.traverse(function (object) {
+                        if (object.isBone) {
+                            bindPose[object.name] = {
+                                quaternion: object.quaternion.toArray(),
+                                position: object.position.toArray()
+                            };
+                        }
+                    });
+
                     removeRootMotion(clip, model);
                     mixer = new THREE.AnimationMixer(model);
+
                     walkAction = mixer.clipAction(clip);
                     walkAction.play();
-                    walkAction.paused = true;
+                    walkAction.setEffectiveWeight(0);
+
+                    standAction = mixer.clipAction(
+                        createStandClip(clip, findStandTimes(clip)[0], bindPose)
+                    );
+                    standAction.play();
+                    standAction.setEffectiveWeight(1);
+                    mixer.update(0);
                 }
 
                 character.add(normalized);
@@ -325,6 +353,56 @@ function createWalkerLayer(map) {
     // その場で足踏みするようにする。位置はGPSで動かすため
     // また、アニメーションの腰の高さがモデル本来の腰の高さとずれていると
     // 歩く時に宙に浮いたり沈んだりするため、モデル本来の位置に合わせる
+    // 歩くアニメーションの中で、左右の太ももの角度が近い（足がそろう）瞬間を探す
+    // 見つからなければ、最初と半分の所にする
+    function findStandTimes(clip) {
+        const fallback = [0, clip.duration / 2];
+        const left = clip.tracks.find(function (track) { return /LeftUpLeg\.quaternion$/.test(track.name); });
+        const right = clip.tracks.find(function (track) { return /RightUpLeg\.quaternion$/.test(track.name); });
+        if (!left || !right) {
+            return fallback;
+        }
+
+        const leftValue = left.createInterpolant();
+        const rightValue = right.createInterpolant();
+        const a = new THREE.Quaternion();
+        const b = new THREE.Quaternion();
+        const samples = 60;
+        const gaps = [];
+        for (let i = 0; i < samples; i++) {
+            const time = clip.duration * i / samples;
+            a.fromArray(leftValue.evaluate(time));
+            b.fromArray(rightValue.evaluate(time));
+            gaps.push({ time: time, gap: a.angleTo(b) });
+        }
+
+        // 前後より開きが小さい所（くり返しなので、端は反対側の端とつながる）
+        const times = gaps
+            .filter(function (item, i) {
+                const before = gaps[(i - 1 + samples) % samples].gap;
+                const after = gaps[(i + 1) % samples].gap;
+                return item.gap <= before && item.gap < after;
+            })
+            .map(function (item) { return item.time; });
+
+        return times.length > 0 ? times : fallback;
+    }
+
+    // 立ち姿：上半身は歩くアニメーションの腕が体の横にある瞬間（足がそろう瞬間）、
+    // 腰と脚はモデル本来の姿勢（まっすぐ立った脚）にした1コマのアニメーション
+    function createStandClip(clip, time, bindPose) {
+        const tracks = clip.tracks.map(function (track) {
+            const boneName = track.name.replace(/\.(quaternion|position|scale)$/, "");
+            const property = track.name.slice(boneName.length + 1);
+            const bind = bindPose[boneName];
+            const values = STAND_BONES.test(track.name) && bind && bind[property]
+                ? bind[property]
+                : Array.from(track.createInterpolant().evaluate(time));
+            return new track.constructor(track.name, [0], values);
+        });
+        return new THREE.AnimationClip("stand", 0, tracks);
+    }
+
     function removeRootMotion(clip, model) {
         clip.tracks.forEach(function (track) {
             if (!/Hips\.position$/.test(track.name)) {
@@ -403,28 +481,31 @@ function createWalkerLayer(map) {
                 updateByKeys(delta, map.getBearing(), map.getZoom()) ||
                 updatePosition(now);
 
-            // 画面上の大きさ（px）：ズーム17以上は一定、引くとズームに合わせて小さくなる
-            const zoom = map.getZoom();
-            const screenHeightPx =
-                MODEL_HEIGHT_PX * Math.pow(2, Math.min(0, zoom - FIXED_SIZE_ZOOM));
-
-            // 2D表示の時と、引きすぎて小さくなった時はキャラクターを隠し、青い現在地の点を表示する
-            const visible = is3DMode() && screenHeightPx >= MIN_VISIBLE_PX;
+            // 2D表示の時と、引いて画面上で小さくなりすぎた時はキャラクターを隠し、青い現在地の点を表示する
+            const visible = is3DMode() && isModelVisible(map, state.position.lng, state.position.lat);
             mapElement?.classList.toggle("walker-active", visible);
 
             if (!visible) {
                 return;
             }
-            // 移動中だけ歩くアニメーションを再生、止まったら立ち姿勢に戻す
-            if (!walkAction) {
-                // アニメーションの無いモデルは何もしない
-            } else if (moving) {
-                walkAction.paused = false;
-                mixer.update(Math.min(delta, 0.1));
-            } else if (!walkAction.paused) {
-                walkAction.paused = true;
-                walkAction.time = 0;
-                mixer.update(0);
+            // 移動中は歩く姿、止まったら立ち姿。ピタッと切りかえず、少しずつ混ぜて切りかえる
+            // （止まる時は足の動きもゆるめながら、まっすぐ立った脚へ戻す）
+            const step = Math.min(delta, 0.1);
+            let settling = false;
+            if (walkAction && standAction) {
+                walkBlend = moving
+                    ? Math.min(1, walkBlend + step / WALK_START_SECONDS)
+                    : Math.max(0, walkBlend - step / WALK_STOP_SECONDS);
+                settling = !moving && walkBlend > 0;
+
+                if (moving || settling) {
+                    // なめらかに混ぜる（はじめと終わりをゆっくり）
+                    const weight = walkBlend * walkBlend * (3 - 2 * walkBlend);
+                    walkAction.setEffectiveWeight(weight);
+                    standAction.setEffectiveWeight(1 - weight);
+                    walkAction.timeScale = 0.4 + 0.6 * weight;
+                    mixer.update(step);
+                }
             }
 
             // 体の向きを少しずつ進行方向へ（描画の速さに関係なく同じ時間で向く）
@@ -436,9 +517,8 @@ function createWalkerLayer(map) {
             const lngLat = [state.position.lng, state.position.lat];
             const mercator = mapboxgl.MercatorCoordinate.fromLngLat(lngLat, 0);
 
-            // 画面上で screenHeightPx になる大きさ（m）
-            const heightMeters =
-                screenHeightPx * metersPerPixel(state.position.lat, zoom);
+            // 実際の大きさ（m）は固定。建物や道と同じように、寄せると大きく、引くと小さく写る
+            const heightMeters = MODEL_HEIGHT_METERS;
             const scale = mercator.meterInMercatorCoordinateUnits() * heightMeters;
 
             // --- 向き ---
@@ -462,8 +542,8 @@ function createWalkerLayer(map) {
             renderer.clearDepth();
             renderer.render(scene, camera);
 
-            // 歩いている・向きを変えている間は次のフレームも描く
-            if (moving || turning) {
+            // 歩いている・向きを変えている・止まりかけている間は次のフレームも描く
+            if (moving || turning || settling) {
                 map.triggerRepaint();
             }
         }
@@ -588,7 +668,7 @@ function startWalkTest(map) {
         }
         updateButton();
 
-        // 引いた状態だとキャラクターが小さくて隠れるので、キャラクターの位置に寄る
+        // 引いた状態だとキャラクターが隠れているので、キャラクターの位置に寄る
         // （3D表示への切り替えの動きを上書きしてしまうため、傾きも同じ値を指定する）
         if (state.position) {
             map.easeTo({

@@ -6,6 +6,7 @@
 // ・聖地を新しく登録する・登録済みの聖地を編集する
 // ・登録済みの聖地の「何期の何話か」（spot の season・episode）をまとめて入力する
 // ・作品ごとのおすすめ聖地巡礼ルート（course）を作る・直す・消す
+// ・作品の説明（work）を書く
 // 誰が管理者かは Firestore のルールでも確かめている（画面を開けても、管理者でなければ読み書きできない）
 // ==========================================
 import {
@@ -19,10 +20,13 @@ import {
     writeBatch
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-import { db, getCurrentUser } from "./firebase-db.js?v=917161b9";
-import { getTitleColor } from "./title-colors.js?v=5c634da9";
-import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=feb7ee57";
-import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=9f48db08";
+import { db, getCurrentUser } from "./firebase-db.js?v=61accae5";
+import { encodeGeohash } from "./geohash.js?v=fe42fce1";
+import { isAiPlanAvailable, requestAiPlan } from "./ai-plan.js?v=39fb6815";
+import { getTitleColor, registerTitles } from "./title-colors.js?v=62cd810d";
+import { getSpotEpisodeLabel, parseEpisode } from "./episode.js?v=9a2ff22f";
+import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=59165daf";
+import { VISIT_FIELDS } from "./spot-info.js?v=926febaf";
 import {
     COURSE_COLLECTION,
     COURSE_MAX_SPOTS,
@@ -117,6 +121,8 @@ async function loadAll() {
             titleUrls[spot.title_name] = spot.title_url;
         }
     });
+    // 作品ごとの色がかぶらないように、全部の作品名を渡す（title-colors.js）
+    registerTitles(spots.map(function (spot) { return spot.data.title_name || "その他"; }));
 
     const datalist = document.getElementById("title-options");
     datalist.innerHTML = "";
@@ -444,36 +450,6 @@ async function rejectRequest(item, button) {
 }
 
 // ---------- 申請を確認して地図に追加する ----------
-// 緯度経度から geohash（8文字）を作る（既にある聖地と同じ精度）
-function encodeGeohash(latitude, longitude, precision) {
-    const base32 = "0123456789bcdefghjkmnpqrstuvwxyz";
-    let latRange = [-90, 90];
-    let lngRange = [-180, 180];
-    let hash = "";
-    let bit = 0;
-    let ch = 0;
-    let even = true;
-
-    while (hash.length < precision) {
-        const range = even ? lngRange : latRange;
-        const value = even ? longitude : latitude;
-        const mid = (range[0] + range[1]) / 2;
-        if (value >= mid) {
-            ch = (ch << 1) | 1;
-            range[0] = mid;
-        } else {
-            ch = ch << 1;
-            range[1] = mid;
-        }
-        even = !even;
-        if (++bit === 5) {
-            hash += base32[ch];
-            bit = 0;
-            ch = 0;
-        }
-    }
-    return hash;
-}
 
 function setApprovePosition(lngLat, fly) {
     if (!approveMarker) {
@@ -542,7 +518,24 @@ function setSubmitText(busy) {
     document.getElementById("ap-delete").hidden = formMode !== "edit";
 }
 
-// values：{ spotName, titleName, info, address, titleUrl, season, episode, coord }
+// 訪れる人への情報の入力欄（入れる時間・定休日・料金・アクセス・注意）
+VISIT_FIELDS.forEach(function (field) {
+    const group = document.createElement("div");
+    group.className = "form-group";
+    const label = document.createElement("label");
+    label.htmlFor = "ap-" + field.key;
+    label.textContent = field.label;
+    const input = document.createElement(field.key === "caution" ? "textarea" : "input");
+    input.id = "ap-" + field.key;
+    input.maxLength = field.max;
+    input.placeholder = field.placeholder;
+    if (field.key === "caution") input.rows = 2;
+    else input.type = "text";
+    group.append(label, input);
+    document.getElementById("ap-visit-fields").appendChild(group);
+});
+
+// values：{ spotName, titleName, info, address, titleUrl, season, episode, coord, visit: { open_hours, … } }
 function openSpotForm(mode, values) {
     formMode = mode;
     document.getElementById("approve-title").textContent = FORM_TEXT[mode].title;
@@ -558,6 +551,9 @@ function openSpotForm(mode, values) {
     updateImagePreview();
     document.getElementById("ap-season").value = values.season || "";
     document.getElementById("ap-episode").value = values.episode || "";
+    VISIT_FIELDS.forEach(function (field) {
+        document.getElementById("ap-" + field.key).value = (values.visit && values.visit[field.key]) || "";
+    });
 
     document.getElementById("approve-error").hidden = true;
     ["ap-spot-name", "ap-title-name", "ap-spot-info", "ap-address"].forEach(function (id) {
@@ -571,7 +567,10 @@ function openSpotForm(mode, values) {
             container: "approve-map",
             style: "mapbox://styles/mapbox/streets-v12",
             center: [139.7671, 35.6812],
-            zoom: 11
+            zoom: 11,
+            // 地名などを日本語で出す
+            language: "ja",
+            worldview: "JP"
         });
         approveMap.on("click", function (event) {
             setApprovePosition(event.lngLat, false);
@@ -636,7 +635,8 @@ function openEditSpot(spot) {
         image: data.image_url,
         season: saved ? data.season : guess.season,
         episode: saved ? data.episode : guess.episode,
-        coord: data.coord
+        coord: data.coord,
+        visit: data
     });
 }
 
@@ -812,6 +812,10 @@ document.getElementById("approve-form").addEventListener("submit", async functio
         season: season,
         episode: episode
     };
+    // 訪れる人への情報（空欄は空の文字にする）
+    VISIT_FIELDS.forEach(function (field) {
+        fields[field.key] = document.getElementById("ap-" + field.key).value.trim();
+    });
 
     try {
         const batch = writeBatch(db);
@@ -980,6 +984,7 @@ function updateEpisodeSaveButton() {
 
 function renderEpisodes() {
     renderEpisodeTitles();
+    updateEpisodeBulk();
 
     const title = document.getElementById("episode-title").value;
     shownEpisodeTitle = title;
@@ -1113,6 +1118,167 @@ document.getElementById("episode-save").addEventListener("click", async function
     }
 });
 
+// まだ期・話を入れていない聖地のうち、説明文から読み取れたもの
+function findEpisodeGuesses() {
+    return spots
+        .filter(function (spot) { return !("season" in spot.data || "episode" in spot.data); })
+        .map(function (spot) {
+            const guess = parseEpisode(spot.data.spot_info);
+            return { spot: spot, value: { season: guess.season, episode: guess.episode } };
+        })
+        .filter(function (item) { return item.value.season > 0 || item.value.episode > 0; });
+}
+
+function updateEpisodeBulk() {
+    const button = document.getElementById("episode-bulk");
+    const note = document.getElementById("episode-bulk-note");
+    const unsaved = spots.filter(function (spot) { return !("season" in spot.data || "episode" in spot.data); }).length;
+    const guesses = findEpisodeGuesses().length;
+    button.disabled = guesses === 0;
+    note.textContent = unsaved === 0
+        ? "すべての聖地に期・話が入っています。"
+        : "まだ入れていない聖地 " + unsaved + "件のうち、" + guesses + "件は説明文から読み取れます" +
+            (unsaved > guesses ? "（残り " + (unsaved - guesses) + "件は、作品ごとに手で入れてください）" : "") + "。";
+}
+
+// 説明文から読み取れた期・話を、全作品まとめて保存する（読み取れない聖地はそのまま）
+document.getElementById("episode-bulk").addEventListener("click", async function () {
+    const button = this;
+    const guesses = findEpisodeGuesses();
+    if (guesses.length === 0) return;
+
+    const sample = guesses.slice(0, 10).map(function (item) {
+        return "・" + (item.spot.data.spot_name || item.spot.id) + "：" +
+            (getSpotEpisodeLabel(item.value) || "");
+    }).join("\n");
+    if (!window.confirm(
+        "説明文から読み取った期・話を、" + guesses.length + "件の聖地に保存します。\n\n" +
+        sample + (guesses.length > 10 ? "\n…ほか" + (guesses.length - 10) + "件" : "") +
+        "\n\n保存したあとも、作品ごとに直せます。保存しますか？"
+    )) return;
+
+    button.disabled = true;
+    try {
+        // 1回にまとめて書けるのは500件まで
+        for (let i = 0; i < guesses.length; i += 400) {
+            const batch = writeBatch(db);
+            guesses.slice(i, i + 400).forEach(function (item) {
+                batch.update(doc(db, "spot", item.spot.id), item.value);
+            });
+            await batch.commit();
+            guesses.slice(i, i + 400).forEach(function (item) { Object.assign(item.spot.data, item.value); });
+        }
+        notify(guesses.length + "件の聖地に期・話を保存しました");
+        renderEpisodes();
+        renderSpots();
+    } catch (error) {
+        console.error(error);
+        notify(
+            error && error.code === "permission-denied"
+                ? "保存する権限がありません。Firestore のルールに season・episode を追加してください"
+                : "保存できませんでした。通信状況を確認してください",
+            "error"
+        );
+    } finally {
+        updateEpisodeBulk();
+    }
+});
+
+// ---------- 作品の説明（work コレクション。作品ページの見出しの下に出す） ----------
+const WORK_COLLECTION = "work";
+const WORK_DESCRIPTION_MAX = 1000;
+let workList = [];          // { id, data }
+
+async function loadWorkList() {
+    const snapshot = await getDocs(collection(db, WORK_COLLECTION));
+    workList = [];
+    snapshot.forEach(function (d) { workList.push({ id: d.id, data: d.data() }); });
+}
+
+function findWork(title) {
+    return workList.find(function (work) { return work.data.title_name === title; });
+}
+
+function updateWorkCount() {
+    const length = Array.from(document.getElementById("work-description").value).length;
+    document.getElementById("work-count").textContent = length + " / " + WORK_DESCRIPTION_MAX + "文字";
+}
+
+// 選んだ作品の説明を入力欄に出す
+function showWork() {
+    const title = document.getElementById("work-title").value;
+    const work = findWork(title);
+    document.getElementById("work-description").value = work ? work.data.description || "" : "";
+    document.getElementById("work-preview").href = "work.html?title=" + encodeURIComponent(title);
+    document.getElementById("work-error").hidden = true;
+    updateWorkCount();
+}
+
+// 作品の選択肢（聖地のある作品。説明を書いた作品には ✓）
+function renderWorks() {
+    const select = document.getElementById("work-title");
+    const current = select.value;
+    const titles = Array.from(new Set(spots.map(function (spot) { return spot.data.title_name || "その他"; })))
+        .filter(function (title) { return title !== "その他"; })
+        .sort();
+
+    select.innerHTML = "";
+    titles.forEach(function (title) {
+        const work = findWork(title);
+        const option = document.createElement("option");
+        option.value = title;
+        option.textContent = (work && work.data.description ? "✓ " : "") + title;
+        select.appendChild(option);
+    });
+    if (titles.includes(current)) select.value = current;
+    showWork();
+}
+
+document.getElementById("work-title").addEventListener("change", showWork);
+document.getElementById("work-description").addEventListener("input", updateWorkCount);
+
+document.getElementById("work-form").addEventListener("submit", async function (event) {
+    event.preventDefault();
+    const title = document.getElementById("work-title").value;
+    if (!title) return;
+
+    const button = document.getElementById("work-save");
+    button.disabled = true;
+    button.textContent = "保存中…";
+
+    const data = {
+        title_name: title,
+        description: document.getElementById("work-description").value.trim(),
+        updated_at: serverTimestamp()
+    };
+
+    try {
+        const work = findWork(title);
+        const batch = writeBatch(db);
+        const ref = work ? doc(db, WORK_COLLECTION, work.id) : doc(collection(db, WORK_COLLECTION));
+        batch.set(ref, data);
+        await batch.commit();
+
+        if (work) {
+            work.data = data;
+        } else {
+            workList.push({ id: ref.id, data: data });
+        }
+        notify("「" + title + "」の説明を保存しました");
+        renderWorks();
+    } catch (error) {
+        console.error(error);
+        const box = document.getElementById("work-error");
+        box.textContent = error && error.code === "permission-denied"
+            ? "保存する権限がありません。Firestore のルールに work を追加してください。"
+            : "保存できませんでした。通信状況を確認して、もう一度お試しください。";
+        box.hidden = false;
+    } finally {
+        button.disabled = false;
+        button.textContent = "保存する";
+    }
+});
+
 // ---------- おすすめ聖地巡礼ルート（course コレクション） ----------
 let courseList = [];        // { id, data }
 let editingCourse = null;   // 編集中のルート（新しく作る時は null）
@@ -1219,6 +1385,7 @@ function openCourseEditor(course) {
     document.getElementById("cs-description").value = data.description || "";
     courseSpotIds = (data.spot_ids || []).filter(function (id) { return findAdminSpot(id); });
     ["cs-name", "cs-spots"].forEach(function (id) { setFieldError(id, false); });
+    document.getElementById("cs-ai-status").textContent = AI_DRAFT_HINT;
 
     renderCourseEditor();
     document.getElementById("course-modal").style.display = "flex";
@@ -1331,6 +1498,43 @@ function renderCourseEditor() {
 
 document.getElementById("cs-title").addEventListener("change", renderCourseEditor);
 
+// ---------- AI で下書きを作る（ルート名・紹介文・回る聖地を入れる。保存は確かめてから） ----------
+const AI_DRAFT_HINT = "選んだ作品の聖地から、AI がルート名・紹介文・回る聖地を考えます。内容を確かめて直してから保存してください。";
+
+document.getElementById("cs-ai-box").hidden = !isAiPlanAvailable();
+document.getElementById("cs-ai").addEventListener("click", async function () {
+    const button = this;
+    const status = document.getElementById("cs-ai-status");
+    const title = document.getElementById("cs-title").value;
+    if (!title) {
+        status.textContent = "先に作品を選んでください。";
+        return;
+    }
+
+    const filled = document.getElementById("cs-name").value.trim() ||
+        document.getElementById("cs-description").value.trim() || courseSpotIds.length > 0;
+    if (filled && !window.confirm("入力してある内容を、AI の下書きで置きかえますか？")) return;
+
+    button.disabled = true;
+    status.textContent = "AI が下書きを考えています…（数十秒かかることがあります）";
+    try {
+        const { plan, remaining } = await requestAiPlan(title, { duration: "half" });
+        document.getElementById("cs-name").value = Array.from(plan.title || "").slice(0, 50).join("");
+        document.getElementById("cs-description").value = plan.summary || "";
+        courseSpotIds = plan.stops
+            .map(function (stop) { return String(stop.id); })
+            .filter(function (id) { return findAdminSpot(id); });
+        setFieldError("cs-name", false);
+        setFieldError("cs-spots", false);
+        renderCourseEditor();
+        status.textContent = "AI の下書きを入れました（今日はあと " + remaining + " 回）。内容を確かめて直してから保存してください。";
+    } catch (error) {
+        status.textContent = error.message;
+    } finally {
+        button.disabled = false;
+    }
+});
+
 // 近い順に並べる（いちばん上の聖地から出発）
 document.getElementById("cs-sort").addEventListener("click", function () {
     courseSpotIds = orderByNearest(courseSpotsOf(courseSpotIds)).map(function (spot) { return spot.id; });
@@ -1417,18 +1621,19 @@ document.getElementById("course-new").addEventListener("click", function () { op
 
 // ---------- タブ ----------
 function selectTab(name) {
-    ["requests", "contacts", "spots", "episodes", "courses"].forEach(function (key) {
+    ["requests", "contacts", "spots", "episodes", "works", "courses"].forEach(function (key) {
         const selected = key === name;
         document.getElementById("tab-" + key).setAttribute("aria-selected", String(selected));
         document.getElementById("panel-" + key).hidden = !selected;
     });
     // 「対応済みも表示」は申請・お問い合わせの時だけ
-    document.getElementById("show-done-label").hidden = name === "spots" || name === "episodes" || name === "courses";
+    document.getElementById("show-done-label").hidden = name === "spots" || name === "episodes" || name === "works" || name === "courses";
 }
 document.getElementById("tab-requests").addEventListener("click", function () { selectTab("requests"); });
 document.getElementById("tab-contacts").addEventListener("click", function () { selectTab("contacts"); });
 document.getElementById("tab-spots").addEventListener("click", function () { selectTab("spots"); });
 document.getElementById("tab-episodes").addEventListener("click", function () { selectTab("episodes"); });
+document.getElementById("tab-works").addEventListener("click", function () { selectTab("works"); });
 document.getElementById("tab-courses").addEventListener("click", function () { selectTab("courses"); });
 document.getElementById("show-done").addEventListener("change", render);
 
@@ -1492,6 +1697,15 @@ document.getElementById("show-done").addEventListener("change", render);
         notify("おすすめルートを読めませんでした。Firestore のルールに course を追加してください", "error");
     }
     renderCourses();
+
+    // 作品の説明（ルールに work が無くても、他の管理はできるよう別に読む）
+    try {
+        await loadWorkList();
+    } catch (error) {
+        console.error("作品の説明を読めませんでした:", error);
+        notify("作品の説明を読めませんでした。Firestore のルールに work を追加してください", "error");
+    }
+    renderWorks();
 })();
 
 // 色の確認用（作品名の入力欄の横に作品の色を出す）

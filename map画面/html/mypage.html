@@ -4,15 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>マイページ - 聖地巡礼NAVI</title>
-    <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
-    <link rel="stylesheet" href="../css/stamp-rank.css?v=63a337bd">
-    <link rel="stylesheet" href="../css/mypage.css?v=c6b5dfba">
+    <link rel="stylesheet" href="../css/common.css?v=f9624d5f">
+    <link rel="stylesheet" href="../css/tab-bar.css?v=82026e7c">
+    <link rel="stylesheet" href="../css/stamp-rank.css?v=966a0ec6">
+    <link rel="stylesheet" href="../css/mypage.css?v=333df5a9">
+    <!-- アプリとして使う（ホーム画面に追加・オフライン。pwa.js） -->
+    <link rel="manifest" href="../manifest.webmanifest">
+    <meta name="theme-color" content="#0b3c5d">
+    <link rel="apple-touch-icon" href="../images/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" href="../images/icons/icon-192.png">
+    <script src="../js/pwa.js?v=c08113cc" defer></script>
 </head>
 <body>
 
     <!-- アプリ共通ヘッダー -->
     <header class="app-header">
-        <button type="button" class="back-btn" onclick="goToMap()" aria-label="マップに戻る">＜ マップ</button>
+        <button type="button" class="back-btn is-tab-root" onclick="goToMap()" aria-label="マップに戻る">＜ マップ</button>
         <h1>マイページ</h1>
     </header>
 
@@ -50,6 +57,14 @@
             </div>
         </section>
 
+        <!-- 実績・バッジ（スタンプの記録から決める。badges.js） -->
+        <section class="panel">
+            <div class="panel-head">
+                <h2>バッジ <span class="badge-count" id="badge-count"></span></h2>
+            </div>
+            <ul class="badge-list" id="badge-list"></ul>
+        </section>
+
         <!-- 作品ごとの達成度 -->
         <section class="panel">
             <div class="panel-head">
@@ -80,12 +95,12 @@
             </button>
             <button type="button" class="menu-item" onclick="goToHistory()">
                 <span class="menu-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
-                <span class="menu-text">お気に入り・ルート・履歴</span>
+                <span class="menu-text">お気に入り・履歴</span>
                 <svg class="icon menu-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
             </button>
             <button type="button" class="menu-item" onclick="goToStamp()">
                 <span class="menu-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="6"/><path d="M8.5 14 7 22l5-3 5 3-1.5-8"/></svg></span>
-                <span class="menu-text">獲得スタンプ一覧</span>
+                <span class="menu-text">スタンプ帳</span>
                 <svg class="icon menu-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
             </button>
             <button type="button" class="menu-item" onclick="location.href='register.html'">
@@ -162,12 +177,14 @@
         </div>
     </div>
 
-    <script src="../js/common.js?v=d714509d"></script>
-    <script src="../js/stamp-rank.js?v=5854d0d9"></script>
-    <script src="../js/mypage.js?v=1e24e91c"></script>
+    <script src="../js/common.js?v=bdcf06ca"></script>
+    <script src="../js/tab-bar.js?v=f5e177d7"></script>
+    <script src="../js/stamp-rank.js?v=c4ce732e"></script>
+    <script src="../js/badges.js?v=5a082dfc"></script>
+    <script src="../js/mypage.js?v=278719c8"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
-        import { loadStampBook } from "../js/stamp-db.js?v=fb2d2a17";
+        import { loadStampBook } from "../js/stamp-db.js?v=4e60fcbf";
 
         loadStampBook().then(function (book) {
             renderRecord(book.stamps || [], book.stamps === null ? "guest" : "ready", book.summary);
@@ -177,8 +194,8 @@
         });
 
         // ニックネームはDBの内容を正とする（別の端末で変えた時も反映される）
-        import { loadUserName, saveUserName } from "../js/profile-db.js?v=df103e5b";
-        import { auth, getCurrentUser } from "../js/firebase-db.js?v=917161b9";
+        import { loadUserName, saveUserName } from "../js/profile-db.js?v=8fef035d";
+        import { auth, getCurrentUser } from "../js/firebase-db.js?v=61accae5";
         import { clearLoginState } from "../js/login-state.js?v=3858a481";
         import { signOut } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
 
@@ -193,14 +210,14 @@
         if (userId) {
             // 管理者なら管理ページへの入口を出す（読めなければ管理者ではない）
             // 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
-            import("../js/public-data.js?v=c815b81a").then(async function (data) {
+            import("../js/public-data.js?v=5183f404").then(async function (data) {
                 document.getElementById("admin-menu").hidden = !(await data.getOneDoc("admin", userId));
             }).catch(function () {
                 // 管理者ではない
             });
 
             // 未読のお知らせの数
-            import("../js/public-data.js?v=c815b81a").then(async function (data) {
+            import("../js/public-data.js?v=5183f404").then(async function (data) {
                 const snap = await data.queryMine("message");
                 let unread = 0;
                 snap.forEach(function (d) { if (!d.data().is_read) unread++; });

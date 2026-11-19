@@ -8,13 +8,16 @@ import {
     updateDoc
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-import { db, getCurrentUser } from "./firebase-db.js?v=917161b9";
+import { db, getCurrentUser } from "./firebase-db.js?v=61accae5";
 // 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
-import { queryMine } from "./public-data.js?v=c815b81a";
+import { queryMine } from "./public-data.js?v=5183f404";
 
 function showNotice(icon, text, link) {
     const notice = document.getElementById("inbox-notice");
     notice.innerHTML = "";
+    notice.classList.remove("is-loading");
+    notice.removeAttribute("role");
+    notice.removeAttribute("aria-label");
     const iconEl = document.createElement("div");
     iconEl.className = "empty-state-icon";
     iconEl.textContent = icon;

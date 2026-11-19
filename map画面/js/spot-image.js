@@ -1,25 +1,25 @@
 // ==========================================
 // 聖地の画像（地図の詳細・管理ページで共通）
-// 画像は GitHub のこのリポジトリの map画面/images/spots/ に、写真の種類ごとに分けて置く。
-//   anime/：アニメの場面   real/：現地の写真
-// ファイル名は聖地のID（例：anime/s11.png、real/s11.jpg）。
-// spot の image_url には「images/spots/real/s11.jpg」のように保存する（画像なしは "no_image"）。
+// 画像は GitHub のこのリポジトリの map画面/images/spots/ に、作品ごとのフォルダに分けて置く。
+//   例：eupho/eupho_s0701.jpg（響け！ユーフォニアムの s0701）
+// 使えるのは現地で撮った写真など、使ってよい写真だけ。アニメの場面の画像は著作権上使わない
+// （images/spots/anime/ を指していても表示しない）。
+// spot の image_url には「images/spots/eupho/eupho_s0701.jpg」のように保存する（画像なしは "no_image"）。
 // https:// から始まるURLが入っていれば、そのまま使う
 // ==========================================
 
 // 画像を置くフォルダ（map画面/ から見た場所）
 export const SPOT_IMAGE_DIR = "images/spots/";
 
-// 画像が無い時の値（古いデータは "not_image" や空文字）
+// 画像が無い時の値（古いデータは "not_image" や空文字）。
+// アニメの場面の画像（images/spots/anime/）も、著作権上使わないので「画像なし」と同じに扱う
 function isNoImage(value) {
-    return !value || value === "no_image" || value === "not_image";
+    return !value || value === "no_image" || value === "not_image" ||
+        /(^|\/)images\/spots\/anime\//.test(String(value));
 }
 
-// 写真の種類ごとのフォルダ（images/spots/ の中）
-export const SPOT_IMAGE_KINDS = { anime: "アニメの場面", real: "現地の写真" };
-
 // 管理ページで入力された値を、保存する形にする
-// ・種類/ファイル名（real/s11.jpg）       → images/spots/real/s11.jpg
+// ・フォルダ/ファイル名（eupho/eupho_s0701.jpg） → images/spots/eupho/eupho_s0701.jpg
 // ・ファイル名だけ（s11.jpg）             → images/spots/s11.jpg
 // ・GitHub の画像ページのURL               → images/spots/ujibashi.jpg
 // ・map画面/images/spots/… や ../images/… → images/spots/…
@@ -46,7 +46,7 @@ export function normalizeSpotImage(input) {
         .replace(/^\/+/, "")
         .replace(/^map画面\//, "");
 
-    // 「real/s11.jpg」やファイル名だけなら、画像のフォルダの中にあるものとする
+    // 「eupho/eupho_s0701.jpg」やファイル名だけなら、画像のフォルダの中にあるものとする
     if (!value.startsWith("images/")) {
         value = SPOT_IMAGE_DIR + value;
     }

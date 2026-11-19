@@ -35,7 +35,7 @@ function titleColor(title) {
     return (summary && summary.titles && summary.titles[title] && summary.titles[title].color) || "#0b3c5d";
 }
 
-// 表示するスタンプの一覧 { id, name, title, info, earned, date }
+// 表示するスタンプの一覧 { id, name, title, info, image, earned, date }
 let allStamps = [];
 let titles = [];
 
@@ -55,9 +55,12 @@ function buildStamps() {
                 name: spot.name,
                 title: spot.title,
                 info: (stamp && stamp.scene) || spot.info,
+                image: spot.image || (stamp && stamp.image) || "",
                 earned: Boolean(stamp),
                 date: stamp ? stamp.date : "",
-                count: stamp ? stamp.count || 1 : 0
+                count: stamp ? stamp.count || 1 : 0,
+                season: Number(spot.season) || 0,
+                episode: Number(spot.episode) || 0
             };
         })
         // 聖地の一覧がまだ無い時は、獲得したスタンプだけを並べる
@@ -68,6 +71,7 @@ function buildStamps() {
                 name: stamp.name,
                 title: stamp.anime,
                 info: stamp.scene,
+                image: stamp.image || "",
                 earned: true,
                 date: stamp.date,
                 count: stamp.count || 1
@@ -97,7 +101,8 @@ function renderOverall() {
     const got = allStamps.filter(function (s) { return s.earned; }).length;
     const total = hasSpotList ? allStamps.length : got;
 
-    document.getElementById("got-count").textContent = got;
+    // 数字はカウントアップして出す（common.js）
+    countUp(document.getElementById("got-count"), got);
     document.getElementById("total-count").textContent = hasSpotList ? total : "?";
 
     const bar = document.getElementById("overall-bar");
@@ -292,6 +297,15 @@ function renderSections() {
             });
 
         section.append(head, grid);
+
+        // まだの聖地を、次の巡礼のルートにすぐ入れられるようにする
+        const todo = allStamps.filter(function (s) {
+            return s.title === title && !s.earned;
+        });
+        if (hasSpotList && loadState === "ready" && todo.length > 0) {
+            section.appendChild(createTodoBar(title, todo));
+        }
+
         area.appendChild(section);
     });
 
@@ -301,6 +315,47 @@ function renderSections() {
             ? '<div class="card empty-state"><div class="empty-state-icon">⛩️</div><p>まだスタンプがありません</p><small>地図で聖地を訪れて、スタンプを集めよう</small><a href="map.html" class="btn btn-primary">地図を開く</a></div>'
             : '<div class="card empty-state"><div class="empty-state-icon">🔍</div><p>表示できるスタンプがありません</p></div>';
     }
+}
+
+// ---------- まだの聖地をルートに入れる ----------
+// 地図のルート案内に一度に入れる数（多すぎると回りきれないので、話の順に先から）
+const TODO_ROUTE_MAX = 10;
+
+// 地図の map.html?route=ID,ID&name=名前&order=near で開く（地図側で近い順に並べ直す）
+function getRouteLink(ids, name) {
+    return "map.html?route=" + ids.map(encodeURIComponent).join(",") +
+        "&name=" + encodeURIComponent(name) + "&order=near";
+}
+
+function createTodoBar(title, todo) {
+    const picked = todo
+        .slice()
+        .sort(function (a, b) {
+            // 何期・何話が分かる聖地を話の順に先に（分からない聖地は後）
+            const ka = a.season || a.episode ? a.season * 1000 + a.episode : Infinity;
+            const kb = b.season || b.episode ? b.season * 1000 + b.episode : Infinity;
+            return ka - kb;
+        })
+        .slice(0, TODO_ROUTE_MAX);
+
+    const bar = document.createElement("div");
+    bar.className = "stamp-todo";
+
+    const text = document.createElement("p");
+    text.className = "stamp-todo-text";
+    text.textContent = "まだの聖地 " + todo.length + " か所" +
+        (todo.length > TODO_ROUTE_MAX ? "（ルートには話の順に " + TODO_ROUTE_MAX + " か所）" : "");
+
+    const link = document.createElement("a");
+    link.className = "btn btn-primary stamp-todo-route";
+    link.href = getRouteLink(
+        picked.map(function (s) { return s.id; }),
+        "「" + title + "」のまだの聖地"
+    );
+    link.textContent = "🗺️ まだの聖地をルートに入れる";
+
+    bar.append(text, link);
+    return bar;
 }
 
 // 未ログイン・読み込み中・読み込み失敗の時は、一覧の上にお知らせを出す
@@ -330,8 +385,8 @@ function createStampItem(stamp) {
     circle.setAttribute("aria-hidden", "true");
 
     if (stamp.earned) {
-        circle.textContent = "⛩️";
-        // 中は作品の色、枠は取った回数のランクの色
+        // 中はその聖地に登録した画像（無ければ ⛩️）、枠は取った回数のランクの色
+        setStampImage(circle, stamp.image);
         applyStampRank(circle, stamp.count, titleColor(stamp.title));
     } else {
         circle.textContent = "?";
@@ -352,7 +407,12 @@ function createStampItem(stamp) {
 // ---------- 詳細ポップアップ ----------
 function openStampModal(stamp) {
     const circle = document.getElementById("modal-circle");
-    circle.textContent = stamp.earned ? "⛩️" : "?";
+    if (stamp.earned) {
+        setStampImage(circle, stamp.image);
+    } else {
+        circle.classList.remove("has-image");
+        circle.textContent = "?";
+    }
     circle.classList.toggle("is-locked", !stamp.earned);
     applyStampRank(circle, stamp.earned ? stamp.count : 0, titleColor(stamp.title));
 
@@ -387,6 +447,11 @@ function openStampModal(stamp) {
     document.getElementById("modal-map-link").href =
         "map.html?spot=" + encodeURIComponent(stamp.id);
 
+    // まだの聖地は、そのままルート案内に入れられる
+    const routeLink = document.getElementById("modal-route-link");
+    routeLink.hidden = stamp.earned;
+    routeLink.href = getRouteLink([stamp.id], stamp.name || "聖地");
+
     document.getElementById("stamp-modal").style.display = "flex";
 }
 
@@ -410,6 +475,44 @@ function showStamps(stamps, state, spotSummary) {
     renderOverall();
     renderTitlePicker();
     renderSections();
+
+    // スタンプが1つ以上あれば、記録を画像にして共有できる
+    document.getElementById("share-record").hidden =
+        !(state === "ready" && collected.length > 0);
+}
+
+// ---------- 記録を画像にして共有 ----------
+// 作品ごとの進み具合（多い順）と、取ったバッジを1枚の画像にする（share-card.js）
+async function shareRecord() {
+    const button = document.getElementById("share-record");
+    button.disabled = true;
+    try {
+        const got = allStamps.filter(function (s) { return s.earned; }).length;
+        const works = titles
+            .map(function (title) {
+                return { title: title, color: titleColor(title), got: earnedCount(title), total: countOf(title) };
+            })
+            .filter(function (work) { return work.got > 0; })
+            .sort(function (a, b) { return b.got / b.total - a.got / a.total || b.got - a.got; });
+        const badges = typeof window.getBadges === "function"
+            ? window.getBadges(collected, summary).filter(function (b) { return b.earned; }).map(function (b) { return b.icon; })
+            : [];
+
+        const blob = await window.drawShareCard({
+            heading: "わたしの聖地巡礼の記録",
+            big: got + (hasSpotList ? " / " + allStamps.length : "") + " 個",
+            sub: works.length + "作品の聖地でスタンプを集めました",
+            works: works,
+            badges: badges
+        });
+        const result = await window.shareImage(blob, "seichi-junrei-record.png",
+            "聖地巡礼NAVI でスタンプを " + got + " 個集めました！ #聖地巡礼NAVI");
+        if (result === "saved" && typeof window.showToast === "function") {
+            window.showToast("画像を保存しました。SNS に投稿してみよう");
+        }
+    } finally {
+        button.disabled = false;
+    }
 }
 
 // DBから読み込むまでは「読み込み中」と表示しておく

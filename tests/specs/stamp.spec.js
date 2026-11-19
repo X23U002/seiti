@@ -35,3 +35,56 @@ test("聖地から離れていると取れない", async ({ page }) => {
     await page.waitForTimeout(500);
     expect((await readStore(page)).stamp).toBeUndefined();
 });
+
+// ---------- スタンプの絵は、その聖地に登録した画像 ----------
+
+const IMAGE = "images/spots/eupho/eupho_s0701.jpg";
+
+test("スタンプ帳：取ったスタンプには聖地の画像、画像の無い聖地は ⛩️、まだのものは ?", async ({ page }) => {
+    const [station, noImage, locked] = ["京阪宇治駅", "宇治橋", "大吉山展望台"].map(spotNamed);
+    const data = withSpots({ user: { uid2: PROFILE("巡礼者", "p@x.jp") } });
+    data.spot[station.id].image_url = IMAGE;
+    data.spot[noImage.id].image_url = "no_image";
+    data.spot[locked.id].image_url = IMAGE;
+    data.stamp = {
+        t1: { user_id: { __ref: "user/uid2" }, spot_id: { __ref: "spot/" + station.id }, time_stamp: { __ts: 1 } },
+        t2: { user_id: { __ref: "user/uid2" }, spot_id: { __ref: "spot/" + noImage.id }, time_stamp: { __ts: 2 } }
+    };
+    await seed(page, { user: "uid2", data });
+    await page.goto("html/stamp.html");
+
+    const item = (spot) => page.locator(".stamp-item", { has: page.locator(".stamp-label", { hasText: spot.spot_name }) }).first();
+    const image = item(station).locator(".stamp-circle img.stamp-image");
+    await expect(image).toHaveAttribute("src", "../" + IMAGE);
+    await expect.poll(() => image.evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
+    await expect(item(noImage).locator(".stamp-circle")).toHaveText("⛩️");
+    await expect(item(locked).locator(".stamp-circle")).toHaveText("?");
+    await expect(item(locked).locator("img")).toHaveCount(0);
+
+    // 詳細も同じ画像
+    await item(station).click();
+    await expect(page.locator("#modal-circle img.stamp-image")).toHaveAttribute("src", "../" + IMAGE);
+});
+
+test("スタンプを取った時のお祝いにも、聖地の画像を出す", async ({ page }) => {
+    const data = withSpots({ user: { uid2: PROFILE("巡礼者", "p@x.jp") } });
+    data.spot[bridge.id].image_url = IMAGE;
+    await seed(page, { user: "uid2", data });
+    await page.goto("html/map.html?spot=" + bridge.id);
+    await expect(page.locator(".popup-meta")).toBeVisible();
+    await page.evaluate((id) => window.setStampTestLocation(id, 10), bridge.id);
+    await page.evaluate((id) => window.collectStamp(id), bridge.id);
+    await expect(page.locator(".stamp-celebration-stamp img.stamp-image")).toHaveAttribute("src", "../" + IMAGE);
+});
+
+test("アニメの場面の画像（images/spots/anime/）は、登録してあってもスタンプに出さない", async ({ page }) => {
+    const station = spotNamed("京阪宇治駅");
+    const data = withSpots({ user: { uid2: PROFILE("巡礼者", "p@x.jp") } });
+    data.spot[station.id].image_url = "images/spots/anime/s0701.png";
+    data.stamp = { t1: { user_id: { __ref: "user/uid2" }, spot_id: { __ref: "spot/" + station.id }, time_stamp: { __ts: 1 } } };
+    await seed(page, { user: "uid2", data });
+    await page.goto("html/stamp.html");
+    const circle = page.locator(".stamp-item", { has: page.locator(".stamp-label", { hasText: station.spot_name }) }).first().locator(".stamp-circle");
+    await expect(circle).toHaveText("⛩️");
+    await expect(circle.locator("img")).toHaveCount(0);
+});

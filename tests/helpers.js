@@ -50,9 +50,11 @@ function restDocument(collectionName, id, data) {
     };
 }
 
-const json = (route, body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
-const script = (route, body) => route.fulfill({ status: 200, contentType: "application/javascript", body });
-const css = (route, body) => route.fulfill({ status: 200, contentType: "text/css", body });
+// 本物のサーバーと同じく、ほかのサイトから読めるようにする（オフライン用の service worker 経由でも読めるように）
+const CORS = { "Access-Control-Allow-Origin": "*" };
+const json = (route, body, status = 200) => route.fulfill({ status, contentType: "application/json", headers: CORS, body: JSON.stringify(body) });
+const script = (route, body) => route.fulfill({ status: 200, contentType: "application/javascript", headers: CORS, body });
+const css = (route, body) => route.fulfill({ status: 200, contentType: "text/css", headers: CORS, body });
 
 // Firestore REST（Web API）の代わり。data は seed() で入れたもの
 function answerRest(route, data, restCalls) {
@@ -85,7 +87,12 @@ export const test = base.extend({
     // REST で読まれた回数（「METHOD パス +token」の一覧）
     restCalls: async ({}, use) => { await use([]); },
 
-    page: async ({ page, restCalls }, use) => {
+    // 動き（ピンが落ちる・線が伸びる など）を止めて、結果をすぐ確かめる。
+    // 動きを確かめるテストだけ test.use({ motion: "no-preference" }) にする（motion.spec.js）
+    motion: ["reduce", { option: true }],
+
+    page: async ({ page, restCalls, motion }, use) => {
+        await page.emulateMedia({ reducedMotion: motion });
         const state = { data: withSpots() };
         const errors = [];
         page.on("pageerror", (error) => errors.push(error.message));
@@ -109,7 +116,8 @@ export const test = base.extend({
             });
         });
 
-        await page.route(/^https:\/\//, (route) => {
+        // ページから直接でも、オフライン用の service worker 経由でも差しかえる（context.route は両方を受ける）
+        await page.context().route(/^https:\/\//, (route) => {
             const url = route.request().url();
             if (url.endsWith("firebase-app-compat.js")) return script(route, read(path.join(here, "mocks/compat.js")));
             if (url.endsWith("-compat.js")) return script(route, "");
@@ -147,6 +155,11 @@ export async function seed(page, { data = withSpots(), user = null, users = {}, 
         localStorage.clear();
         localStorage.setItem("mockFs", JSON.stringify(fsData));
         localStorage.setItem("mockAuth", JSON.stringify(auth));
+        // 使い方の説明・現在地の確認は、もう見たことにしておく（見せるテストでは local で "" にする）
+        localStorage.setItem("seitiOnboarded", "1");
+        localStorage.setItem("seitiLocationAskedAt", String(Date.now()));
+        // 開いた時の巡礼の前の注意も、もう見たことにしておく（見せるテストでは sessionStorage から消す）
+        sessionStorage.setItem("seitiSafetyShown", "1");
         Object.entries(extra).forEach(([key, value]) => localStorage.setItem(key, value));
     }, [data, { users, current: user }, local]);
 }

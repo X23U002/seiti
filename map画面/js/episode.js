@@ -62,14 +62,54 @@ export function getEpisodeLabel(text) {
     return formatEpisode(parseEpisode(text));
 }
 
-// 聖地データから札の文字を作る（期・話が入っていればそれを優先）
-export function getSpotEpisodeLabel(spot) {
+// 聖地データの { season, episode, special }（期・話が入っていればそれを優先）
+export function getSpotEpisode(spot) {
     const season = Number(spot && spot.season) || 0;
     const episode = Number(spot && spot.episode) || 0;
 
     if (season > 0 || episode > 0) {
-        return formatEpisode({ season: season, episode: episode, special: "" });
+        return { season: season, episode: episode, special: "" };
     }
 
-    return getEpisodeLabel(spot && spot.spot_info);
+    return parseEpisode(spot && spot.spot_info);
+}
+
+// 聖地データから札の文字を作る（期・話が入っていればそれを優先）
+export function getSpotEpisodeLabel(spot) {
+    return formatEpisode(getSpotEpisode(spot));
+}
+
+// 話で絞り込む時の目印（「1-3」＝1期3話、「0-5」＝期なしの5話、「劇場版」など。分からなければ空文字）
+export function getSpotEpisodeKey(spot) {
+    const parsed = getSpotEpisode(spot);
+    if (parsed.special === "劇場版") return parsed.special;
+    if (parsed.season > 0 || parsed.episode > 0) return parsed.season + "-" + parsed.episode;
+    return parsed.special;
+}
+
+// 目印を並べる順：期 → 話 → 劇場版・最終話・OP・ED → 分からないもの
+const SPECIAL_ORDER = ["最終話", "劇場版", "OP", "ED"];
+
+export function compareEpisodeKeys(a, b) {
+    const rank = function (key) {
+        if (key === "") return [3, 0, 0];
+        const special = SPECIAL_ORDER.indexOf(key);
+        if (special !== -1) return [2, special, 0];
+        const parts = key.split("-").map(Number);
+        return [1, parts[0] || 0, parts[1] || 0];
+    };
+    const x = rank(a);
+    const y = rank(b);
+    for (let i = 0; i < x.length; i++) {
+        if (x[i] !== y[i]) return x[i] - y[i];
+    }
+    return 0;
+}
+
+// 目印を札の文字にする（「1期 EP3」「EP5」「1期」「劇場版」、分からなければ「話数不明」）
+export function formatEpisodeKey(key) {
+    if (key === "") return "話数不明";
+    if (SPECIAL_ORDER.includes(key)) return key;
+    const parts = key.split("-").map(Number);
+    return formatEpisode({ season: parts[0] || 0, episode: parts[1] || 0, special: "" });
 }

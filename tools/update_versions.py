@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """キャッシュ用の番号（?v=）を、読み込むファイルの中身から自動で決める。
 
-map画面/ の HTML・JavaScript にある、同じサイト内の .js / .css の読み込み
-（<script src>・<link href>・import 文・import()）すべてに
+map画面/ の HTML・JavaScript にある、同じサイト内の .js / .css / .glb（3Dモデル）の読み込み
+（<script src>・<link href>・import 文・import()・"../models/x.glb" のような文字列）すべてに
 「?v=ファイルの中身から作った8文字」を付ける。
 ファイルの中身が変わると番号も変わるので、ブラウザに古いファイルが残っていても
 新しいものが読み込まれる（手で番号を上げる必要がない）。
@@ -18,8 +18,9 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent / "map画面"
 
-# "./x.js" "../js/x.js?v=3" '../css/x.css' のような、同じサイト内の .js / .css への参照
-REFERENCE = re.compile(r"""(["'])((?:\.\.?/)[^"'?#\s]+\.(?:js|css))(?:\?v=[^"']*)?\1""")
+# "./x.js" "../js/x.js?v=3" '../css/x.css' "../models/x.glb" のような、同じサイト内の .js / .css / .glb への参照
+# （.glb は、オフライン用の service worker が古いモデルを出し続けないように番号を付ける）
+REFERENCE = re.compile(r"""(["'])((?:\.\.?/)[^"'?#\s]+\.(?:js|css|glb))(?:\?v=[^"']*)?\1""")
 
 
 def source_files():

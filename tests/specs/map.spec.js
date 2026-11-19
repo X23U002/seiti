@@ -12,6 +12,119 @@ test("聖地のピンと検索バーが出て、聖地の一覧を端末に残�
     expect(cached).toBe(SPOTS.length);
 });
 
+test("作品で絞り込む時に、何期の何話か（劇場版なども）でも絞り込める", async ({ page }) => {
+    const AOBUTA = "青春ブタ野郎はバニーガール先輩の夢を見ない";
+    const ep3 = ["御所ヶ谷公園", "藤沢駅北口 黄金の像前\n", "七里ヶ浜海岸"];
+    const movie = ["片瀬東浜海水浴場", "七里ヶ浜"];
+    await seed(page);
+    await page.goto("html/map.html");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+
+    await page.click("#filter-btn");
+    const item = page.locator(`#anime-list .anime-item[data-title="${AOBUTA}"]`);
+    const panel = item.locator(".episode-filter");
+    // 作品にチェックを付けるまでは、話の選択は出さない
+    await expect(panel).toBeHidden();
+    await item.locator("input[type=checkbox]").check();
+    await expect(panel).toBeVisible();
+    await expect(panel.locator(".episode-option")).toHaveText([
+        "1期 EP1（1）", "1期 EP2（1）", "1期 EP3（3）", "1期 EP4（1）", "1期 EP6（1）", "劇場版（2）", "話数不明（2）"
+    ]);
+    // 話の分からない作品には出さない
+    await expect(page.locator(`#anime-list .anime-item[data-title="超かぐや姫！"] .episode-filter`)).toHaveCount(0);
+
+    await panel.locator(".episode-option", { hasText: "1期 EP3" }).click();
+    await panel.locator(".episode-option", { hasText: "劇場版" }).click();
+    await expect(panel.locator(".episode-option[aria-pressed=true]")).toHaveCount(2);
+    await page.click("#filter-ok");
+
+    const ids = [...ep3, ...movie].map((name) => SPOTS.find((spot) => spot.spot_name === name).id).sort();
+    await expect(pins(page)).toHaveCount(ids.length);
+    const shown = await pins(page).evaluateAll((list) => list.map((pin) => pin.dataset.spotId).sort());
+    expect(shown).toEqual(ids);
+    await expect(page.locator("#filter-chips .filter-chip")).toHaveText([`${AOBUTA}1期 EP3・劇場版×`]);
+
+    // 開き直すと、選んだ話が残っている
+    await page.click("#filter-btn");
+    await expect(panel).toBeVisible();
+    await expect(panel.locator(".episode-option[aria-pressed=true]")).toHaveText(["1期 EP3（3）", "劇場版（2）"]);
+    await page.evaluate(() => window.closeFilter());
+
+    // 札の × で外すと全部に戻る
+    await page.locator("#filter-chips .filter-chip").click();
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+});
+
+test("聖地の詳細の話の札（EP6 など）を押すと、作品ページでその話の聖地の一覧を出す", async ({ page }) => {
+    const AOBUTA = "青春ブタ野郎はバニーガール先輩の夢を見ない";
+    const spot = spotNamed("御所ヶ谷公園");
+    const ep3 = ["御所ヶ谷公園", "藤沢駅北口 黄金の像前", "七里ヶ浜海岸"];
+    const all = SPOTS.filter((item) => item.title_name === AOBUTA).length;
+    await seed(page);
+    await page.goto("html/map.html?spot=" + spot.id);
+    const badge = page.locator(".popup-meta .popup-ep-link");
+    await expect(badge).toHaveText("1期 EP3");
+    await badge.click();
+
+    // 作品ページに移り、1期 EP3 の聖地だけを出す（地図は絞り込まない）
+    await expect(page).toHaveURL(/work\.html\?title=.*&ep=1-3#work-spots-section$/);
+    await expect(page.locator("#work-title")).toHaveText(AOBUTA);
+    const spots = page.locator("#work-spots .work-spot h3");
+    await expect(spots).toHaveCount(ep3.length);
+    expect((await spots.allTextContents()).map((name) => name.trim()).sort()).toEqual(ep3.slice().sort());
+    await expect(page.locator("#work-spots-note")).toHaveText("（1期 EP3）");
+    await expect(page.locator(".work-episode[aria-pressed=true]")).toHaveText("1期 EP3（3）");
+    await expect(page.locator("#work-spots-section")).toBeInViewport();
+
+    // 別の話・すべてに切りかえられる（アドレスも合わせる）
+    await page.locator(".work-episode", { hasText: "劇場版" }).click();
+    await expect(spots).toHaveCount(2);
+    await expect(page).toHaveURL(/ep=%E5%8A%87%E5%A0%B4%E7%89%88/);
+    await page.locator(".work-episode", { hasText: "すべて" }).click();
+    await expect(spots).toHaveCount(all);
+    await expect(page.locator("#work-spots-note")).toHaveText("（話数の順）");
+    expect(new URL(page.url()).searchParams.has("ep")).toBe(false);
+});
+
+test("地図の文字（地名・ボタンの説明）は日本語", async ({ page }) => {
+    await seed(page);
+    await page.goto("html/map.html");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+    expect(await page.evaluate(() => window.__map.getLanguage())).toBe("ja");
+    expect(await page.evaluate(() => window.__map.getWorldview())).toBe("JP");
+    await expect(page.locator(".mapboxgl-ctrl-zoom-in")).toHaveAttribute("aria-label", "拡大");
+    await expect(page.locator(".mapboxgl-ctrl-compass")).toHaveAttribute("aria-label", "北を上にする");
+    await expect(page.locator(".mapboxgl-ctrl-geocoder--button")).toHaveAttribute("aria-label", "入力を消す");
+});
+
+test("軽くする：聖地の画像は詳細を開くまで読まない。3D表示の部品（three.js・キャラクター）は3Dにするまで読まない", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    const station = spotNamed("京阪宇治駅");
+    const data = withSpots();
+    data.spot[bridge.id].image_url = "images/spots/eupho/eupho_s0701.jpg";
+    data.spot[station.id].image_url = "images/spots/eupho/eupho_s0702.jpg";
+    const requests = [];
+    page.on("request", (request) => requests.push(request.url()));
+    await seed(page, { data });
+    await page.goto("html/map.html");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+    await page.waitForTimeout(500);
+    expect(requests.filter((url) => url.includes("/images/spots/"))).toEqual([]);
+    expect(requests.filter((url) => /three|walker\.js|pin-3d-layer|walking/.test(url))).toEqual([]);
+
+    // 詳細を開くと、その聖地の画像だけ読む
+    await page.goto("html/map.html?spot=" + bridge.id);
+    await expect(page.locator(".popup-card .popup-image img")).toHaveAttribute("src", /eupho_s0701/);
+    await page.waitForTimeout(300);
+    const images = requests.filter((url) => url.includes("/images/spots/"));
+    expect(images.length).toBeGreaterThan(0);
+    expect(images.every((url) => url.includes("eupho_s0701"))).toBe(true);
+
+    // 3D表示にすると読み込みを始める（スマホの幅では詳細を開いている間ボタンが隠れるので、直接切りかえる）
+    await page.evaluate(() => window.toggleView());
+    await expect.poll(() => requests.filter((url) => /walker\.js|pin-3d-layer/.test(url)).length).toBe(2);
+});
+
 test("Firestore の通信が止められても、Web API から聖地を読む", async ({ page, restCalls }) => {
     await seed(page, { local: { mockFsHang: "1" } });
     await page.goto("html/map.html");
@@ -76,6 +189,24 @@ test("検索：登録済みの聖地を候補に出し、選ぶと詳細が開�
     await expect(page.locator(".popup-spot")).toContainText(SPOTS.find((spot) => spot.id === targetId).spot_name);
 });
 
+test("ピンに触る前にメニューの「おすすめルート」を開いても、読み込めたらルートが出る", async ({ page }) => {
+    const order = ["京阪宇治駅", "宇治橋"].map(spotNamed);
+    // Firestore が遅い（8秒待ってから Web API で読む）時の再現
+    await seed(page, {
+        local: { mockFsHang: "1" },
+        data: withSpots({
+            course: { c1: { title_name: order[0].title_name, course_name: "すぐ開くルート", description: "", spot_ids: order.map((s) => s.id), updated_at: { __ts: 1 } } }
+        })
+    });
+    await page.goto("html/map.html");
+    await page.evaluate(() => window.openCourses());
+    const list = page.locator("#course-list");
+    await expect(list).toContainText("読み込んでいます");
+    await expect(list.locator(".course-card")).toContainText("すぐ開くルート", { timeout: 30_000 });
+    await list.locator(".course-start").click();
+    await expect(page.locator(".routeItem")).toHaveCount(2);
+});
+
 test("ルート案内の区間ごとに、徒歩の目安と「電車で」（Googleマップの乗換案内）が出る", async ({ page }) => {
     const [station, bridge, nagoya] = ["京阪宇治駅", "宇治橋", "名古屋国際会議場（センチュリーホール）"].map(spotNamed);
     await seed(page, {
@@ -111,4 +242,612 @@ test("ルート案内の区間ごとに、徒歩の目安と「電車で」（Go
     url = await transitUrl(2);
     expect(url.searchParams.get("origin")).toBe(at(bridge));
     expect(url.searchParams.get("destination")).toBe(at(nagoya));
+});
+
+test("地図上にルートを生成すると、区間の時間も実際の道のり（画面下の合計と同じ）になる。解除すると目安に戻る", async ({ page }) => {
+    const order = ["京阪宇治駅", "宇治橋", "大吉山展望台"].map((name) => spotNamed(name));
+    await seed(page, {
+        data: withSpots({
+            course: { c1: { title_name: order[0].title_name, course_name: "テストルート", description: "", spot_ids: order.map((s) => s.id), updated_at: { __ts: 1 } } }
+        })
+    });
+    // Mapbox の徒歩ルートの答え（区間ごとの道のりと時間）
+    await page.route(/\/directions\/v5\/mapbox\/walking\//, (route) => route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+            code: "Ok",
+            routes: [{
+                distance: 1700,
+                duration: 1230,
+                legs: [0, 1].map((i) => ({
+                    distance: [450, 1250][i],
+                    duration: [330, 900][i],
+                    steps: [{ geometry: { type: "LineString", coordinates: [order[i], order[i + 1]].map((s) => [s.coord.longitude, s.coord.latitude]) } }]
+                })),
+                geometry: { type: "LineString", coordinates: order.map((s) => [s.coord.longitude, s.coord.latitude]) }
+            }]
+        })
+    }));
+    await page.goto("html/map.html?course=c1");
+    const legs = page.locator("#routeList .route-leg");
+    await expect(legs).toHaveCount(3);
+    await expect(legs.nth(1)).toContainText("（目安）");
+
+    // 生成する前から、ピンに回る順番の番号と、回る順に結ぶ点線を出す
+    const preview = () => page.evaluate(() => window.__map.getSource("selected-spots-preview")._data.features);
+    for (let i = 0; i < order.length; i++) {
+        await expect(page.locator(`.mapboxgl-marker[data-spot-id="${order[i].id}"] .route-order-badge`)).toHaveText(String(i + 1));
+    }
+    await expect.poll(async () => (await preview()).map((f) => f.geometry.coordinates.length)).toEqual([3]);
+
+    await page.click("#generate-mapbox-route");
+    await expect(page.locator("#toast")).toContainText("約1.7km・徒歩約21分");
+    // 道に沿ったルートを出している間は、点線は出さない
+    expect(await preview()).toEqual([]);
+    await expect(legs.nth(1)).toHaveText(/^徒歩 約450m・6分/);
+    await expect(legs.nth(2)).toHaveText(/^徒歩 約1\.3km・15分/);
+    await expect(legs.nth(1)).not.toContainText("目安");
+
+    // 区間ごとに色を変えた線（地図の線とルート案内の印が同じ色）と、ピンの回る順番の番号
+    const features = await page.evaluate(() => window.__map.getSource("selected-spots-route")._data.features);
+    expect(features.map((feature) => feature.properties.color)).toEqual(["#1e88e5", "#43a047"]);
+    await expect(legs.nth(1)).toHaveClass(/has-route-color/);
+    expect(await legs.nth(1).evaluate((el) => el.style.getPropertyValue("--leg-color"))).toBe("#1e88e5");
+    for (let i = 0; i < order.length; i++) {
+        await expect(page.locator(`.mapboxgl-marker[data-spot-id="${order[i].id}"] .route-order-badge`)).toHaveText(String(i + 1));
+    }
+
+    // ルートを出したまま聖地を1か所消すと、残りで作り直す
+    const requests = [];
+    page.on("request", (request) => { if (request.url().includes("/directions/v5/") && request.url().includes("steps=true")) requests.push(request.url()); });
+    await page.locator('#routeList .routeItem[data-index="2"] .route-remove').click();
+    await expect.poll(() => requests.length).toBe(1);
+    expect(decodeURIComponent(requests[0])).toContain(`${order[0].coord.longitude},${order[0].coord.latitude};${order[1].coord.longitude},${order[1].coord.latitude}?`);
+    await expect(page.locator(".route-order-badge")).toHaveCount(2);
+
+    // 解除すると目安に戻り、番号と点線は残る
+    await page.click("#generate-mapbox-route");
+    await expect(legs.nth(1)).toContainText("（目安）");
+    await expect(page.locator(".route-order-badge")).toHaveCount(2);
+    await expect.poll(async () => (await preview()).length).toBe(1);
+});
+
+test("地図上にルートを生成する時は船を除いて頼み、断られたら除かずに頼み直す。船の区間が残れば知らせる", async ({ page }) => {
+    const [station, bridge] = ["京阪宇治駅", "宇治橋"].map(spotNamed);
+    await seed(page, {
+        data: withSpots({
+            course: { c1: { title_name: station.title_name, course_name: "川を渡る", description: "", spot_ids: [station.id, bridge.id], updated_at: { __ts: 1 } } }
+        })
+    });
+    const line = [station, bridge].map((s) => [s.coord.longitude, s.coord.latitude]);
+    const urls = [];
+    await page.route(/\/directions\/v5\/mapbox\/walking\//, (route) => {
+        const url = new URL(route.request().url());
+        // 回る順に結ぶ線だけの問い合わせ（steps=false）は数えない
+        if (url.searchParams.get("steps") === "true") urls.push(url.searchParams.get("exclude"));
+        if (url.searchParams.get("exclude") === "ferry") {
+            return route.fulfill({ status: 422, contentType: "application/json", body: JSON.stringify({ code: "InvalidInput", message: "no route" }) });
+        }
+        return route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+                code: "Ok",
+                routes: [{
+                    distance: 800,
+                    duration: 600,
+                    legs: [{ distance: 800, duration: 600, steps: [{ mode: "ferry", geometry: { type: "LineString", coordinates: line } }] }],
+                    geometry: { type: "LineString", coordinates: line }
+                }]
+            })
+        });
+    });
+    await page.goto("html/map.html?course=c1");
+    await page.click("#generate-mapbox-route");
+    await expect(page.locator("#toast")).toContainText("船の区間を含みます");
+    expect(urls).toEqual(["ferry", null]);
+});
+
+test("地図上にルートを出している時に順番を入れ替えると、新しい順番でルートを作り直す。古い答えでは描かない", async ({ page }) => {
+    const order = ["京阪宇治駅", "宇治橋", "大吉山展望台"].map(spotNamed);
+    await seed(page, {
+        data: withSpots({
+            course: { c1: { title_name: order[0].title_name, course_name: "入れ替え", description: "", spot_ids: order.map((s) => s.id), updated_at: { __ts: 1 } } }
+        })
+    });
+    const at = (s) => s.coord.longitude.toFixed(5);
+    const requests = [];
+    const pending = [];
+    await page.route(/\/directions\/v5\/mapbox\/walking\//, (route) => {
+        const coords = decodeURIComponent(new URL(route.request().url()).pathname.split("/walking/")[1]).split(";");
+        const lineOnly = new URL(route.request().url()).searchParams.get("steps") !== "true";
+        if (!lineOnly) requests.push(coords.map((c) => Number(c.split(",")[0]).toFixed(5)));
+        const answer = () => route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+                code: "Ok",
+                routes: [{
+                    distance: 1000 * requests.length,
+                    duration: 600,
+                    legs: coords.slice(1).map((c, i) => ({ distance: 500, duration: 300, steps: [{ geometry: { type: "LineString", coordinates: [coords[i], c].map((x) => x.split(",").map(Number)) } }] })),
+                    geometry: { type: "LineString", coordinates: coords.map((x) => x.split(",").map(Number)) }
+                }]
+            })
+        });
+        // 2回目（入れ替え1回目）の答えは遅らせる
+        if (!lineOnly && requests.length === 2) pending.push(answer); else return answer();
+    });
+    await page.goto("html/map.html?course=c1");
+    await page.click("#generate-mapbox-route");
+    await expect(page.locator("#toast")).toContainText("道順を出しました");
+
+    // 1番目を下へ（宇治橋, 京阪宇治駅, 大吉山）→ もう一度下へ（宇治橋, 大吉山, 京阪宇治駅）
+    // キーボードでは、つまみを選んで ↓ キーで1つ後ろへ
+    await page.locator('#routeList .routeItem[data-index="0"] .route-handle').focus();
+    await page.keyboard.press("ArrowDown");
+    await expect.poll(() => requests.length).toBe(2);
+    // 動かした先のつまみが選ばれたままなので、続けて押せる
+    await expect(page.locator('#routeList .routeItem[data-index="1"] .route-handle')).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect.poll(() => requests.length).toBe(3);
+    expect(requests[1]).toEqual([order[1], order[0], order[2]].map(at));
+    expect(requests[2]).toEqual([order[1], order[2], order[0]].map(at));
+
+    // 新しい順番の線が出たあとで、古い答えが届いても描き直さない
+    await expect(page.locator("#toast")).toContainText("約3.0km");
+    await pending[0]();
+    await page.waitForTimeout(300);
+    const last = await page.evaluate(() => window.__map.getSource("selected-spots-route")._data.features.at(-1).geometry.coordinates.at(-1)[0]);
+    expect(last.toFixed(5)).toBe(at(order[0]));
+    await expect(page.locator("#toast")).toContainText("約3.0km");
+});
+
+test("ルート案内の聖地は、道に沿った線で回る順に結ぶ。ルートを作っている途中で全部消しても、線は残さない", async ({ page }) => {
+    const [a, b, c] = ["京阪宇治駅", "宇治橋", "大吉山展望台"].map(spotNamed);
+    const bend = [135.805, 34.89];
+    const pending = [];
+    await page.route(/\/directions\/v5\/mapbox\/walking\//, (route) => {
+        const url = new URL(route.request().url());
+        const coords = decodeURIComponent(url.pathname.split("/walking/")[1]).split(";").map((x) => x.split(",").map(Number));
+        // 道に沿った線（聖地の間に曲がり角を1つ入れる）
+        const path = [coords[0], bend, ...coords.slice(1)];
+        const answer = () => route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+                code: "Ok",
+                routes: [{
+                    distance: 100,
+                    duration: 100,
+                    legs: coords.slice(1).map((point, i) => ({ distance: 50, duration: 50, steps: [{ geometry: { type: "LineString", coordinates: [coords[i], point] } }] })),
+                    geometry: { type: "LineString", coordinates: path }
+                }]
+            })
+        });
+        // 「地図上にルートを生成」の答えは、全部消した後に届ける
+        if (url.searchParams.get("steps") === "true") pending.push(answer); else answer();
+    });
+    await seed(page);
+    await page.goto("html/map.html");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+    const lines = (id) => page.evaluate((source) => window.__map.getSource(source)._data.features, id);
+
+    for (const spot of [a, b, c]) await page.evaluate((id) => window.addSpotToRouteById(id), spot.id);
+    await expect.poll(async () => (await lines("selected-spots-preview")).map((f) => f.geometry.coordinates[1])).toEqual([bend]);
+
+    await page.click("#generate-mapbox-route");
+    await expect.poll(() => pending.length).toBe(1);
+    await page.click("#clear-route");
+    await pending[0]();
+    await page.waitForTimeout(500);
+    expect(await lines("selected-spots-route")).toEqual([]);
+    expect(await lines("selected-spots-preview")).toEqual([]);
+    await expect(page.locator(".route-order-badge")).toHaveCount(0);
+    await expect(page.locator("#generate-mapbox-route")).toBeEnabled();
+});
+
+test("徒歩で1時間以上かかる区間は「○時間○分」で出す", async ({ page }) => {
+    const [station, nagoya] = ["京阪宇治駅", "名古屋国際会議場（センチュリーホール）"].map(spotNamed);
+    await seed(page, {
+        data: withSpots({
+            course: { c1: { title_name: station.title_name, course_name: "遠い", description: "", spot_ids: [station.id, nagoya.id], updated_at: { __ts: 1 } } }
+        })
+    });
+    await page.route(/\/directions\/v5\/mapbox\/walking\//, (route) => route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+            code: "Ok",
+            routes: [{
+                distance: 140000,
+                duration: 100080,
+                legs: [{ distance: 140000, duration: 100080 }],
+                geometry: { type: "LineString", coordinates: [station, nagoya].map((s) => [s.coord.longitude, s.coord.latitude]) }
+            }]
+        })
+    }));
+    await page.goto("html/map.html?course=c1");
+    const leg = page.locator("#routeList .route-leg").nth(1);
+    // 目安（直線から）も時間と分
+    await expect(leg).toHaveText(/^徒歩 約\d+\.\dkm・\d+時間(\d+分)?（目安・電車がおすすめ）/);
+
+    await page.click("#generate-mapbox-route");
+    await expect(page.locator("#toast")).toContainText("約140.0km・徒歩約27時間48分");
+    await expect(leg).toHaveText(/^徒歩 約140\.0km・27時間48分（電車がおすすめ）/);
+});
+
+test("スマホの幅で、見ているピンが詳細パネルの下に来ても、パネルの上に出ない", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    await seed(page);
+    await page.goto("html/map.html?spot=" + bridge.id);
+    await expect(page.locator(".popup-meta")).toBeVisible();
+    await page.waitForTimeout(1500);
+
+    // 地図を動かして、ピンをパネルの真ん中あたりへ持っていく
+    const pin = page.locator(`.mapboxgl-marker[data-spot-id="${bridge.id}"]`);
+    const panel = page.locator(".mapboxgl-popup:has(.popup-card)");
+    const pinBox = await pin.boundingBox();
+    const panelBox = await panel.boundingBox();
+    const targetY = panelBox.y + panelBox.height / 2;
+    await page.evaluate((dy) => window.__map.panBy([0, dy], { duration: 0 }), pinBox.y + pinBox.height / 2 - targetY);
+    await page.waitForTimeout(300);
+
+    const box = await pin.boundingBox();
+    const onTop = await page.evaluate(([x, y]) => {
+        const element = document.elementFromPoint(x, y);
+        return element && element.closest(".mapboxgl-popup") ? "panel" : element && element.closest(".mapboxgl-marker") ? "pin" : "other";
+    }, [box.x + box.width / 2, box.y + box.height / 2]);
+    expect(onTop).toBe("panel");
+});
+
+test("聖地の詳細の画像は16:9で切らずに出し、押すと大きく見られる", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    const data = withSpots();
+    data.spot[bridge.id].image_url = "images/spots/eupho/eupho_s0701.jpg";
+    await seed(page, { data });
+    await page.goto("html/map.html?spot=" + bridge.id);
+    const image = page.locator(".popup-card .popup-image img");
+    await expect(image).toBeVisible();
+    const box = await image.boundingBox();
+    expect(box.width / box.height).toBeCloseTo(16 / 9, 1);
+
+    await image.click();
+    const viewer = page.locator(".image-viewer");
+    await expect(viewer.locator("img")).toHaveAttribute("src", /eupho_s0701/);
+    await page.keyboard.press("Escape");
+    await expect(viewer).toHaveCount(0);
+});
+
+test.describe("広い画面", () => {
+    test.use({ viewport: { width: 1280, height: 800 } });
+
+    test("聖地の詳細のパネルは幅を広くとる", async ({ page }) => {
+        const bridge = spotNamed("宇治橋");
+        await seed(page);
+        await page.goto("html/map.html?spot=" + bridge.id);
+        await expect(page.locator(".popup-card")).toBeVisible();
+        const box = await page.locator(".mapboxgl-popup").boundingBox();
+        expect(box.width).toBe(440);
+    });
+});
+
+test("検索の「×」は、候補を選んだ後も文字がある間は出ていて、押すと消せる", async ({ page }) => {
+    await seed(page);
+    await page.goto("html/map.html");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+    const input = page.locator(".mapboxgl-ctrl-geocoder--input");
+    const clear = page.locator(".mapboxgl-ctrl-geocoder--button");
+    await expect(clear).toBeHidden();
+
+    await input.click();
+    await input.pressSequentially("宇治橋", { delay: 20 });
+    await input.press("End");
+    await page.locator(".mapboxgl-ctrl-geocoder .suggestions li").first().click();
+    await expect(page.locator(".popup-meta")).toBeVisible();
+    await page.mouse.move(5, 700);
+    await expect(clear).toBeVisible();
+
+    await clear.click();
+    await expect(input).toHaveValue("");
+    await expect(clear).toBeHidden();
+});
+
+test("3Dのキャラクターは実際の大きさが一定で、建物や道と同じように寄せると大きく・引くと小さく写る。小さくなりすぎたら現在地の点にする", async ({ page }) => {
+    await seed(page);
+    await page.goto("html/map.html");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
+    const bridge = spotNamed("宇治橋");
+    // 3D表示にして（2D表示では傾けられない）、キャラクターを表示する時と同じように斜めから見る
+    await page.evaluate(() => window.toggleView());
+    await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 17, pitch: 70, bearing: -20 }), [bridge.coord.longitude, bridge.coord.latitude]);
+    await expect.poll(() => page.evaluate(() => window.__map.getPitch())).toBeGreaterThan(60);
+
+    const result = await page.evaluate(async () => {
+        const map = window.__map;
+        const size = await import("../js/walker-size.js");
+
+        // 地図の描画と同じ行列で、地面から高さ h(m) の縦の棒が画面で何pxに写るか（ズームを変えると行列も変わるので、測るたびに取り直す）
+        const toScreenY = (x, y, z) => {
+            const m = map.transform.customLayerMatrix ? map.transform.customLayerMatrix() : map.transform.mercatorMatrix;
+            const cy = m[1] * x + m[5] * y + m[9] * z + m[13];
+            const cw = m[3] * x + m[7] * y + m[11] * z + m[15];
+            return ((1 - cy / cw) / 2) * map.getCanvas().clientHeight;
+        };
+        const poleHeight = (point, meters) => {
+            const mercator = window.mapboxgl.MercatorCoordinate.fromLngLat(point, 0);
+            const top = mercator.meterInMercatorCoordinateUnits() * meters;
+            return Math.abs(toScreenY(mercator.x, mercator.y, 0) - toScreenY(mercator.x, mercator.y, top));
+        };
+
+        const byZoom = {};
+        [13, 15, 16, 17, 18].forEach((zoom) => {
+            map.jumpTo({ zoom });
+            const center = map.unproject([195, 470]);
+            const point = [center.lng, center.lat];
+            byZoom[zoom] = {
+                // キャラクターの高さ・同じ場所の 40m の棒（建物の代わり）が画面に写る高さ
+                character: poleHeight(point, size.MODEL_HEIGHT_METERS),
+                building: poleHeight(point, 40),
+                estimated: size.modelScreenHeightPx(map, center.lng, center.lat),
+                visible: size.isModelVisible(map, center.lng, center.lat)
+            };
+        });
+        return { byZoom, meters: size.MODEL_HEIGHT_METERS };
+    });
+
+    // 実際の大きさが一定なので、建物と比べた大きさはどのズームでも同じ
+    for (const zoom of [16, 17, 18]) {
+        const item = result.byZoom[zoom];
+        expect(item.character / item.building).toBeCloseTo(result.meters / 40, 2);
+        // 画面に写る高さの見積もり（点に切りかえる判定に使う）も、描画と合っている
+        expect(Math.abs(item.estimated / item.character - 1)).toBeLessThan(0.2);
+        expect(item.visible).toBe(true);
+    }
+    // 寄せると大きく、引くと小さく写る（1段で約2倍。地図はズーム18まで寄せられる）
+    expect(result.byZoom[18].character / result.byZoom[17].character).toBeCloseTo(2, 0);
+    expect(result.byZoom[17].character / result.byZoom[16].character).toBeCloseTo(2, 0);
+    // ズーム17で 60〜110px くらい
+    expect(result.byZoom[17].character).toBeGreaterThan(60);
+    expect(result.byZoom[17].character).toBeLessThan(110);
+    // 引いて小さくなりすぎたら（20px 未満）、キャラクターを隠して現在地の点にする
+    expect(result.byZoom[13].visible).toBe(false);
+});
+
+test("3D表示のピンのモデル（地図が指定しているもの）が読めて、本体（Pin_body）・枠（Pin_outline）・白い球の部品がある", async ({ request }) => {
+    const fs = await import("node:fs");
+    const script = fs.readFileSync("../map画面/js/Script.js", "utf8");
+    // 古いモデルが残らないよう、キャッシュ用の番号（?v=）が付いている
+    const modelPath = script.match(/modelUrl: new URL\("\.\.\/(models\/[^"?]+\.glb)\?v=[0-9a-f]{8}"/)[1];
+    expect(modelPath).toBe("models/Pin_1.glb");
+
+    const response = await request.get(modelPath);
+    expect(response.ok()).toBe(true);
+    const body = await response.body();
+    expect(body.subarray(0, 4).toString()).toBe("glTF");
+    const jsonLength = body.readUInt32LE(12);
+    const gltf = JSON.parse(body.subarray(20, 20 + jsonLength).toString());
+    // pin-3d-layer.js は、部品の名前で色を付ける（本体＝作品の色・枠＝暗い色・それ以外＝白）
+    const names = gltf.nodes.map((node) => node.name || "");
+    expect(names.filter((name) => name.startsWith("Pin_body"))).toHaveLength(1);
+    expect(names.filter((name) => name.startsWith("Pin_outline"))).toHaveLength(1);
+    expect(gltf.meshes).toHaveLength(3);
+    // 読み込むのに追加の部品（圧縮の解凍など）が要らない
+    expect(gltf.extensionsRequired || []).toEqual([]);
+});
+
+test("聖地の詳細で、作品名の札と話数の札の上下がそろっている", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    await seed(page, { data: withSpots({}) });
+    await page.goto("html/map.html?spot=" + bridge.id);
+    const title = page.locator(".popup-card .popup-meta .popup-title");
+    const episode = page.locator(".popup-card .popup-meta .popup-ep");
+    await expect(episode).toBeVisible();
+    const a = await title.boundingBox();
+    const b = await episode.boundingBox();
+    expect(Math.abs((a.y + a.height / 2) - (b.y + b.height / 2))).toBeLessThan(1);
+    expect(Math.abs(a.height - b.height)).toBeLessThan(1.5);
+});
+
+test("作品ごとの色はかぶらない（今ある作品も、あとから増やした作品も）", async ({ page }) => {
+    await page.goto("html/map.html");
+    const result = await page.evaluate(async () => {
+        const module = await import("../js/title-colors.js");
+        const fixed = Object.values(module.TITLE_COLORS).map((color) => color.toUpperCase());
+        // 色を決めていない作品を 12 個増やす
+        const added = Array.from({ length: 12 }, (_, i) => "あとから足した作品" + i);
+        module.registerTitles(Object.keys(module.TITLE_COLORS).concat(added));
+        const colors = added.map((title) => module.getTitleColor(title).toUpperCase());
+        // 端末に覚えて、聖地を読み込まない画面でも同じ色になる
+        const saved = JSON.parse(localStorage.getItem("seitiTitleColors"));
+        return { fixed, colors, saved: added.map((title) => saved[title]) };
+    });
+    const all = result.fixed.concat(result.colors);
+    expect(new Set(all).size).toBe(all.length);
+    expect(result.saved.map((color) => color.toUpperCase())).toEqual(result.colors);
+
+    // 見た目も離れている（Lab の距離が小さすぎない）・白い文字が読める（コントラスト比 3 以上）
+    const linear = (v) => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    const lab = (hex) => {
+        const [r, g, b] = [1, 3, 5].map((i) => linear(parseInt(hex.slice(i, i + 2), 16)));
+        const f = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+        const x = f((r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047), y = f(r * 0.2126 + g * 0.7152 + b * 0.0722), z = f((r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883);
+        return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+    };
+    const contrast = (hex) => {
+        const [r, g, b] = [1, 3, 5].map((i) => linear(parseInt(hex.slice(i, i + 2), 16)));
+        return 1.05 / (0.2126 * r + 0.7152 * g + 0.0722 * b + 0.05);
+    };
+    result.colors.forEach((color, i) => {
+        expect(contrast(color)).toBeGreaterThanOrEqual(3);
+        all.filter((other) => other !== color).forEach((other) => {
+            const [a, b] = [lab(color), lab(other)];
+            expect(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]), color + " と " + other).toBeGreaterThan(15);
+        });
+    });
+});
+
+test.describe("現在地ボタン", () => {
+    const bridge = spotNamed("宇治橋");
+    // 本物のスマホと同じく、位置には誤差（m）が付く
+    test.use({ geolocation: { latitude: bridge.coord.latitude, longitude: bridge.coord.longitude, accuracy: 20 }, permissions: ["geolocation"] });
+
+    const backHere = (page) => expect.poll(() => page.evaluate(([lat]) =>
+        Math.abs(window.__map.getCenter().lat - lat) < 0.01 && !window.__map.isMoving(), [bridge.coord.latitude]), { timeout: 15000 }).toBe(true);
+
+    test("3D の時に押しても、2D の見え方（真上から）に戻らず、3Dキャラクターが見えるところまで寄る。2D の時は真上からのまま", async ({ page }) => {
+        await seed(page, { data: withSpots({}) });
+        await page.goto("html/map.html");
+        await page.waitForFunction(() => window.__map && window.__map.loaded());
+        // 開いた時に現在地へ動き終わるのを待つ
+        await backHere(page);
+
+        await page.evaluate(() => window.toggleView());
+        await expect.poll(() => page.evaluate(() => window.__map.getPitch())).toBe(70);
+        // 地図を動かして引いてから、現在地へ戻る
+        await page.evaluate(() => window.__map.jumpTo({ center: [139.7, 35.68], zoom: 12 }));
+        await page.click("#location-btn");
+        await backHere(page);
+        expect(await page.evaluate(() => window.__map.getPitch())).toBe(70);
+        // 3D は地図の一番近く（18）まで寄る（15 だと現在地のキャラクターが小さすぎて見えない）
+        expect(await page.evaluate(() => window.__map.getZoom())).toBeCloseTo(18, 1);
+
+        // 2D に戻すと、現在地へ動いても真上から
+        await page.evaluate(() => window.toggleView());
+        await expect.poll(() => page.evaluate(() => window.__map.getPitch())).toBe(0);
+        await page.evaluate(() => window.__map.jumpTo({ center: [139.7, 35.68] }));
+        await page.click("#location-btn");
+        await backHere(page);
+        expect(await page.evaluate(() => window.__map.getPitch())).toBe(0);
+        expect(await page.evaluate(() => window.__map.getZoom())).toBeCloseTo(15, 1);
+    });
+});
+
+test("初めて 3D にした時だけ、向きと角度の変え方を知らせる", async ({ page }) => {
+    await seed(page, { data: withSpots({}) });
+    await page.goto("html/map.html");
+    await page.waitForFunction(() => window.__map && window.__map.loaded());
+    const toast = page.locator("#toast");
+
+    await page.evaluate(() => window.toggleView());
+    // パソコン（マウス）の書き方
+    await expect(toast).toContainText("右クリックしたまま動かすと、向きと角度が変わります");
+    await expect(toast).toBeVisible();
+
+    // 2回目からは出さない（開き直しても）
+    await page.evaluate(() => window.toggleView());
+    await page.evaluate(() => { document.getElementById("toast").textContent = ""; });
+    await page.reload();
+    await page.waitForFunction(() => window.__map && window.__map.loaded());
+    await page.evaluate(() => window.toggleView());
+    await page.waitForTimeout(500);
+    await expect(page.getByText("向きと角度が変わります")).toHaveCount(0);
+});
+
+test.describe("スマホ", () => {
+    test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 760 } });
+
+    test("初めて 3D にした時、指での変え方を知らせる", async ({ page }) => {
+        await seed(page, { data: withSpots({}) });
+        await page.goto("html/map.html");
+        await page.waitForFunction(() => window.__map && window.__map.loaded());
+        await page.evaluate(() => window.toggleView());
+        await expect(page.locator("#toast")).toContainText("2本指でひねると向き、上下になぞると角度が変わります");
+    });
+});
+
+test("北が上で傾いていない時は、方位ボタンを隠す（回した時・3D の時だけ出す）", async ({ page }) => {
+    await seed(page, { data: withSpots({}) });
+    await page.goto("html/map.html");
+    await page.waitForFunction(() => window.__map && window.__map.loaded());
+    const compass = page.locator(".mapboxgl-ctrl-compass");
+    await expect(compass).toBeHidden();
+
+    await page.evaluate(() => window.__map.setBearing(30));
+    await expect(compass).toBeVisible();
+    // 押すと北が上に戻り、また隠れる
+    await page.evaluate(() => window.__map.setBearing(0));
+    await expect(compass).toBeHidden();
+
+    await page.evaluate(() => window.toggleView());
+    await expect(compass).toBeVisible();
+});
+
+test.describe("画面の上で重なったピン", () => {
+    const pins = (page) => page.locator(".overlap-pin");
+    const visibleSpotPin = (page, spot) => page.locator(`.mapboxgl-marker[data-spot-id="${spot.id}"]:not(.is-overlapped)`);
+
+    test("1つにまとめ、作品の色で塗り分けて数を出す。押すと分かれて見える所まで寄る", async ({ page }) => {
+        // 東京ドーム（【推しの子】と 超かぐや姫！。約23m 離れている）
+        const [oshi, kaguya] = SPOTS.filter((spot) => spot.spot_name === "東京ドーム");
+        await seed(page, { data: withSpots({}) });
+        await page.goto("html/map.html");
+        await page.waitForFunction(() => window.__map && window.__map.loaded());
+        await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 14 }), [oshi.coord.longitude, oshi.coord.latitude]);
+
+        const group = page.locator(`.overlap-pin[data-group-key="group:${[oshi.id, kaguya.id].sort().join(",")}"]`);
+        await expect(group).toBeVisible();
+        await expect(group.locator(".overlap-pin-count")).toHaveText("2");
+        await expect(group).toHaveAttribute("aria-label", /【推しの子】|超かぐや姫！/);
+        const colors = (await group.getAttribute("data-pin-colors")).split(",");
+        expect(colors.sort()).toEqual(["#EC407A", "#FF7043"]);
+        // 1か所ずつのピンは隠している
+        await expect(visibleSpotPin(page, oshi)).toHaveCount(0);
+
+        await group.click();
+        await expect.poll(() => page.evaluate(() => window.__map.getZoom())).toBeGreaterThan(16);
+        await expect(group).toHaveCount(0);
+        await expect(visibleSpotPin(page, oshi)).toBeVisible();
+        await expect(visibleSpotPin(page, kaguya)).toBeVisible();
+    });
+
+    test("一番近くまで寄っても重なる聖地は、押すと一覧から選べる。選んだ聖地の詳細が開く", async ({ page }) => {
+        // 同じ場所に登録されている2か所
+        const [denny, beach] = ["デニーズ 藤沢北口店", "片瀬東浜海水浴場"].map(spotNamed);
+        await seed(page, { data: withSpots({}) });
+        await page.goto("html/map.html");
+        await page.waitForFunction(() => window.__map && window.__map.loaded());
+        await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 15 }), [denny.coord.longitude, denny.coord.latitude]);
+
+        const group = page.locator(`.overlap-pin[data-group-key="group:${[denny.id, beach.id].sort().join(",")}"]`);
+        await expect(group).toBeVisible();
+        // 同じ作品だけなら1色
+        await expect(group).toHaveAttribute("data-pin-colors", "#00ACC1");
+
+        await group.click();
+        const list = page.locator(".overlap-list");
+        await expect(list.locator(".overlap-list-title")).toHaveText("この場所の聖地（2か所）");
+        await expect(list.locator(".overlap-list-name")).toHaveText([denny.spot_name, beach.spot_name]);
+
+        await list.locator(".overlap-list-item", { hasText: beach.spot_name }).click();
+        await expect(page.locator(".popup-card .popup-spot")).toHaveText(beach.spot_name);
+        await expect(list).toHaveCount(0);
+        // 詳細を開いたピンはまとめから外して見せる
+        await expect(visibleSpotPin(page, beach)).toHaveClass(/is-selected/);
+    });
+
+    test("5作品以上が重なる時は、聖地の多い3作品の色と灰色の4色にする", async ({ page }) => {
+        const base = spotNamed("宇治橋");
+        const titles = ["作品A", "作品A", "作品B", "作品B", "作品C", "作品D", "作品E"];
+        const extra = {};
+        titles.forEach((title, i) => {
+            extra["x" + i] = { spot_name: "重なる聖地" + i, title_name: title, spot_info: "", image_url: "no_image",
+                coord: { latitude: base.coord.latitude + 0.002 + i * 0.00001, longitude: base.coord.longitude + 0.002 } };
+        });
+        const data = withSpots({});
+        Object.assign(data.spot, extra);
+        await seed(page, { data });
+        await page.goto("html/map.html");
+        await page.waitForFunction(() => window.__map && window.__map.loaded());
+        await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 15 }), [base.coord.longitude + 0.002, base.coord.latitude + 0.002]);
+
+        const group = page.locator(".overlap-pin", { has: page.locator(".overlap-pin-count", { hasText: /^7$/ }) });
+        await expect(group).toBeVisible();
+        const colors = (await group.getAttribute("data-pin-colors")).split(",");
+        expect(colors).toHaveLength(4);
+        expect(colors[3]).toBe("#78909C");
+        const expected = await page.evaluate(() => ["作品A", "作品B"].map((title) => window.getTitleColor(title)));
+        expect(colors.slice(0, 2)).toEqual(expected);
+    });
 });

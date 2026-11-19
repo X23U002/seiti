@@ -16,11 +16,11 @@ window.startRoute = function () {
     if (!route) {
         if (typeof window.showToast === "function") {
             window.showToast(
-                "先に過去の巡礼履歴を選択してください",
+                "先に「過去の案内」からルートを選んでください",
                 "error"
             );
         } else {
-            alert("先に過去の巡礼履歴を選択してください");
+            alert("先に「過去の案内」からルートを選んでください");
         }
 
         return;
@@ -93,7 +93,7 @@ window.renderRouteHistory = function () {
     if (history.length === 0) {
         const li = document.createElement("li");
         li.className = "history-item";
-        li.textContent = "まだ巡礼履歴はありません";
+        li.textContent = "まだありません。地図のルート案内で「Googleマップ」を押すと記録されます";
         historyList.appendChild(li);
         return;
     }

@@ -4,15 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>スタンプ帳 - 聖地巡礼NAVI</title>
-    <link rel="stylesheet" href="../css/common.css?v=9c217f0a">
-    <link rel="stylesheet" href="../css/stamp-rank.css?v=63a337bd">
-    <link rel="stylesheet" href="../css/stamp.css?v=6072c4ec">
+    <link rel="stylesheet" href="../css/common.css?v=f9624d5f">
+    <link rel="stylesheet" href="../css/tab-bar.css?v=82026e7c">
+    <link rel="stylesheet" href="../css/stamp-rank.css?v=966a0ec6">
+    <link rel="stylesheet" href="../css/stamp.css?v=89c21937">
+    <!-- アプリとして使う（ホーム画面に追加・オフライン。pwa.js） -->
+    <link rel="manifest" href="../manifest.webmanifest">
+    <meta name="theme-color" content="#0b3c5d">
+    <link rel="apple-touch-icon" href="../images/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" href="../images/icons/icon-192.png">
+    <script src="../js/pwa.js?v=c08113cc" defer></script>
 </head>
 <body>
 
     <!-- アプリ共通ヘッダー -->
     <header class="app-header">
-        <button type="button" class="back-btn" onclick="goToMyPage()" aria-label="マイページに戻る">＜ 戻る</button>
+        <button type="button" class="back-btn is-tab-root" onclick="goToMyPage()" aria-label="マイページに戻る">＜ マイページ</button>
         <h1>スタンプ帳</h1>
     </header>
 
@@ -27,6 +34,8 @@
             <div class="overall-bar" role="progressbar" aria-label="スタンプ帳の達成度" aria-valuemin="0" id="overall-bar">
                 <span id="overall-fill"></span>
             </div>
+            <!-- 記録を画像にして SNS で共有（share-card.js） -->
+            <button type="button" class="btn btn-secondary share-record" id="share-record" onclick="shareRecord()" hidden>📤 記録を画像にして共有</button>
         </section>
 
         <!-- 作品の絞り込み（押すと作品の一覧が開く）と「獲得済みだけ表示」 -->
@@ -83,15 +92,20 @@
             </dl>
 
             <a href="map.html" class="btn btn-primary map-link" id="modal-map-link">地図で見る</a>
+            <!-- まだの聖地は、そのままルート案内に入れられる -->
+            <a href="map.html" class="btn btn-secondary route-link" id="modal-route-link" hidden>ルートに入れる</a>
         </div>
     </div>
 
-    <script src="../js/common.js?v=d714509d"></script>
-    <script src="../js/stamp-rank.js?v=5854d0d9"></script>
-    <script src="../js/stamp.js?v=7606a823"></script>
+    <script src="../js/common.js?v=bdcf06ca"></script>
+    <script src="../js/tab-bar.js?v=f5e177d7"></script>
+    <script src="../js/stamp-rank.js?v=c4ce732e"></script>
+    <script src="../js/badges.js?v=5a082dfc"></script>
+    <script src="../js/share-card.js?v=2da8df97"></script>
+    <script src="../js/stamp.js?v=1332ab2a"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
-        import { loadStampBook } from "../js/stamp-db.js?v=fb2d2a17";
+        import { loadStampBook } from "../js/stamp-db.js?v=4e60fcbf";
 
         loadStampBook().then(function (book) {
             showStamps(book.stamps || [], book.stamps === null ? "guest" : "ready", book.summary);
