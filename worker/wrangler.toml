@@ -1,0 +1,30 @@
+# AI のおすすめ巡礼プラン（Cloudflare Workers）の設定
+# 使い方は worker/README.md
+name = "seiti-ai-plan"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+# 公開先は https://seiti-ai-plan.x23u002.workers.dev（版ごとのお試し用 URL は作らない）
+workers_dev = true
+preview_urls = false
+
+# ログを Cloudflare に残す（ダッシュボードの Observability で見られる）
+[observability]
+enabled = true
+
+[vars]
+FIREBASE_PROJECT_ID = "sisukai-121cf"
+# 呼び出してよいサイト（カンマ区切り）
+ALLOWED_ORIGINS = "https://x23u002.github.io"
+# 1人1日に作れる回数
+DAILY_LIMIT = "5"
+# 使う Gemini のモデル（AI Studio で使えるモデル名に合わせる）
+GEMINI_MODEL = "gemini-flash-latest"
+# 混んでいる時に代わりに使うモデル（軽くて混みにくい）
+GEMINI_FALLBACK_MODEL = "gemini-flash-lite-latest"
+
+# 1人1日の回数を数える場所（Cloudflare の画面で作った KV「seiti-ai-usage」）
+[[kv_namespaces]]
+binding = "USAGE"
+id = "b259b7091ecc49bd9076dba87068a8bf"
+
+# GEMINI_API_KEY はここに書かない（npx wrangler secret put GEMINI_API_KEY で登録する）

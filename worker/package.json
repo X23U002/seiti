@@ -1,0 +1,17 @@
+{
+  "name": "seiti-ai-plan",
+  "private": true,
+  "type": "module",
+  "description": "聖地巡礼NAVI：AI のおすすめ巡礼プラン（Cloudflare Workers）",
+  "scripts": {
+    "test": "node --test",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "jose": "6.2.12"
+  },
+  "devDependencies": {
+    "wrangler": "4.146.0"
+  }
+}
