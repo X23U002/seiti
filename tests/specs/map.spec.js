@@ -799,7 +799,7 @@ test.describe("すぐ近くにあって重なってしまうピン", () => {
         await expect(group).toBeVisible();
         await expect(visibleSpotPin(page, kaguya)).toHaveCount(0);
 
-        // 押すと一覧。選んだ聖地の詳細が開き、そのピンはまとめから外して見せる
+        // 押すと一覧。選んだ聖地の詳細が開く。まとめはくずさず、まとめたピンを目立たせる
         await group.click();
         const list = page.locator(".overlap-list");
         await expect(list.locator(".overlap-list-title")).toHaveText("この場所の聖地（2か所）");
@@ -807,7 +807,15 @@ test.describe("すぐ近くにあって重なってしまうピン", () => {
         await expect(page.locator(".popup-card .popup-spot")).toHaveText("東京ドーム");
         await expect(page.locator(".popup-card .popup-title")).toHaveText("超かぐや姫！");
         await expect(list).toHaveCount(0);
-        await expect(visibleSpotPin(page, kaguya)).toHaveClass(/is-selected/);
+        await expect(group).toBeVisible();
+        await expect(group).toHaveClass(/is-selected/);
+        await expect(visibleSpotPin(page, kaguya)).toHaveCount(0);
+        await expect(visibleSpotPin(page, oshi)).toHaveCount(0);
+
+        // 閉じると目立たせるのをやめる
+        await page.locator(".mapboxgl-popup-close-button").click();
+        await expect(group).not.toHaveClass(/is-selected/);
+        await expect(group).toBeVisible();
     });
 
     test("離れた聖地は、ズームを引いて画面の上で重なってもまとめない", async ({ page }) => {

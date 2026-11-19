@@ -2049,8 +2049,8 @@ function setSelectedMarker(spotId, selected) {
         Boolean(document.querySelector(".mapboxgl-marker.is-selected"))
     );
 
-    // 詳細を開いたピンは、重なりのまとめから外して見せる（閉じたらまたまとめる）
-    updateOverlapGroups();
+    // まとめたピンの中の聖地なら、まとめたピンを「詳細を開いているピン」として目立たせる（まとめはくずさない）
+    markSelectedOverlapPins();
 
     // 3D表示の立体のピンも、同じように強調し直す（pin-3d-layer.js）
     if (pin3DLayer) {
@@ -2735,6 +2735,7 @@ function showRouteOrderOnMarkers() {
 // ・ズームしても、まとめ方は変わらない（地図の上の距離で決める）
 // ・作品の色で縦に塗り分ける（4作品までは全部の色。5作品以上は、聖地の多い3作品＋その他の灰色）
 // ・右上に、まとめた聖地の数を出す。押すと「この場所の聖地」の一覧から選ぶ
+// ・中の聖地の詳細を開いている間は、まとめたピンを目立たせる（まとめはくずさない）
 // 1か所ずつのピンは消さずに隠すだけにする（開いている詳細やスタンプ・ルートの印がそのまま使えるように）
 // =========================================================
 const OVERLAP_METERS = 50;
@@ -2817,6 +2818,23 @@ function createOverlapMarker(group, lngLat) {
         .addTo(map);
 }
 
+// 詳細を開いている聖地が入っている、まとめたピンに印を付ける（1か所ずつのピンと同じく is-selected）
+function markSelectedOverlapPins() {
+    const selectedIds = new Set(
+        Array.from(document.querySelectorAll(".mapboxgl-marker.is-selected[data-spot-id]"))
+            .map(function (element) { return element.dataset.spotId; })
+    );
+    overlapMarkers.forEach(function (marker) {
+        const element = marker.getElement();
+        const ids = element.dataset.groupKey.replace(/^group:/, "").split(",");
+        element.classList.toggle("is-selected", ids.some(function (id) { return selectedIds.has(id); }));
+    });
+    map.getContainer().classList.toggle(
+        "has-selected",
+        Boolean(document.querySelector(".mapboxgl-marker.is-selected"))
+    );
+}
+
 // 押した時：「この場所の聖地」の一覧から選ぶ
 function openOverlapGroup(group, lngLat) {
     showOverlapList(group, lngLat);
@@ -2885,12 +2903,12 @@ function updateOverlapGroups(force) {
 
     const spotById = new Map(currentSpots.map(function (spot) { return [String(spot.id), spot]; }));
 
-    // 詳細を開いているピンはまとめない
+    // 詳細を開いているピンもまとめたままにする（開くたびにまとめがくずれて、ピンが重なって見えないように）
     const candidates = [];
     spotMarkers.forEach(function (marker) {
         const element = marker.getElement();
         const spot = spotById.get(element.dataset.spotId);
-        if (!spot || element.classList.contains("is-selected")) {
+        if (!spot) {
             return;
         }
         candidates.push({ marker: marker, spot: spot, lngLat: marker.getLngLat() });
@@ -2966,6 +2984,8 @@ function updateOverlapGroups(force) {
             delete element.dataset.overlapped;
         }
     });
+
+    markSelectedOverlapPins();
 
     if (pin3DLayer) {
         pin3DLayer.setMarkers(spotMarkers.concat(overlapMarkers));
