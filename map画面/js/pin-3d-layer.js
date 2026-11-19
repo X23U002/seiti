@@ -20,6 +20,15 @@ const ROTATION_RADIANS = Math.PI * 4;
 const DEFAULT_HEIGHT_PX = 48;
 const DEFAULT_YAW_DEGREES = 0;
 
+// 画面下側のピンほど手前に描画するための深度設定。
+// ピンの画面上のX/Y位置は変えず、Z方向だけで前後関係を付けます。
+// 選択中のピンは、通常の前後関係よりさらに手前に表示します。
+const PIN_DEPTH_RANGE = 1200;
+const PIN_DEPTH_TIE_BREAK = 0.01;
+const SELECTED_DEPTH_BONUS = 1500;
+const PIN_CAMERA_Z = 3000;
+const PIN_DEPTH_FAR = 4000;
+
 // 詳細を開いているピンの強調（2D表示の .is-selected と同じ見せ方。style.css）
 // ・ピンを大きくする・手前に描く・足元に広がる輪を出す・ほかのピンを薄くする
 const SELECTED_SCALE = 1.45;
@@ -336,6 +345,9 @@ export function createGLBPinLayer(map, options = {}) {
             fixedBearing: null,
             distanceFade: 1,
             animationStart: null,
+            // 画面上の前後関係（下側ほど手前）と、完全に同じ位置での安定した順序
+            order: 0,
+            renderDepth: 0,
             spotId: String(spotId)
         };
     }
@@ -344,9 +356,12 @@ export function createGLBPinLayer(map, options = {}) {
         if (!scene || !baseScene || disposed) return;
         disposeModels();
 
-        markerList.forEach((marker) => {
+        markerList.forEach((marker, index) => {
             const model = createModelForMarker(marker);
-            if (model) models.set(model.spotId, model);
+            if (model) {
+                model.order = index;
+                models.set(model.spotId, model);
+            }
         });
 
         applyMarkerVisibility();
@@ -376,8 +391,8 @@ export function createGLBPinLayer(map, options = {}) {
         camera.top = height;
         camera.bottom = 0;
         camera.near = 0.1;
-        camera.far = 2000;
-        camera.position.set(0, 0, 1000);
+        camera.far = PIN_DEPTH_FAR;
+        camera.position.set(0, 0, PIN_CAMERA_Z);
         camera.lookAt(0, 0, 0);
         camera.updateProjectionMatrix();
         return true;
@@ -423,7 +438,17 @@ export function createGLBPinLayer(map, options = {}) {
             const y = height - point.y;
 
             // Screen-space anchor: zoom and pitch only move the pin; they do not distort its mesh.
-            model.anchor.position.set(x, y, 0);
+            // Mapboxの2Dマーカーと同じ考え方で、画面下側（point.yが大きい）ほど手前にします。
+            // X/Y座標は従来どおりなので、ピンの地図上・画面上の位置は移動しません。
+            const depthRatio = THREE.MathUtils.clamp(
+                point.y / Math.max(height, 1),
+                -0.1,
+                1.1
+            );
+            model.renderDepth =
+                depthRatio * PIN_DEPTH_RANGE + model.order * PIN_DEPTH_TIE_BREAK;
+            model.anchor.position.set(x, y, model.renderDepth);
+
             // 遠いほど薄く、出す範囲の外は出さない（詳細を開いているピンはいつも出す）
             const fromCenter = distanceMeters(center, lngLat) / visibleRadius;
             model.distanceFade = isSelected(model)
@@ -456,7 +481,9 @@ export function createGLBPinLayer(map, options = {}) {
             }
 
             model.emphasis.scale.setScalar(model.scale);
-            model.anchor.position.z = selected ? 500 : 0;
+            // 選択中のピンは、ほかのピンより常に手前に表示する。
+            model.anchor.position.z =
+                model.renderDepth + (selected ? SELECTED_DEPTH_BONUS : 0);
 
             const opacity = (anySelected && !selected ? DIMMED_OPACITY : 1) * model.distanceFade;
             model.pinMaterials.forEach((material) => {
@@ -541,8 +568,8 @@ export function createGLBPinLayer(map, options = {}) {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.autoClear = true;
 
-    camera = new THREE.OrthographicCamera(0, 1, 1, 0, 0.1, 2000);
-    camera.position.set(0, 0, 1000);
+    camera = new THREE.OrthographicCamera(0, 1, 1, 0, 0.1, PIN_DEPTH_FAR);
+    camera.position.set(0, 0, PIN_CAMERA_Z);
     camera.lookAt(0, 0, 0);
 
     scene = new THREE.Scene();
@@ -615,6 +642,7 @@ export function createGLBPinLayer(map, options = {}) {
 
         let hit = null;
         let bestDistance = Infinity;
+        let bestDepth = -Infinity;
         const halfWidth = targetHeightPx * 0.42;
 
         markerList.forEach((marker) => {
@@ -633,8 +661,16 @@ export function createGLBPinLayer(map, options = {}) {
             if (Math.abs(dx) > halfWidth || dy < -targetHeightPx - 10 || dy > 10) return;
 
             const distance = Math.hypot(dx, dy + targetHeightPx * 0.52);
+            const selected = element.classList.contains("is-selected");
+            const hitDepth = model.renderDepth + (selected ? SELECTED_DEPTH_BONUS : 0);
 
-            if (distance < bestDistance) {
+            // 表示上で手前にあるピンを優先。同じ深度の場合だけ、中心に近い方を選びます。
+            if (
+                !hit ||
+                hitDepth > bestDepth ||
+                (Math.abs(hitDepth - bestDepth) < 0.001 && distance < bestDistance)
+            ) {
+                bestDepth = hitDepth;
                 bestDistance = distance;
                 hit = model;
             }
