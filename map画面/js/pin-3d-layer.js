@@ -51,7 +51,7 @@ export function createGLBPinLayer(map, options = {}) {
         throw new TypeError("createGLBPinLayerには初期化済みのMapbox mapが必要です。");
     }
 
-    const modelUrl = options.modelUrl || new URL("../models/Pin_1.glb", import.meta.url).href;
+    const modelUrl = options.modelUrl || new URL("../models/Pin_1.glb?v=bebf0102", import.meta.url).href;
     const is3D = typeof options.is3D === "function" ? options.is3D : () => false;
     const targetHeightPx = Math.max(12, Number(options.targetHeightPx) || DEFAULT_HEIGHT_PX);
     const yawRadians = THREE.MathUtils.degToRad(
