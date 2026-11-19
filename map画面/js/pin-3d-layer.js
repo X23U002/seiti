@@ -111,6 +111,11 @@ export function createGLBPinLayer(map, options = {}) {
         return markerList.some((marker) => Boolean(marker?.getElement?.()?.dataset?.spotId));
     }
 
+    // ピンの目印：1か所ずつのピンは聖地の ID、重なったピンをまとめたピン（Script.js）は groupKey
+    function pinKey(element) {
+        return element?.dataset?.spotId || element?.dataset?.groupKey || "";
+    }
+
     function applyMarkerVisibility() {
         const shouldShowModels =
             canvasReady && modelReady && !disposed && is3D() && hasSpotMarkers();
@@ -122,7 +127,7 @@ export function createGLBPinLayer(map, options = {}) {
             if (!element) return;
 
             // Clusters and zoomed-out single dots have no spotId and remain untouched.
-            const isIndividualSpot = Boolean(element.dataset?.spotId);
+            const isIndividualSpot = Boolean(pinKey(element));
             if (!isIndividualSpot) return;
 
             element.style.visibility = visible ? "hidden" : "";
@@ -142,8 +147,45 @@ export function createGLBPinLayer(map, options = {}) {
         models.clear();
     }
 
+    // 重なったピンをまとめたピンは、作品の色で縦に塗り分ける（左から順に）。
+    // 部品の左右の位置（モデルの x）で色を決める（three.js の色の計算に1行足す）
+    function addStripes(material, colours, geometry) {
+        geometry.computeBoundingBox();
+        const minX = geometry.boundingBox.min.x;
+        const maxX = geometry.boundingBox.max.x;
+        const stripeColours = colours.slice(0, 4).map((colour) => new THREE.Color(colour));
+        while (stripeColours.length < 4) stripeColours.push(stripeColours[stripeColours.length - 1]);
+
+        material.onBeforeCompile = (shader) => {
+            shader.uniforms.stripeColours = { value: stripeColours };
+            shader.uniforms.stripeCount = { value: colours.length };
+            shader.uniforms.stripeMinX = { value: minX };
+            shader.uniforms.stripeMaxX = { value: maxX };
+            shader.vertexShader = shader.vertexShader
+                .replace("void main() {", "varying float vStripeX;\nvoid main() {\n    vStripeX = position.x;");
+            shader.fragmentShader = shader.fragmentShader
+                .replace(
+                    "void main() {",
+                    "varying float vStripeX;\nuniform vec3 stripeColours[4];\nuniform float stripeCount;\n" +
+                    "uniform float stripeMinX;\nuniform float stripeMaxX;\nvoid main() {"
+                )
+                .replace(
+                    "vec4 diffuseColor = vec4( diffuse, opacity );",
+                    "float stripeT = clamp((vStripeX - stripeMinX) / max(stripeMaxX - stripeMinX, 1e-6), 0.0, 0.9999);\n" +
+                    "int stripeIndex = int(floor(stripeT * stripeCount));\n" +
+                    "vec3 stripeColour = stripeColours[0];\n" +
+                    "if (stripeIndex == 1) stripeColour = stripeColours[1];\n" +
+                    "if (stripeIndex == 2) stripeColour = stripeColours[2];\n" +
+                    "if (stripeIndex == 3) stripeColour = stripeColours[3];\n" +
+                    "vec4 diffuseColor = vec4( diffuse * stripeColour, opacity );"
+                );
+        };
+        material.customProgramCacheKey = () => "pin-stripes";
+    }
+
     // GLB内のオブジェクト名で、本体・外枠を判別して色を割り当てる。
-    function applyPerPinMaterials(modelScene, colour) {
+    // colour：作品の色。colours（2つ以上）：重なったピンをまとめた時の、塗り分ける作品の色
+    function applyPerPinMaterials(modelScene, colour, colours) {
     const meshEntries = [];
 
     modelScene.updateMatrixWorld(true);
@@ -183,17 +225,22 @@ export function createGLBPinLayer(map, options = {}) {
         console.warn('GLB内に "Pin_outline" で始まるMeshが見つかりません。');
     }
 
+    const striped = Array.isArray(colours) && colours.length > 1;
+
     meshEntries.forEach((object) => {
         const isBody = object.name.startsWith("Pin_body");
         const isOutline = object.name.startsWith("Pin_outline");
         const isMainPart = isBody || isOutline;
 
         const material = new THREE.MeshStandardMaterial({
-            color: isBody
-                ? bodyColour
-                : isOutline
-                    ? outlineColour
-                    : "#ffffff",
+            // 塗り分ける時は、色を shader で掛ける（本体は白×作品の色、枠は暗くする）
+            color: striped && isMainPart
+                ? (isOutline ? new THREE.Color(0.5, 0.5, 0.5) : "#ffffff")
+                : isBody
+                    ? bodyColour
+                    : isOutline
+                        ? outlineColour
+                        : "#ffffff",
 
             roughness: isMainPart ? 0.38 : 0.5,
             metalness: isMainPart ? 0.03 : 0,
@@ -201,6 +248,8 @@ export function createGLBPinLayer(map, options = {}) {
             side: THREE.DoubleSide,
             transparent: true
         });
+
+        if (striped && isMainPart) addStripes(material, colours, object.geometry);
 
         object.material = material;
         object.castShadow = false;
@@ -214,13 +263,15 @@ export function createGLBPinLayer(map, options = {}) {
 
     function createModelForMarker(marker) {
         const element = marker?.getElement?.();
-        const spotId = element?.dataset?.spotId;
-        if (!spotId || !baseScene) return null;
+        const spotId = pinKey(element);
+        // 重なりのまとめに入って隠れている1か所ずつのピンは、立体にしない（まとめたピンを立体にする）
+        if (!spotId || element.dataset.overlapped || !baseScene) return null;
 
         const lngLat = marker.getLngLat?.();
         if (!lngLat || !Number.isFinite(lngLat.lng) || !Number.isFinite(lngLat.lat)) return null;
 
         const colour = element.dataset.pinColor || "#0b3c5d";
+        const colours = (element.dataset.pinColors || "").split(",").filter(Boolean);
         const anchor = new THREE.Group();
         const facing = new THREE.Group();
         const spin = new THREE.Group();
@@ -239,7 +290,7 @@ export function createGLBPinLayer(map, options = {}) {
         const modelHeight = Math.max(size.y, 0.001);
         visual.position.set(-center.x, -bounds.min.y, -center.z);
 
-        const ownedMaterials = applyPerPinMaterials(visual, colour);
+        const ownedMaterials = applyPerPinMaterials(visual, colour, colours);
 
         scaleRoot.scale.set(
             targetHeightPx / modelHeight,
@@ -459,7 +510,7 @@ export function createGLBPinLayer(map, options = {}) {
 
         markerList.forEach((marker) => {
             const element = marker?.getElement?.();
-            if (!element || !element.dataset?.spotId) return;
+            if (!element || !pinKey(element)) return;
 
             element.style.visibility = visible ? "hidden" : "";
             element.style.pointerEvents = visible ? "none" : "";
@@ -568,7 +619,7 @@ export function createGLBPinLayer(map, options = {}) {
 
         markerList.forEach((marker) => {
             const element = marker?.getElement?.();
-            const spotId = element?.dataset?.spotId;
+            const spotId = pinKey(element);
             if (!spotId) return;
 
             const model = models.get(String(spotId));
@@ -597,7 +648,12 @@ export function createGLBPinLayer(map, options = {}) {
         }
 
         const popup = hit.marker.getPopup?.();
-        if (popup && !popup.isOpen()) hit.marker.togglePopup();
+        if (popup && !popup.isOpen()) {
+            hit.marker.togglePopup();
+        } else if (!popup) {
+            // 重なったピンをまとめたピン：元のピン（Script.js）を押した時と同じ動き（寄る・一覧を出す）
+            hit.marker.getElement()?.click();
+        }
 
         map.triggerRepaint();
         return true;
