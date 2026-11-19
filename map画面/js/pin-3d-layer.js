@@ -26,12 +26,32 @@ const SELECTED_SCALE = 1.45;
 const DIMMED_OPACITY = 0.45;
 const RING_PULSE_MS = 1600;
 
+// 遠くのピンは出さない（3D では地平線の近くに遠くのピンが固まって見にくいため）。
+// 地図の真ん中から「画面の長い辺の何倍の長さ（地図の上の距離）」までを出すか。外側の FADE_START より先は少しずつ薄くする。
+// ズームを引くと、その分遠くまで出る
+const VISIBLE_RADIUS_SCREENS = 1.5;
+const FADE_START = 0.75;
+const MIN_VISIBLE_RADIUS_METERS = 500;
+
+// 地図の真ん中からの距離（m）。近い所だけなので、平らとみなして計算する
+function distanceMeters(a, b) {
+    const lat = THREE.MathUtils.degToRad((a.lat + b.lat) / 2);
+    const dx = THREE.MathUtils.degToRad(b.lng - a.lng) * Math.cos(lat) * 6371008;
+    const dy = THREE.MathUtils.degToRad(b.lat - a.lat) * 6371008;
+    return Math.hypot(dx, dy);
+}
+
+// 1px が地図の上で何 m か（Mapbox の 512px タイル）
+function metersPerPixel(lat, zoom) {
+    return (40075016.686 * Math.cos(THREE.MathUtils.degToRad(lat))) / (512 * Math.pow(2, zoom));
+}
+
 export function createGLBPinLayer(map, options = {}) {
     if (!map || typeof map.getContainer !== "function") {
         throw new TypeError("createGLBPinLayerには初期化済みのMapbox mapが必要です。");
     }
 
-    const modelUrl = options.modelUrl || new URL("../models/Pin_1.glb", import.meta.url).href;
+    const modelUrl = options.modelUrl || new URL("../models/Pin_1.glb?v=bebf0102", import.meta.url).href;
     const is3D = typeof options.is3D === "function" ? options.is3D : () => false;
     const targetHeightPx = Math.max(12, Number(options.targetHeightPx) || DEFAULT_HEIGHT_PX);
     const yawRadians = THREE.MathUtils.degToRad(
@@ -122,47 +142,75 @@ export function createGLBPinLayer(map, options = {}) {
         models.clear();
     }
 
+    // GLB内のオブジェクト名で、本体・外枠を判別して色を割り当てる。
     function applyPerPinMaterials(modelScene, colour) {
-        const meshEntries = [];
-        modelScene.updateMatrixWorld(true);
+    const meshEntries = [];
 
-        modelScene.traverse((object) => {
-            if (!object.isMesh) return;
-            const bounds = new THREE.Box3().setFromObject(object);
-            const size = bounds.getSize(new THREE.Vector3());
-            const volume = Math.max(0, size.x * size.y * size.z);
-            meshEntries.push({ object, volume });
-        });
+    modelScene.updateMatrixWorld(true);
 
-        if (meshEntries.length === 0) {
-            console.warn("ピンのモデル内にMeshがありません。");
-            return [];
-        }
+    modelScene.traverse((object) => {
+        if (!object.isMesh) return;
+        meshEntries.push(object);
+    });
 
-        // In the pin model, the largest mesh is the body and the smaller mesh is the white centre
-        // (Pin_1.glb: the body is the ring head with the faceted tip, the white centre is the ball).
-        meshEntries.sort((a, b) => b.volume - a.volume);
-        const bodyObject = meshEntries[0].object;
-        const ownedMaterials = [];
-
-        meshEntries.forEach(({ object }) => {
-            const isBody = object === bodyObject;
-            const material = new THREE.MeshStandardMaterial({
-                color: isBody ? (colour || "#0b3c5d") : "#ffffff",
-                roughness: isBody ? 0.38 : 0.5,
-                metalness: isBody ? 0.03 : 0,
-                side: THREE.DoubleSide,
-                // ほかのピンの詳細を開いている間は薄くする
-                transparent: true
-            });
-            object.material = material;
-            object.castShadow = false;
-            object.receiveShadow = false;
-            ownedMaterials.push(material);
-        });
-
-        return ownedMaterials;
+    if (meshEntries.length === 0) {
+        console.warn("ピンのモデル内にMeshがありません。");
+        return [];
     }
+
+    // 名前の先頭で本体・外枠を判定する
+    const bodyObjects = meshEntries.filter(
+        (object) => object.name.startsWith("Pin_body")
+    );
+
+    const outlineObjects = meshEntries.filter(
+        (object) => object.name.startsWith("Pin_outline")
+    );
+
+    const bodyColour = colour || "#0b3c5d";
+
+    // 外枠を本体色より暗くする
+    const outlineColour = new THREE.Color(bodyColour)
+        .multiplyScalar(0.5);
+
+    const ownedMaterials = [];
+
+    if (bodyObjects.length === 0) {
+        console.warn('GLB内に "Pin_body" で始まるMeshが見つかりません。');
+    }
+
+    if (outlineObjects.length === 0) {
+        console.warn('GLB内に "Pin_outline" で始まるMeshが見つかりません。');
+    }
+
+    meshEntries.forEach((object) => {
+        const isBody = object.name.startsWith("Pin_body");
+        const isOutline = object.name.startsWith("Pin_outline");
+        const isMainPart = isBody || isOutline;
+
+        const material = new THREE.MeshStandardMaterial({
+            color: isBody
+                ? bodyColour
+                : isOutline
+                    ? outlineColour
+                    : "#ffffff",
+
+            roughness: isMainPart ? 0.38 : 0.5,
+            metalness: isMainPart ? 0.03 : 0,
+
+            side: THREE.DoubleSide,
+            transparent: true
+        });
+
+        object.material = material;
+        object.castShadow = false;
+        object.receiveShadow = false;
+
+        ownedMaterials.push(material);
+    });
+
+    return ownedMaterials;
+}
 
     function createModelForMarker(marker) {
         const element = marker?.getElement?.();
@@ -208,10 +256,12 @@ export function createGLBPinLayer(map, options = {}) {
             transparent: true,
             depthTest: false
         });
+
         const ring = new THREE.Mesh(
             new THREE.RingGeometry(12, 15, 40),
             ringMaterial
         );
+
         ring.scale.set(1, 0.4, 1);
         ring.visible = false;
         ring.renderOrder = -1;
@@ -233,6 +283,7 @@ export function createGLBPinLayer(map, options = {}) {
             pinMaterials: ownedMaterials,
             scale: 1,
             fixedBearing: null,
+            distanceFade: 1,
             animationStart: null,
             spotId: String(spotId)
         };
@@ -298,13 +349,21 @@ export function createGLBPinLayer(map, options = {}) {
 
         // 詳細を開いているピン（Script.js が元のピンに is-selected を付ける）
         const isSelected = (model) => Boolean(model.marker.getElement()?.classList.contains("is-selected"));
+
         let anySelected = false;
         models.forEach((model) => {
             if (isSelected(model)) anySelected = true;
         });
-        const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
+        const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
         const bearing = map.getBearing();
+
+        // 出す範囲（地図の真ん中からの距離）
+        const center = map.getCenter();
+        const visibleRadius = Math.max(
+            MIN_VISIBLE_RADIUS_METERS,
+            metersPerPixel(center.lat, map.getZoom()) * Math.max(width, height) * VISIBLE_RADIUS_SCREENS
+        );
 
         models.forEach((model) => {
             const lngLat = model.marker.getLngLat();
@@ -314,7 +373,13 @@ export function createGLBPinLayer(map, options = {}) {
 
             // Screen-space anchor: zoom and pitch only move the pin; they do not distort its mesh.
             model.anchor.position.set(x, y, 0);
+            // 遠いほど薄く、出す範囲の外は出さない（詳細を開いているピンはいつも出す）
+            const fromCenter = distanceMeters(center, lngLat) / visibleRadius;
+            model.distanceFade = isSelected(model)
+                ? 1
+                : Math.min(1, Math.max(0, (1 - fromCenter) / (1 - FADE_START)));
             model.anchor.visible =
+                model.distanceFade > 0 &&
                 x > -targetHeightPx && x < width + targetHeightPx &&
                 y > -targetHeightPx && y < height + targetHeightPx;
 
@@ -323,6 +388,7 @@ export function createGLBPinLayer(map, options = {}) {
             const selected = isSelected(model);
             if (selected && model.fixedBearing === null) model.fixedBearing = bearing;
             if (!selected) model.fixedBearing = null;
+
             const turned = selected ? THREE.MathUtils.degToRad(bearing - model.fixedBearing) : 0;
             model.facing.rotation.y = yawRadians + turned;
 
@@ -331,26 +397,30 @@ export function createGLBPinLayer(map, options = {}) {
             model.scale = reduceMotion
                 ? targetScale
                 : model.scale + (targetScale - model.scale) * 0.25;
+
             if (Math.abs(model.scale - targetScale) < 0.01) {
                 model.scale = targetScale;
             } else {
                 animating = true;
             }
+
             model.emphasis.scale.setScalar(model.scale);
             model.anchor.position.z = selected ? 500 : 0;
 
-            const opacity = anySelected && !selected ? DIMMED_OPACITY : 1;
+            const opacity = (anySelected && !selected ? DIMMED_OPACITY : 1) * model.distanceFade;
             model.pinMaterials.forEach((material) => {
                 material.opacity = opacity;
             });
 
             model.ring.visible = selected;
+
             if (selected) {
                 // 輪は広がりながら薄くなるのを繰り返す（動きを減らす設定の人には止めて出す）
                 const phase = reduceMotion ? 0.3 : (now % RING_PULSE_MS) / RING_PULSE_MS;
                 const ringScale = 0.6 + phase * 1.6;
                 model.ring.scale.set(ringScale, ringScale * 0.4, 1);
                 model.ring.material.opacity = reduceMotion ? 0.9 : 0.95 * (1 - phase);
+
                 if (!reduceMotion) animating = true;
             }
 
@@ -359,6 +429,7 @@ export function createGLBPinLayer(map, options = {}) {
                     (now - model.animationStart) / ROTATION_DURATION_MS,
                     1
                 );
+
                 const eased = 1 - Math.pow(1 - progress, 3);
                 model.spin.rotation.y = ROTATION_RADIANS * eased;
 
@@ -383,14 +454,17 @@ export function createGLBPinLayer(map, options = {}) {
     function applyMarkerVisibilityWithoutRender() {
         const shouldShowModels =
             canvasReady && modelReady && !disposed && is3D() && hasSpotMarkers();
+
         visible = shouldShowModels;
 
         markerList.forEach((marker) => {
             const element = marker?.getElement?.();
             if (!element || !element.dataset?.spotId) return;
+
             element.style.visibility = visible ? "hidden" : "";
             element.style.pointerEvents = visible ? "none" : "";
         });
+
         canvas.style.visibility = visible ? "visible" : "hidden";
     }
 
@@ -409,6 +483,7 @@ export function createGLBPinLayer(map, options = {}) {
         antialias: true,
         premultipliedAlpha: true
     });
+
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setClearColor(0x000000, 0);
     renderer.setClearAlpha(0);
@@ -418,11 +493,14 @@ export function createGLBPinLayer(map, options = {}) {
     camera = new THREE.OrthographicCamera(0, 1, 1, 0, 0.1, 2000);
     camera.position.set(0, 0, 1000);
     camera.lookAt(0, 0, 0);
+
     scene = new THREE.Scene();
     scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
     keyLight.position.set(-2, -3, 5);
     scene.add(keyLight);
+
     canvasReady = true;
     resizeRenderer();
 
@@ -435,6 +513,7 @@ export function createGLBPinLayer(map, options = {}) {
             resizeRenderer();
             renderFrame();
         });
+
         resizeObserver.observe(container);
     } else {
         window.addEventListener("resize", onMapResize);
@@ -442,15 +521,18 @@ export function createGLBPinLayer(map, options = {}) {
 
     // Start loading only after the overlay renderer and scene are ready.
     const loader = new GLTFLoader();
+
     loader.load(
         modelUrl,
         (gltf) => {
             if (disposed) return;
+
             baseScene = gltf.scene;
             modelReady = true;
             rebuildModels();
             applyMarkerVisibility();
             renderFrame();
+
             console.info("GLBピンモデルを読み込みました:", modelUrl);
         },
         undefined,
@@ -458,14 +540,17 @@ export function createGLBPinLayer(map, options = {}) {
             modelReady = false;
             restoreMarkerStyles();
             canvas.style.visibility = "hidden";
+
             console.error("3Dピンモデルを読み込めませんでした:", modelUrl, error);
         }
     );
 
     function setMarkers(markers) {
         markerList = Array.isArray(markers) ? markers.slice() : [];
+
         if (modelReady) rebuildModels();
         else applyMarkerVisibility();
+
         renderFrame();
     }
 
@@ -485,15 +570,19 @@ export function createGLBPinLayer(map, options = {}) {
             const element = marker?.getElement?.();
             const spotId = element?.dataset?.spotId;
             if (!spotId) return;
+
             const model = models.get(String(spotId));
-            if (!model) return;
+            // 遠くて出していない（ほとんど見えない）ピンは押せない
+            if (!model || !model.anchor.visible || model.distanceFade < 0.3) return;
 
             const screenPoint = map.project(marker.getLngLat());
             const dx = point.x - screenPoint.x;
             const dy = point.y - screenPoint.y;
+
             if (Math.abs(dx) > halfWidth || dy < -targetHeightPx - 10 || dy > 10) return;
 
             const distance = Math.hypot(dx, dy + targetHeightPx * 0.52);
+
             if (distance < bestDistance) {
                 bestDistance = distance;
                 hit = model;
@@ -501,6 +590,7 @@ export function createGLBPinLayer(map, options = {}) {
         });
 
         if (!hit) return false;
+
         if (hit.animationStart === null) {
             hit.animationStart = performance.now();
             hit.spin.rotation.y = 0;
@@ -508,22 +598,31 @@ export function createGLBPinLayer(map, options = {}) {
 
         const popup = hit.marker.getPopup?.();
         if (popup && !popup.isOpen()) hit.marker.togglePopup();
+
         map.triggerRepaint();
         return true;
     }
 
     function destroy() {
         if (disposed) return;
+
         disposed = true;
         restoreMarkerStyles();
+
         map.off("render", onMapRender);
         map.off("resize", onMapResize);
         map.off("move", onMapRender);
+
         resizeObserver?.disconnect();
-        if (!resizeObserver) window.removeEventListener("resize", onMapResize);
+
+        if (!resizeObserver) {
+            window.removeEventListener("resize", onMapResize);
+        }
+
         disposeModels();
         renderer?.dispose();
         canvas.remove();
+
         if (!previousContainerPosition) container.style.position = "";
     }
 
@@ -534,9 +633,11 @@ export function createGLBPinLayer(map, options = {}) {
         handleClick,
         render: renderFrame,
         destroy,
+
         get ready() {
             return modelReady && canvasReady;
         },
+
         get visible() {
             return visible;
         }

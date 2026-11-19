@@ -3032,6 +3032,47 @@ body {
     background: #e6f0f6;
 }
 
+/* 「現在地から」の区間を外す × と、外した時の「＋ 現在地から出発する」 */
+.route-leg .route-origin-remove {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    box-shadow: none;
+    color: #95a5a6;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.route-leg .route-origin-remove:hover,
+.route-leg .route-origin-remove:focus-visible {
+    background: #e6f0f6;
+    color: #0b3c5d;
+    transform: none;
+}
+
+.route-leg .route-origin-add {
+    margin: 0;
+    padding: 4px 10px;
+    border: 1px dashed #b8cad8;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: none;
+    color: #0b3c5d;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.route-leg .route-origin-add:hover,
+.route-leg .route-origin-add:focus-visible {
+    background: #e6f0f6;
+    transform: none;
+}
+
 /* 遠い区間は電車をすすめる */
 .route-leg-transit.is-recommended {
     border-color: #0b3c5d;

@@ -74,6 +74,51 @@ test.describe("現在地が分かる時", () => {
     });
 });
 
+test.describe("「現在地から」を外す", () => {
+    test.use({ geolocation: HERE, permissions: ["geolocation"] });
+
+    test("× で外すと 1か所目から出発し（地図の道順も Googleマップも）、開き直しても覚えている。＋ で戻せる", async ({ page }) => {
+        const requests = await fakeDirections(page);
+        await page.addInitScript(() => { window.open = (url) => { window.__opened = url; return null; }; });
+        await oneSpot(page);
+        await page.goto("html/map.html?course=c1");
+        await expect(page.locator("#routeList .routeItem")).toHaveCount(2);
+        const first = page.locator("#routeList .route-leg").first();
+        await expect(first).toHaveText(/^現在地から/);
+
+        await first.locator(".route-origin-remove").click();
+        await expect(page.locator("#toast")).toContainText("1か所目から出発します");
+        await expect(page.locator("#routeList .route-leg").first()).toHaveText("＋ 現在地から出発する");
+
+        // 地図の道順は 1か所目 → 2か所目（現在地は入れない）
+        await page.click("#generate-mapbox-route");
+        await expect(page.locator("#toast")).toContainText("道順を出しました（約0.5km");
+        await expect(page.locator("#toast")).not.toContainText("現在地から");
+        expect(requests.at(-1)).toHaveLength(2);
+        expect(requests.at(-1)[0][1]).toBeCloseTo(station.coord.latitude, 5);
+
+        // Googleマップも 1か所目から出発する
+        await page.click("#open-google-route");
+        const opened = new URL(await page.evaluate(() => window.__opened));
+        expect(opened.searchParams.get("origin")).toBe(`${station.coord.latitude},${station.coord.longitude}`);
+        expect(opened.searchParams.get("destination")).toBe(`${bridge.coord.latitude},${bridge.coord.longitude}`);
+        expect(opened.searchParams.get("waypoints")).toBeNull();
+
+        // 開き直しても外したまま
+        await page.reload();
+        await expect(page.locator("#routeList .routeItem")).toHaveCount(2);
+        await expect(page.locator("#routeList .route-leg").first()).toHaveText("＋ 現在地から出発する");
+
+        // ＋ で戻すと、また現在地から（道順を出していれば出し直す）
+        await page.click("#generate-mapbox-route");
+        await expect(page.locator("#toast")).toContainText("道順を出しました");
+        await page.locator("#routeList .route-origin-add").click();
+        await expect.poll(() => requests.at(-1).length).toBe(3);
+        expect(requests.at(-1)[0][1]).toBeCloseTo(HERE.latitude, 5);
+        await expect(page.locator("#routeList .route-leg").first()).toHaveText(/^現在地から 徒歩/);
+    });
+});
+
 test.describe("現在地が1か所目から遠い時", () => {
     test.use({ geolocation: { latitude: 35.6812, longitude: 139.7671 }, permissions: ["geolocation"] });
 
