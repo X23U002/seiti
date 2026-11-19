@@ -847,3 +847,23 @@ test.describe("すぐ近くにあって重なってしまうピン", () => {
         expect(colors.slice(0, 2)).toEqual(expected);
     });
 });
+
+test("まとめたピンは、ズームしても聖地の場所からずれない", async ({ page }) => {
+    const [oshi, kaguya] = SPOTS.filter((spot) => spot.spot_name === "東京ドーム");
+    await seed(page, { data: withSpots({}) });
+    await page.goto("html/map.html");
+    await page.waitForFunction(() => window.__map && window.__map.loaded());
+    const group = page.locator(`.overlap-pin[data-group-key="group:${[oshi.id, kaguya.id].sort().join(",")}"]`);
+    const center = { lng: (oshi.coord.longitude + kaguya.coord.longitude) / 2, lat: (oshi.coord.latitude + kaguya.coord.latitude) / 2 };
+
+    for (const zoom of [12, 15, 18]) {
+        await page.evaluate(([c, z]) => window.__map.jumpTo({ center: [c.lng + 0.01 / 2 ** (z - 12), c.lat], zoom: z }), [center, zoom]);
+        await expect(group).toBeVisible();
+        const box = await group.boundingBox();
+        const point = await page.evaluate((c) => window.__map.project([c.lng, c.lat]), center);
+        const mapBox = await page.locator("#map").boundingBox();
+        // ピンの下の真ん中が、聖地の場所（まとめた聖地の真ん中）に来る
+        expect(Math.abs(box.x + box.width / 2 - (mapBox.x + point.x))).toBeLessThan(2);
+        expect(Math.abs(box.y + box.height - (mapBox.y + point.y))).toBeLessThan(2);
+    }
+});
