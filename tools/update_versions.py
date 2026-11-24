@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """キャッシュ用の番号（?v=）を、読み込むファイルの中身から自動で決める。
 
-map画面/ の HTML・JavaScript にある、同じサイト内の .js / .css / .glb（3Dモデル）の読み込み
+map画面/ の HTML・JavaScript（とトップページの index.html）にある、同じサイト内の .js / .css / .glb（3Dモデル）の読み込み
 （<script src>・<link href>・import 文・import()・"../models/x.glb" のような文字列）すべてに
 「?v=ファイルの中身から作った8文字」を付ける。
 ファイルの中身が変わると番号も変わるので、ブラウザに古いファイルが残っていても
@@ -24,10 +24,15 @@ REFERENCE = re.compile(r"""(["'])((?:\.\.?/)[^"'?#\s]+\.(?:js|css|glb))(?:\?v=[^
 
 
 def source_files():
-    return sorted(
+    files = sorted(
         path for path in ROOT.rglob("*")
         if path.suffix in (".html", ".js") and path.is_file()
     )
+    # トップページ（リポジトリの一番上の index.html）も、map画面/ の中を読み込むので番号を付ける
+    top = ROOT.parent / "index.html"
+    if top.is_file():
+        files.append(top)
+    return files
 
 
 def file_hash(path):

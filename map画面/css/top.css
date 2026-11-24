@@ -11,6 +11,9 @@ body {
 
 .sp-only { display: none; }
 
+/* hidden を付けた所は出さない（display を指定している所でも） */
+[hidden] { display: none !important; }
+
 /* ---------- メインビジュアル ---------- */
 .hero {
     position: relative;
@@ -65,15 +68,48 @@ body {
     opacity: .9;
 }
 
+/* 一番大きいボタンは「地図をひらく」（ログインしなくても使える）。ログイン・新規登録はその下に小さく */
 .hero-actions {
     display: flex;
-    gap: 12px;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.hero-actions .btn-map {
+    width: auto;
+    min-width: 280px;
+    font-size: 18px;
+}
+
+.hero-account {
+    display: flex;
+    gap: 10px;
     justify-content: center;
 }
 
-.hero-actions .btn {
+.hero-account .btn-small {
     width: auto;
-    min-width: 180px;
+    min-width: 130px;
+    min-height: 40px;
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+.hero-note {
+    margin: 0;
+    font-size: 12px;
+    opacity: .8;
+}
+
+.hero-note + .hero-account {
+    margin-top: 14px;
+}
+
+.hero-welcome {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: bold;
 }
 
 .btn-start {
@@ -155,10 +191,103 @@ body {
     text-align: center;
 }
 
+/* ---------- 対応作品（作品の色の札） ---------- */
+.works-lead {
+    margin: -12px 0 20px;
+    text-align: center;
+    font-size: 16px;
+    color: var(--color-text-sub);
+}
+
+.works-lead b {
+    margin: 0 2px;
+    font-size: 26px;
+    color: var(--color-primary);
+}
+
+.works-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.work-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 6px 14px;
+    border: 1px solid #dfe6ec;
+    border-radius: 999px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 14px;
+    font-weight: bold;
+    text-decoration: none;
+    box-shadow: var(--shadow-sm);
+}
+
+.work-chip:hover,
+.work-chip:focus-visible {
+    border-color: var(--color-primary);
+}
+
+.work-chip-dot {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.work-chip-count {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: normal;
+    color: var(--color-text-sub);
+    white-space: nowrap;
+}
+
+/* ---------- 画面のようす（スマホでは横にすべらせて見る） ---------- */
+.screens {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+    align-items: start;
+}
+
+.screen {
+    margin: 0;
+    text-align: center;
+}
+
+.screen img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 6px solid #1c2733;
+    border-radius: 22px;
+    background: #fff;
+    box-shadow: 0 10px 24px rgba(11, 60, 93, .18);
+}
+
+.screen figcaption {
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    font-weight: bold;
+    color: var(--color-primary);
+}
+
 /* ---------- できること ---------- */
 .feature-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 16px;
 }
 
@@ -246,6 +375,69 @@ body {
 
 .guide-link a { color: var(--color-primary); }
 
+/* ---------- 巡礼のマナー ---------- */
+.manners-lead {
+    margin: -12px 0 18px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--color-text-sub);
+}
+
+.manners-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0;
+    list-style: none;
+}
+
+.manners-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: var(--radius-lg);
+    background: #fff8ec;
+    font-size: 14px;
+    font-weight: bold;
+    color: #7a4b00;
+}
+
+.manners-list span {
+    font-size: 22px;
+}
+
+/* ---------- ホーム画面に追加（スマホの時だけ表示） ---------- */
+.install-section {
+    display: none;
+}
+
+.install-card {
+    padding: 20px;
+    border: 2px dashed #cfd8df;
+    border-radius: var(--radius-lg);
+}
+
+.install-card h2 {
+    margin: 0 0 8px;
+    font-size: 17px;
+    color: var(--color-primary);
+}
+
+.install-card p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.install-card .install-note {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--color-text-sub);
+}
+
 /* ---------- スマホで開く（PCの時だけ表示） ---------- */
 .phone-card {
     display: flex;
@@ -329,23 +521,47 @@ body {
     .hero-title { font-size: 30px; }
 
     .hero-actions {
-        flex-direction: column;
         align-items: stretch;
         max-width: 320px;
         margin: 0 auto;
     }
 
+    .hero-actions .btn-map { min-width: 0; }
+    .hero-account .btn-small { flex: 1; min-width: 0; }
+
     .section { padding: 44px 20px; }
 
-    .feature-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-    .feature { padding: 18px 14px; }
+    /* 画面のようすは、横にすべらせて1枚ずつ見る */
+    .screens {
+        display: flex;
+        gap: 14px;
+        margin: 0 -20px;
+        padding: 0 20px 8px;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .screen {
+        flex: 0 0 62%;
+        scroll-snap-align: center;
+    }
+
+    .work-chip { font-size: 13px; }
+
+    /* できることは1列にして、アイコンを左に置く（見出しが途中で折り返さないように） */
+    .feature-grid { grid-template-columns: 1fr; gap: 10px; }
+    .feature {
+        display: flex;
+        gap: 14px;
+        padding: 16px;
+    }
+    .feature-icon { flex-shrink: 0; margin-bottom: 0; }
 
     .steps-list { grid-template-columns: 1fr; }
+    .manners-list { grid-template-columns: 1fr; }
 
-    /* スマホで見ている時はQRコードは不要 */
+    /* スマホで見ている時は、QRコードの代わりにホーム画面に追加の案内を出す */
     .phone-section { display: none; }
-}
-
-@media (max-width: 380px) {
-    .feature-grid { grid-template-columns: 1fr; }
+    .install-section { display: block; }
 }
