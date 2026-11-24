@@ -48,3 +48,17 @@ test("お気に入り・履歴のタブは、中身が分かる名前", async ({
     await page.goto("html/history.html");
     await expect(page.locator(".saved-tab")).toHaveText([/お気に入り/, /保存ルート/, /案内ルート/, /行った聖地/]);
 });
+
+test("操作ガイドに書いたボタンの名前が、実際の画面と同じ", async () => {
+    const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../map画面");
+    const guide = fs.readFileSync(path.join(root, "html/guide.html"), "utf8");
+    // 地図の画面（HTML と、ボタンを作る JavaScript）
+    const app = ["html/map.html", "js/Script.js", "js/my-plan.js", "js/stampsyori.js"]
+        .map((file) => fs.readFileSync(path.join(root, file), "utf8")).join("\n");
+    for (const label of ["🚶 道順を地図に出す", "マイプランを作ってもらう", "このプランで巡る", "📍 現在地を確かめる", "＋ 現在地から出発する", "作品で絞り込み", "おすすめルート"]) {
+        expect(guide, `ガイドに「${label}」`).toContain(label);
+        expect(app, `画面に「${label}」`).toContain(label);
+    }
+    // AI のプランは、作品ページではなくおすすめルートの画面にある
+    expect(guide).not.toContain("AI におまかせプラン");
+});
