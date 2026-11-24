@@ -65,11 +65,15 @@ test("画面のようすの画像と、LINE などで送った時の画像（OGP
     await serveTop(page);
     await page.goto(TOP);
     const images = page.locator(".screen img");
-    await expect(images).toHaveCount(4);
+    await expect(images).toHaveCount(6);
     for (const src of await images.evaluateAll((list) => list.map((img) => img.getAttribute("src")))) {
         expect(fs.existsSync(path.join(ROOT, src.split("?")[0]))).toBe(true);
     }
-    await expect.poll(() => images.evaluateAll((list) => list.every((img) => img.naturalWidth > 0))).toBe(true);
+    // 遅れて読む（loading="lazy"）ので、1枚ずつ見える所まで動かして確かめる
+    for (let i = 0; i < 6; i++) {
+        await images.nth(i).scrollIntoViewIfNeeded();
+        await expect.poll(() => images.nth(i).evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
+    }
     const ogImage = await page.locator('meta[property="og:image"]').getAttribute("content");
     expect(ogImage).toBe("https://x23u002.github.io/seiti/map画面/images/top/ogp.jpg");
     expect(fs.existsSync(path.join(ROOT, "map画面/images/top/ogp.jpg"))).toBe(true);
