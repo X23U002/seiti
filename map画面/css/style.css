@@ -1427,8 +1427,9 @@ body {
     display: none !important;
 }
 
+/* 位置は Mapbox が .mapboxgl-marker（position: absolute）で決めるので、position は書かない
+   （relative にすると、ズームのたびに場所がずれる） */
 .overlap-pin {
-    position: relative;
     width: 27px;
     height: 41px;
     cursor: pointer;
@@ -3857,7 +3858,8 @@ body {
 }
 
 /* 詳細を開いている間は、ほかのピンを薄くする */
-#map.has-selected .mapboxgl-marker[data-spot-id]:not(.is-selected) {
+#map.has-selected .mapboxgl-marker[data-spot-id]:not(.is-selected),
+#map.has-selected .mapboxgl-marker[data-group-key]:not(.is-selected) {
     opacity: .45 !important;
 }
 
