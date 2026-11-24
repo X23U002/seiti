@@ -5012,6 +5012,26 @@ function startRouteDrag(event) {
     );
 }
 
+// 案内ルートの記録はアカウントごとに分けて端末に置く（ログインしていない時は「guest」）
+// ※ 以前は全員で1つ（googleMapsRouteHistory）だったため、同じ端末で別のアカウントに
+//   ログインすると、その人の案内が見えていた。だれの案内か分からないので、残っていれば消す
+// Googleマップは押した時にすぐ開く（待つと新しいタブを開けない）ので、ログインしている人は先に調べておく
+let routeHistoryUid = null;
+getCurrentUser().then(function (user) {
+    routeHistoryUid = user ? user.uid : null;
+}).catch(function () {
+    routeHistoryUid = null;
+});
+
+function getRouteHistoryKey() {
+    try {
+        localStorage.removeItem("googleMapsRouteHistory");
+    } catch (error) {
+        // 消せない環境では何もしない
+    }
+    return "googleMapsRouteHistory:" + (routeHistoryUid || "guest");
+}
+
 // =========================================================
 // Googleマップへ渡す＋ルート情報をローカルに保存
 // =========================================================
@@ -5088,7 +5108,7 @@ window.openGoogleMapsRoute = function () {
 
     try {
         const history = JSON.parse(
-            localStorage.getItem("googleMapsRouteHistory") || "[]"
+            localStorage.getItem(getRouteHistoryKey()) || "[]"
         );
 
         // 新しい履歴を先頭に追加
@@ -5100,7 +5120,7 @@ window.openGoogleMapsRoute = function () {
 
         // 増えすぎないよう、新しいものから50件までにする
         localStorage.setItem(
-            "googleMapsRouteHistory",
+            getRouteHistoryKey(),
             JSON.stringify(updatedHistory.slice(0, 50))
         );
 
