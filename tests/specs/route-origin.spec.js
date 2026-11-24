@@ -1,5 +1,5 @@
 // 地図上のルート生成：現在地から歩くルートにする
-import { test, expect, seed, withSpots, spotNamed } from "../helpers.js";
+import { test, expect, seed, withSpots, spotNamed, PROFILE, switchUser } from "../helpers.js";
 
 const station = spotNamed("京阪宇治駅");
 const bridge = spotNamed("宇治橋");
@@ -139,4 +139,40 @@ test.describe("現在地が1か所目から遠い時", () => {
         await expect(page.locator("#generate-mapbox-route")).toHaveText("🚶 道順を地図に出す");
         await expect(page.locator("#generate-mapbox-route")).toBeEnabled();
     });
+});
+
+test("案内ルート（Googleマップで案内した記録）は、アカウントごとに分ける。別の人の案内は履歴に出ない", async ({ page }) => {
+    await page.addInitScript(() => { window.open = (url) => { window.__opened = url; return null; }; });
+    await seed(page, {
+        user: "uidA",
+        data: withSpots({
+            course: { c1: { title_name: station.title_name, course_name: "1か所", description: "", spot_ids: [station.id, bridge.id], updated_at: { __ts: 1 } } },
+            user: { uidA: PROFILE("Aさん", "a@x.jp"), uidB: PROFILE("Bさん", "b@x.jp") }
+        }),
+        // 以前の、全員で1つの記録（だれのか分からないので消す）
+        local: { googleMapsRouteHistory: JSON.stringify([{ id: "old", savedAt: "2026-01-01T00:00:00Z", spots: [{ name: "前の人の聖地" }], destination: "0,0", googleMapsUrl: "https://www.google.com/maps/dir/?api=1&destination=0,0" }]) }
+    });
+
+    // A が地図で Googleマップの案内を開く
+    await page.goto("html/map.html?course=c1");
+    await expect(page.locator("#routeList .routeItem")).toHaveCount(2);
+    await page.click("#open-google-route");
+    await expect.poll(() => page.evaluate(() => window.__opened)).toContain("google.com/maps");
+
+    // A の履歴には出る（以前の記録は出ない）
+    await page.goto("html/history.html");
+    await page.click("#tab-guided");
+    await expect(page.locator("#count-guided")).toHaveText("1");
+    await expect(page.locator("#historyList .history-item")).toHaveCount(1);
+    await expect(page.locator("#historyList")).toContainText(bridge.spot_name);
+    await expect(page.locator("#historyList")).not.toContainText("前の人の聖地");
+    expect(await page.evaluate(() => localStorage.getItem("googleMapsRouteHistory"))).toBeNull();
+
+    // 同じ端末で B がログインすると、A の案内は出ない
+    await switchUser(page, "uidB");
+    await page.reload();
+    await page.click("#tab-guided");
+    await expect(page.locator("#count-guided")).toHaveText("0");
+    await expect(page.locator("#historyList")).not.toContainText(bridge.spot_name);
+    await expect(page.locator("#historyList")).toContainText("まだありません");
 });

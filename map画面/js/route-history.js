@@ -1,8 +1,20 @@
 // ==========================================
 // 案内履歴（「Googleマップで徒歩案内」を押したルート）
-// 地図画面の openGoogleMapsRoute がこの端末（localStorage の googleMapsRouteHistory）に記録したものを表示し、
+// 地図画面の openGoogleMapsRoute がこの端末（localStorage の googleMapsRouteHistory:アカウント）に記録したものを表示し、
 // 選んだルートでもう一度 Google マップの案内を始められる
 // ==========================================
+
+// 案内ルートの記録はアカウントごとに分けて端末に置く（地図画面の Script.js と同じ名前。ログインしていない時は「guest」）
+// ※ 以前は全員で1つ（googleMapsRouteHistory）だったため、同じ端末で別のアカウントに
+//   ログインすると、その人の案内が見えていた。だれの案内か分からないので、残っていれば消す
+function getRouteHistoryKey(uid) {
+    try {
+        localStorage.removeItem("googleMapsRouteHistory");
+    } catch (error) {
+        // 消せない環境では何もしない
+    }
+    return "googleMapsRouteHistory:" + (uid || "guest");
+}
 
 // =========================================================
 // 案内開始ボタン
@@ -64,7 +76,8 @@ window.startRoute = function () {
 // =========================================================
 // 過去の巡礼履歴を表示
 // =========================================================
-window.renderRouteHistory = function () {
+// uid：ログインしている人（history.js がログインを確かめてから渡す）
+window.renderRouteHistory = function (uid) {
     const historyList =
         document.getElementById("historyList");
 
@@ -76,7 +89,7 @@ window.renderRouteHistory = function () {
 
     try {
         history = JSON.parse(
-            localStorage.getItem("googleMapsRouteHistory") || "[]"
+            localStorage.getItem(getRouteHistoryKey(uid)) || "[]"
         );
 
         if (!Array.isArray(history)) {
@@ -279,11 +292,11 @@ window.renderCurrentRoute = function (route) {
 
 
 // =========================================================
-// ページを開いたときに履歴を表示
+// ページを開いたときの表示
+// 案内ルートの一覧は、だれがログインしているか分かってから history.js が出す
 // =========================================================
 function initializeHistoryPage() {
     window.renderCurrentRoute(null);
-    window.renderRouteHistory();
 }
 
 if (document.readyState === "loading") {

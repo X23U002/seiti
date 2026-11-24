@@ -3,6 +3,7 @@
 // お気に入り（favorite）と保存したルート（root）は地図画面で追加する。
 // 巡礼履歴は獲得したスタンプ（stamp）から作る
 // ==========================================
+import { getCurrentUser } from "./firebase-db.js?v=61accae5";
 import { loadStampBook } from "./stamp-db.js?v=4e60fcbf";
 import { deleteSavedRoute, loadFavorites, loadSavedRoutes, setFavorite } from "./saved-db.js?v=52020f50";
 import { getSpotEpisodeLabel } from "./episode.js?v=9a2ff22f";
@@ -280,6 +281,11 @@ function setupTabs() {
         renderFavorites(favorites);
         renderRoutes(routes);
         renderHistory(book.stamps);
+        // 案内ルート（この端末に、ログインしている人ごとに記録したもの。route-history.js）
+        const user = await getCurrentUser();
+        if (typeof window.renderRouteHistory === "function") {
+            window.renderRouteHistory(user ? user.uid : null);
+        }
         setupTabs();
 
         document.getElementById("saved-notice").hidden = true;
