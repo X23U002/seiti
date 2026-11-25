@@ -28,7 +28,7 @@
         <section class="profile-card">
             <div class="profile-icon" id="current-icon" aria-hidden="true">👤</div>
             <div class="profile-info">
-                <h2 class="user-name" id="current-name">田中 太郎</h2>
+                <h2 class="user-name" id="current-name">ゲスト</h2>
                 <p class="user-id" id="current-user-id">ID: ゲスト</p>
             </div>
             <button type="button" class="edit-profile-btn" onclick="openEditModal()">
@@ -181,7 +181,7 @@
     <script src="../js/tab-bar.js?v=f5e177d7"></script>
     <script src="../js/stamp-rank.js?v=c4ce732e"></script>
     <script src="../js/badges.js?v=5a082dfc"></script>
-    <script src="../js/mypage.js?v=278719c8"></script>
+    <script src="../js/mypage.js?v=62a8776e"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
         import { loadStampBook } from "../js/stamp-db.js?v=4e60fcbf";
@@ -196,7 +196,7 @@
         // ニックネームはDBの内容を正とする（別の端末で変えた時も反映される）
         import { loadUserName, saveUserName } from "../js/profile-db.js?v=8fef035d";
         import { auth, getCurrentUser } from "../js/firebase-db.js?v=61accae5";
-        import { clearLoginState } from "../js/login-state.js?v=3858a481";
+        import { clearLoginState } from "../js/login-state.js?v=40299cf5";
         import { signOut } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
 
         window.firebaseSignOut = async function () {
@@ -207,6 +207,10 @@
         const user = await getCurrentUser();
         const userId = user ? user.uid : null;
         showAccount(user ? user.email : null);
+        if (!user) {
+            // ログインしていない時は、端末に残った前の人の名前・アイコンを出さない
+            showGuestProfile();
+        }
         if (userId) {
             // 管理者なら管理ページへの入口を出す（読めなければ管理者ではない）
             // 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う

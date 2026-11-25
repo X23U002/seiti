@@ -8,7 +8,7 @@ import {
 import { auth } from "./firebase-db.js?v=61accae5";
 // 広告ブロックなどで Firestore の通信が止められても読めるよう、予備の読み方がある読み込みを使う
 import { getOneDoc } from "./public-data.js?v=5183f404";
-import { authErrorMessage, saveLoginState } from "./login-state.js?v=3858a481";
+import { authErrorMessage, saveLoginState } from "./login-state.js?v=40299cf5";
 
 // 「メールアドレスを保存する」で使う保存先
 const SAVED_EMAIL_KEY = "seitiSavedEmail";

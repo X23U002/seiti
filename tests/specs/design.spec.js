@@ -493,9 +493,25 @@ test("TC-066 ログイン・ログアウト：間違ったパスワードはエ�
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem("mockAuth")).current)).toBe("uid2");
 
     await page.goto("html/mypage.html");
+    await expect(page.locator("#current-name")).toHaveText("巡礼者");
     await page.locator(".logout-btn").click();
     await page.locator("#logout-modal button", { hasText: "ログアウト" }).last().click();
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("mockAuth")).current)).toBeNull();
+
+    // ログインせずにマイページを開いても、前の人の名前・アイコンは出ない
+    await page.goto("html/mypage.html");
+    await expect(page.locator("#current-user-id")).toHaveText("ゲスト（ログインしていません）");
+    await expect(page.locator("#current-name")).toHaveText("ゲスト");
+    await expect(page.locator("#current-icon")).toHaveText("👤");
+    expect(await page.evaluate(() => localStorage.getItem("seitiProfile"))).toBeNull();
+});
+
+test("ログインしていない時のマイページには、端末に残った前の人の名前・アイコンを出さない", async ({ page }) => {
+    await seed(page, { local: { seitiProfile: JSON.stringify({ name: "前の人", icon: "🐱" }) } });
+    await page.goto("html/mypage.html");
+    await expect(page.locator("#current-user-id")).toHaveText("ゲスト（ログインしていません）");
+    await expect(page.locator("#current-name")).toHaveText("ゲスト");
+    await expect(page.locator("#current-icon")).toHaveText("👤");
 });
 
 test("TC-067 パスワード再発行：メールアドレスに再設定のメールを送る", async ({ page }) => {

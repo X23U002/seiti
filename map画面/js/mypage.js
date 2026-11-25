@@ -323,6 +323,17 @@ function saveProfileToStorage(name, icon) {
     if (profile.icon) document.getElementById("current-icon").textContent = profile.icon;
 })();
 
+// ログインしていない時の表示（前にログインしていた人の名前・アイコンを残さない）
+function showGuestProfile() {
+    document.getElementById("current-name").textContent = "ゲスト";
+    document.getElementById("current-icon").textContent = "👤";
+    try {
+        localStorage.removeItem(PROFILE_STORAGE_KEY);
+    } catch (e) {
+        // 消せない環境では表示だけ変える
+    }
+}
+
 // 選択中のアイコンを一時的に覚えておく変数
 let tempSelectedIcon = "👤";
 
