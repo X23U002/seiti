@@ -165,6 +165,40 @@ test.describe("3D 表示（three.js を使う）", () => {
     });
 });
 
+test.describe("3D 表示の重なったピン（three.js を使う）", () => {
+    test.skip(!THREE_DIR, "three.js の場所（THREE_DIR）が無い");
+
+    test("TC-032（3D）まとめたピンの立体のピンを押すと「この場所の聖地」の一覧が出て、選ぶと詳細が開く", async ({ page }) => {
+        // 東京ドーム（【推しの子】と 超かぐや姫！）
+        const [oshi, kaguya] = SPOTS.filter((spot) => spot.spot_name === "東京ドーム");
+        await serveThree(page);
+        await seed(page);
+        await openMap(page);
+        await page.click("#toggle-view-btn");
+        await expect.poll(() => page.evaluate(() => window.__map.getPitch())).toBeGreaterThan(30);
+        await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 16, bearing: 0 }), [oshi.coord.longitude, oshi.coord.latitude]);
+        const group = page.locator(`.overlap-pin[data-group-key="group:${[oshi.id, kaguya.id].sort().join(",")}"]`);
+        // 2D のまとめたピンが隠れて、立体のピンに置きかわるのを待つ
+        await expect.poll(() => group.evaluate((el) => getComputedStyle(el.closest(".mapboxgl-marker") || el).visibility), { timeout: 20000 }).toBe("hidden");
+        await page.waitForTimeout(1500);
+        const point = await page.evaluate((key) => {
+            const marker = document.querySelector(`.mapboxgl-marker[data-group-key="${key}"]`) || document.querySelector(`[data-group-key="${key}"]`).closest(".mapboxgl-marker");
+            const rect = marker.getBoundingClientRect();
+            const map = window.__map.getContainer().getBoundingClientRect();
+            return { x: rect.left + rect.width / 2 - map.left, y: rect.bottom - map.top };
+        }, `group:${[oshi.id, kaguya.id].sort().join(",")}`);
+        await page.mouse.click(point.x, point.y - 25);
+
+        const list = page.locator(".overlap-list");
+        await expect(list.locator(".overlap-list-title")).toHaveText("この場所の聖地（2か所）");
+        // 少し待っても消えない
+        await page.waitForTimeout(500);
+        await expect(list).toBeVisible();
+        await list.locator(".overlap-list-item", { hasText: "超かぐや姫！" }).click();
+        await expect(page.locator(".popup-card .popup-title")).toHaveText("超かぐや姫！");
+    });
+});
+
 test("TC-015 縮小した時のまとめ：数字の丸にまとまり、押すと拡大。点を押すと詳細が開く", async ({ page }) => {
     await seed(page);
     await openMap(page);

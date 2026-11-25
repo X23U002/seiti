@@ -289,7 +289,9 @@ function loadPin3DLayer() {
 // 立体のピンを押した時・ズームや移動で見え方が変わった時
 map.on("click", function (event) {
     if (pin3DLayer) {
-        pin3DLayer.handleClick(event.point);
+        // 立体のピンを押した印（下の「地図をクリックしたら一覧を閉じる」で、
+        // まとめたピンの一覧を開いた同じクリックで閉じてしまわないように）
+        event.handledBy3DPin = pin3DLayer.handleClick(event.point);
     }
 });
 
@@ -3058,6 +3060,12 @@ map.on(
 map.on(
     "click",
     function (event) {
+        // 3D の立体のピンを押した時は、ピン（.mapboxgl-marker）ではなく地図を押したことになるので、
+        // 上の処理で開いた一覧を閉じない
+        if (event.handledBy3DPin) {
+            return;
+        }
+
         if (
             !event.originalEvent
                 .target
