@@ -24,6 +24,8 @@ const DEFAULT_YAW_DEGREES = 0;
 // ・ピンを大きくする・手前に描く・足元に広がる輪を出す・ほかのピンを薄くする
 const SELECTED_SCALE = 1.45;
 const DIMMED_OPACITY = 0.45;
+// 現在地のキャラクターに重なるピンの濃さ（キャラクターを隠さないように薄くする。詳細を開いているピンは薄くしない）
+const OCCLUDED_OPACITY = 0.15;
 const RING_PULSE_MS = 1600;
 
 // 遠くのピンは出さない（3D では地平線の近くに遠くのピンが固まって見にくいため）。
@@ -416,6 +418,15 @@ export function createGLBPinLayer(map, options = {}) {
             metersPerPixel(center.lat, map.getZoom()) * Math.max(width, height) * VISIBLE_RADIUS_SCREENS
         );
 
+        // キャラクターが写っている所（options.getOccluder。出していなければ null）
+        let occluder = null;
+        try {
+            occluder = options.getOccluder ? options.getOccluder() : null;
+        } catch (error) {
+            occluder = null;
+        }
+        const pinHalfWidth = targetHeightPx * 0.42;
+
         models.forEach((model) => {
             const lngLat = model.marker.getLngLat();
             const point = map.project(lngLat);
@@ -458,7 +469,22 @@ export function createGLBPinLayer(map, options = {}) {
             model.emphasis.scale.setScalar(model.scale);
             model.anchor.position.z = selected ? 500 : 0;
 
-            const opacity = (anySelected && !selected ? DIMMED_OPACITY : 1) * model.distanceFade;
+            // キャラクターに重なるピンは薄くする（詳細を開いているピンは、いつもいちばん手前にはっきり出す）
+            model.occluded = Boolean(
+                occluder && !selected &&
+                Math.abs(point.x - occluder.x) < pinHalfWidth + occluder.halfWidth &&
+                point.y - targetHeightPx * model.scale < occluder.bottom &&
+                point.y > occluder.top
+            );
+
+            // 元のピンにも印を付ける（テストで確かめる用）
+            const element = model.marker.getElement();
+            if (element) element.dataset.pinOccluded = model.occluded ? "1" : "";
+
+            const opacity =
+                (anySelected && !selected ? DIMMED_OPACITY : 1) *
+                (model.occluded ? OCCLUDED_OPACITY : 1) *
+                model.distanceFade;
             model.pinMaterials.forEach((material) => {
                 material.opacity = opacity;
             });

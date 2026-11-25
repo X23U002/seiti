@@ -165,6 +165,31 @@ test.describe("3D 表示（three.js を使う）", () => {
     });
 });
 
+test.describe("3D 表示のキャラクターとピン（three.js を使う）", () => {
+    test.skip(!THREE_DIR, "three.js の場所（THREE_DIR）が無い");
+    // 宇治橋の上にいる
+    test.use({ geolocation: { latitude: bridge.coord.latitude, longitude: bridge.coord.longitude, accuracy: 10 }, permissions: ["geolocation"] });
+
+    test("TC-019（重なり）キャラクターに重なるピンは薄くしてキャラクターを見せる。詳細を開いたピンはいつも手前に出す", async ({ page }) => {
+        await serveThree(page);
+        await seed(page);
+        await openMap(page);
+        await page.click("#toggle-view-btn");
+        await expect.poll(() => page.evaluate(() => window.__map.getPitch())).toBeGreaterThan(30);
+        await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 17.5, bearing: 0 }), [bridge.coord.longitude, bridge.coord.latitude]);
+        // キャラクターが出るのを待つ
+        await expect(page.locator("#map")).toHaveClass(/walker-active/, { timeout: 30000 });
+        const pin = page.locator(`.mapboxgl-marker[data-spot-id="${bridge.id}"]`);
+        await expect.poll(() => pin.getAttribute("data-pin-occluded"), { timeout: 20000 }).toBe("1");
+
+        // 詳細を開くと、そのピンは薄くしない（いちばん手前にはっきり出す）
+        const point = await page.evaluate(([lng, lat]) => window.__map.project([lng, lat]), [bridge.coord.longitude, bridge.coord.latitude]);
+        await page.mouse.click(point.x, point.y - 25);
+        await expect(page.locator(".popup-spot")).toContainText(bridge.spot_name);
+        await expect.poll(() => pin.getAttribute("data-pin-occluded")).toBe("");
+    });
+});
+
 test.describe("3D 表示の重なったピン（three.js を使う）", () => {
     test.skip(!THREE_DIR, "three.js の場所（THREE_DIR）が無い");
 

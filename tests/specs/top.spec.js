@@ -59,6 +59,45 @@ test("対応作品と聖地の数を、データベースから読んで作品�
     const counts = await page.locator(".work-chip-count").allTextContents();
     const numbers = counts.map((text) => parseInt(text, 10));
     expect(numbers).toEqual([...numbers].sort((a, b) => b - a));
+    await expect(page.locator(".work-chip.is-skeleton")).toHaveCount(0);
+});
+
+test("対応作品は読み込む前から欄を出し（札の形で場所を取る）、2回目からは前に読んだ作品をすぐ出して下がずれない", async ({ page }) => {
+    await serveTop(page);
+    // データベースの答えを止めておく
+    let release;
+    let held = new Promise((resolve) => { release = resolve; });
+    await page.route(/firestore\.googleapis\.com/, async (route) => { await held; await route.fallback(); });
+    await page.goto(TOP);
+    // 初めての時：読み込む前から欄があり、札の形で場所を取っておく
+    await expect(page.locator("#works")).toBeVisible();
+    await expect(page.locator(".work-chip.is-skeleton")).not.toHaveCount(0);
+    release();
+    await expect(page.locator("#spots-count")).toHaveText(String(SPOTS.length));
+    await expect(page.locator(".work-chip.is-skeleton")).toHaveCount(0);
+
+    // 2回目：読み込む前から前に読んだ作品が出ていて、読み終わっても下の「画面のようす」はずれない
+    held = new Promise((resolve) => { release = resolve; });
+    await page.reload();
+    await expect(page.locator("#spots-count")).toHaveText(String(SPOTS.length));
+    await expect(page.locator(".work-chip.is-skeleton")).toHaveCount(0);
+    const before = await page.locator(".screens").evaluate((el) => el.getBoundingClientRect().top);
+    release();
+    await page.waitForTimeout(500);
+    const after = await page.locator(".screens").evaluate((el) => el.getBoundingClientRect().top);
+    expect(after).toBe(before);
+});
+
+test("対応作品が読めない時も欄は飛ばさず、作品一覧への入口を出す", async ({ page }) => {
+    await serveTop(page);
+    await page.route(/firestore\.googleapis\.com/, (route) => route.fulfill({ status: 500, body: "" }));
+    await page.goto(TOP);
+    await expect(page.locator("#works")).toBeVisible();
+    await expect(page.locator("#works-lead")).toContainText("読み込めませんでした");
+    const link = page.locator("#works-list a");
+    await expect(link).toHaveText("作品一覧を見る ›");
+    await expect(link).toHaveAttribute("href", "map画面/html/works.html");
+    await expect(page.locator(".work-chip.is-skeleton")).toHaveCount(0);
 });
 
 test("画面のようすの画像と、LINE などで送った時の画像（OGP）がある", async ({ page }) => {
