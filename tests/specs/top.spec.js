@@ -53,9 +53,11 @@ test("対応作品と聖地の数を、データベースから読んで作品�
     await expect(page.locator("#works-count")).toHaveText(String([...works].filter((title) => title !== "その他").length));
     const chips = page.locator(".work-chip");
     await expect(chips).toHaveCount(works.size);
-    // 聖地の多い作品から並べ、押すとその作品のページへ
-    const first = await chips.first().getAttribute("href");
-    expect(first).toMatch(/^map画面\/html\/work\.html\?title=/);
+    // 聖地の多い作品から並べる
+    // 札は押しても作品の紹介ページへ飛ばない（リンクにしない）
+    await expect(page.locator("#works-list a")).toHaveCount(0);
+    await chips.first().click();
+    await expect(page).toHaveURL(TOP);
     const counts = await page.locator(".work-chip-count").allTextContents();
     const numbers = counts.map((text) => parseInt(text, 10));
     expect(numbers).toEqual([...numbers].sort((a, b) => b - a));
@@ -88,15 +90,12 @@ test("対応作品は読み込む前から欄を出し（札の形で場所を�
     expect(after).toBe(before);
 });
 
-test("対応作品が読めない時も欄は飛ばさず、作品一覧への入口を出す", async ({ page }) => {
+test("対応作品が読めない時も欄は残し、読めなかったことを知らせる", async ({ page }) => {
     await serveTop(page);
     await page.route(/firestore\.googleapis\.com/, (route) => route.fulfill({ status: 500, body: "" }));
     await page.goto(TOP);
     await expect(page.locator("#works")).toBeVisible();
     await expect(page.locator("#works-lead")).toContainText("読み込めませんでした");
-    const link = page.locator("#works-list a");
-    await expect(link).toHaveText("作品一覧を見る ›");
-    await expect(link).toHaveAttribute("href", "map画面/html/works.html");
     await expect(page.locator(".work-chip.is-skeleton")).toHaveCount(0);
 });
 

@@ -231,11 +231,6 @@ body {
     box-shadow: var(--shadow-sm);
 }
 
-.work-chip:hover,
-.work-chip:focus-visible {
-    border-color: var(--color-primary);
-}
-
 .work-chip-dot {
     flex-shrink: 0;
     width: 12px;
@@ -251,12 +246,6 @@ body {
     background-size: 300% 100%;
     box-shadow: none;
     animation: skeleton-shine 1.3s ease-in-out infinite;
-}
-
-/* 読めなかった時の、作品一覧への入口 */
-.works-fallback {
-    margin: 0;
-    text-align: center;
 }
 
 .work-chip-count {

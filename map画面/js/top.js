@@ -85,25 +85,17 @@ function saveCachedSpots(spots) {
     }
 }
 
-// 読めなかった時：欄は残して、作品一覧のページへの入口を出す
+// 読めなかった時：欄は残して、読めなかったことを知らせる
 function renderWorksError() {
     const lead = document.getElementById("works-lead");
     const list = document.getElementById("works-list");
     if (!lead || !list) {
         return;
     }
-    lead.textContent = "作品の一覧を読み込めませんでした。作品一覧のページから見られます。";
+    lead.textContent = "作品の一覧を読み込めませんでした。時間をおいて開き直してください。";
     list.innerHTML = "";
     list.removeAttribute("aria-busy");
     list.removeAttribute("aria-label");
-    const item = document.createElement("li");
-    item.className = "works-fallback";
-    const link = document.createElement("a");
-    link.className = "work-chip";
-    link.href = "map画面/html/works.html";
-    link.textContent = "作品一覧を見る ›";
-    item.appendChild(link);
-    list.appendChild(item);
 }
 
 function renderWorks(spots) {
@@ -139,9 +131,9 @@ function renderWorks(spots) {
     list.removeAttribute("aria-label");
     titles.forEach(function (title) {
         const item = document.createElement("li");
-        const link = document.createElement("a");
+        // 押してもどこへも移らない（作品の紹介ページへは飛ばさない）
+        const link = document.createElement("span");
         link.className = "work-chip";
-        link.href = "map画面/html/work.html?title=" + encodeURIComponent(title);
 
         const dot = document.createElement("span");
         dot.className = "work-chip-dot";
