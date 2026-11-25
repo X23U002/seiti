@@ -294,18 +294,60 @@
 }
 
 .section-head {
+    margin: 0 0 16px;
+    font-size: 15px;
+}
+
+/* 作品の見出し：押すと開く・たたむ */
+.section-toggle {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 16px;
+    width: 100%;
+    min-height: 32px;
+    padding: 0;
+    background: none;
+    border: none;
+    font: inherit;
+    font-weight: bold;
+    color: var(--color-primary);
+    text-align: left;
+    cursor: pointer;
 }
 
-.section-head h2 {
+.section-toggle:disabled {
+    cursor: default;
+}
+
+.section-toggle:focus-visible {
+    outline: 3px solid rgba(11, 60, 93, .45);
+    outline-offset: 4px;
+    border-radius: 6px;
+}
+
+.section-name {
     flex: 1;
     min-width: 0;
-    margin: 0;
-    font-size: 15px;
-    color: var(--color-primary);
+}
+
+.section-chevron {
+    flex-shrink: 0;
+    font-size: 14px;
+    color: var(--color-text-sub);
+    transition: transform .2s;
+}
+
+.stamp-section.is-closed {
+    padding-top: 12px;
+    padding-bottom: 12px;
+}
+
+.stamp-section.is-closed .section-head {
+    margin-bottom: 0;
+}
+
+.stamp-section.is-closed .section-chevron {
+    transform: rotate(-90deg);
 }
 
 .section-count {

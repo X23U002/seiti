@@ -119,6 +119,9 @@ test("現在地がまだ分からない時は、スタンプのボタンを押�
     const button = page.locator(".popup-card .stamp-button");
     await expect(button).toHaveText("📍 現在地を確かめる");
     await expect(button).toBeEnabled();
+    // 聖地から遠くても出るので、白地で目立たせない（「ルートに追加」より目立たないように）
+    await expect(button).toHaveAttribute("data-stamp-stage", "quiet");
+    expect(await button.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(255, 255, 255)");
     await expect(page.locator(".popup-card .stamp-distance-message")).toContainText("半径50m以内に入るとスタンプを取得できます");
 
     // 宇治橋のすぐそばにいる
@@ -127,4 +130,7 @@ test("現在地がまだ分からない時は、スタンプのボタンを押�
     await button.click();
     await expect(button).toHaveText("🎫 スタンプを取得");
     await expect(button).toBeEnabled();
+    // 取れる距離に入ったら、オレンジにして光らせる
+    await expect(button).toHaveAttribute("data-stamp-stage", "ready");
+    expect(await button.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(245, 158, 11)");
 });

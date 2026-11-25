@@ -312,17 +312,33 @@
     text-decoration: none;
 }
 
-/* 聖地一覧 */
+/* 聖地一覧：写真は左に小さく出して、1画面に多くの聖地が見えるようにする */
 .work-spot {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: 14px;
+    align-items: start;
     overflow: hidden;
+}
+
+.work-spot:has(.work-spot-image) {
+    grid-template-columns: 96px minmax(0, 1fr);
 }
 
 .work-spot-image {
     display: block;
-    width: calc(100% + 40px);
-    height: 160px;
-    margin: -20px -20px 12px;
+    grid-row: 1 / span 3;
+    width: 96px;
+    height: 96px;
+    border-radius: 10px;
     object-fit: cover;
+    background: var(--color-bg, #f4f6f8);
+}
+
+.work-spot-head,
+.work-spot-info,
+.work-spot-map {
+    grid-column: -2 / -1;
 }
 
 .work-spot-head {
@@ -334,7 +350,7 @@
 
 .work-spot-head h3 {
     margin: 0;
-    font-size: 16px;
+    font-size: 15px;
     color: var(--color-primary);
     overflow-wrap: anywhere;
 }
@@ -360,15 +376,29 @@
 }
 
 .work-spot-info {
-    margin: 8px 0 0;
-    font-size: 14px;
-    line-height: 1.7;
+    display: -webkit-box;
+    margin: 6px 0 0;
+    overflow: hidden;
+    font-size: 13px;
+    line-height: 1.6;
     color: var(--color-text);
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    cursor: pointer;
+}
+
+.work-spot-info.is-open {
+    display: block;
 }
 
 .work-spot-map {
-    display: block;
-    margin-top: 10px;
+    justify-self: start;
+    width: auto;
+    min-height: 36px;
+    margin-top: 8px;
+    padding: 6px 16px;
+    font-size: 13px;
     text-align: center;
     text-decoration: none;
 }

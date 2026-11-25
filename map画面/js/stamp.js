@@ -96,6 +96,23 @@ function earnedCount(title) {
 // 表示の状態
 let selectedTitle = null;   // null ＝ すべての作品
 
+// 「すべての作品」の時に開いている作品（作品が多いと長くなるので、ほかは1行にたたむ）
+// はじめは、スタンプを取った作品だけ開く（1つも無ければ先頭の作品）
+let openTitles = null;
+
+function isOpen(title, onlyEarned) {
+    // 作品を選んだ時・獲得済みだけの時は、たたまない
+    if (selectedTitle !== null || onlyEarned) return true;
+    if (openTitles === null) {
+        const started = titles.filter(function (t) { return earnedCount(t) > 0; });
+        const first = new Set(started.length > 0 ? started : titles.slice(0, 1));
+        // 獲得したスタンプを読み込み終わってから決める（それまでは仮）
+        if (loadState !== "ready") return first.has(title);
+        openTitles = first;
+    }
+    return openTitles.has(title);
+}
+
 // ---------- 全体の進み具合 ----------
 function renderOverall() {
     const got = allStamps.filter(function (s) { return s.earned; }).length;
@@ -266,24 +283,55 @@ function renderSections() {
         if (items.length === 0) return;
         shownCount += items.length;
 
+        const open = isOpen(title, onlyEarned);
         const section = document.createElement("section");
-        section.className = "stamp-section card";
+        section.className = "stamp-section card" + (open ? "" : " is-closed");
 
-        const head = document.createElement("div");
+        // 見出しを押すと開く・たたむ（作品を選んだ時・獲得済みだけの時は、いつも開く）
+        const head = document.createElement("h2");
         head.className = "section-head";
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "section-toggle";
+        toggle.setAttribute("aria-expanded", String(open));
+        const canFold = selectedTitle === null && !onlyEarned;
+        toggle.disabled = !canFold;
+        toggle.onclick = function () {
+            if (openTitles === null) {
+                openTitles = new Set(titles.filter(function (t) { return isOpen(t, false); }));
+            }
+            if (openTitles.has(title)) openTitles.delete(title);
+            else openTitles.add(title);
+            renderSections();
+        };
+        head.appendChild(toggle);
 
         const dot = document.createElement("span");
         dot.className = "color-dot";
         dot.style.background = titleColor(title);
 
-        const name = document.createElement("h2");
+        const name = document.createElement("span");
+        name.className = "section-name";
         name.textContent = title;
 
         const count = document.createElement("span");
         count.className = "section-count";
         count.textContent = hasSpotList ? earnedCount(title) + " / " + countOf(title) : earnedCount(title) + " 個";
 
-        head.append(dot, name, count);
+        toggle.append(dot, name, count);
+        if (canFold) {
+            const chevron = document.createElement("span");
+            chevron.className = "section-chevron";
+            chevron.setAttribute("aria-hidden", "true");
+            chevron.textContent = "▾";
+            toggle.appendChild(chevron);
+        }
+
+        section.appendChild(head);
+        if (!open) {
+            area.appendChild(section);
+            return;
+        }
 
         const grid = document.createElement("div");
         grid.className = "stamp-grid";
@@ -296,7 +344,7 @@ function renderSections() {
                 grid.appendChild(createStampItem(stamp));
             });
 
-        section.append(head, grid);
+        section.appendChild(grid);
 
         // まだの聖地を、次の巡礼のルートにすぐ入れられるようにする
         const todo = allStamps.filter(function (s) {

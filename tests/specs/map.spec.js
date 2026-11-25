@@ -84,6 +84,13 @@ test("聖地の詳細の話の札（EP6 など）を押すと、作品ページ�
     await expect(spots).toHaveCount(all);
     await expect(page.locator("#work-spots-note")).toHaveText("（話数の順）");
     expect(new URL(page.url()).searchParams.has("ep")).toBe(false);
+
+    // 札は「期」ごと（1話ずつの札は並べない。地図から来た1話は、選んでいる間だけ出す）
+    await expect(page.locator(".work-episode")).toHaveText([`すべて（${all}）`, "1期（7）", "劇場版（2）", "話数不明（2）"]);
+    await page.locator(".work-episode", { hasText: "1期" }).click();
+    await expect(spots).toHaveCount(7);
+    await expect(page.locator("#work-spots-note")).toHaveText("（1期）");
+    expect(new URL(page.url()).searchParams.get("ep")).toBe("s1");
 });
 
 test("地図の文字（地名・ボタンの説明）は日本語", async ({ page }) => {

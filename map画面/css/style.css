@@ -1756,6 +1756,15 @@ body {
     transform: none;
 }
 
+/* 現在地を確かめる・ログイン：聖地から遠くても出るので、白地にして目立たせない
+   （オレンジで塗るのは、スタンプが取れる距離に入った時だけ） */
+.popup-card .stamp-button[data-stamp-stage="quiet"] {
+    background: #fff !important;
+    color: #b9770e !important;
+    border: 1.5px solid #f5c26b !important;
+    box-shadow: none;
+}
+
 /* 聖地に近づくほど、ボタンの色を濃くする（あと1km以内・200m以内） */
 .popup-card .stamp-button:disabled[data-stamp-stage="closer"] {
     background: #fff4d6 !important;
@@ -2839,10 +2848,15 @@ body {
         bottom: 132px;
     }
 
-    /* 通知は画面上部（絞り込みの下）に出し、下のパネルを隠さないようにする */
+    /* 通知は画面上部に出し、下のパネル（聖地の詳細・ルート案内）を隠さないようにする。
+       地図のピンに重ならないよう、少しの間だけ「作品で絞り込み」の段の上に、細く出す */
     #toast {
-        top: 136px;
+        top: 82px;
         bottom: auto;
+        /* 画面の幅いっぱいまでは1行で出す（真ん中寄せのため、そのままだと半分の幅で折り返す） */
+        width: max-content;
+        padding: 9px 16px;
+        font-size: 13px;
     }
 
     /* ルート案内は画面下に置き、地図の上部を覆わないようにする */
