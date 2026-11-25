@@ -194,6 +194,12 @@ test.describe("3D 表示の重なったピン（three.js を使う）", () => {
         // 少し待っても消えない
         await page.waitForTimeout(500);
         await expect(list).toBeVisible();
+        // 一覧は立体のピン（地図の上に重ねた絵）より手前に出る
+        const [popupZ, pinZ] = await page.evaluate(() => [
+            Number(getComputedStyle(document.querySelector(".overlap-list-popup")).zIndex),
+            Number(getComputedStyle(document.querySelector(".mapboxgl-glb-pin-overlay")).zIndex)
+        ]);
+        expect(popupZ).toBeGreaterThan(pinZ);
         await list.locator(".overlap-list-item", { hasText: "超かぐや姫！" }).click();
         await expect(page.locator(".popup-card .popup-title")).toHaveText("超かぐや姫！");
     });
