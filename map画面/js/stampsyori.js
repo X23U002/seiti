@@ -565,6 +565,8 @@ function getStampState(
     ) {
         return {
             disabled: false,
+            // 聖地から遠くても出るので、目立たせない（「ルートに追加」を先に押してもらう。style.css）
+            stage: "quiet",
             label:
                 "🔑 ログインしてスタンプを集める",
             message:
@@ -643,6 +645,9 @@ function getStampState(
             disabled: stampLocating,
 
             action: "locate",
+
+            // 聖地から遠くても出るので、目立たせない（取れる距離に入ったら、オレンジで光らせる）
+            stage: "quiet",
 
             label:
                 stampLocating

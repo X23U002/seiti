@@ -151,21 +151,53 @@ function renderRoutes(courses, spotById) {
     });
 }
 
-// 話の札（「すべて」「1期 EP1（2）」…）。話が2つ以上分かる作品だけ出す
+// 札は「期」ごとにまとめる（1話ずつだと、1か所だけの札がたくさん並んで選びにくいため）
+// 「1-3」（1期 EP3）→「s1」（1期）。劇場版・最終話などと、話数不明はそのまま
+function seasonGroup(key) {
+    const match = /^(\d+)-\d+$/.exec(key);
+    return match ? "s" + match[1] : key;
+}
+
+function formatGroup(key) {
+    if (/^s\d+$/.test(key)) {
+        const season = Number(key.slice(1));
+        return season > 0 ? season + "期" : "本編";
+    }
+    return formatEpisodeKey(key);
+}
+
+// 選んでいる札に入る聖地か（期の札、または地図の話の札から来た時の1話）
+function matchesEpisode(spot) {
+    if (selectedEpisode === null) return true;
+    const key = getSpotEpisodeKey(spot);
+    return /^s\d+$/.test(selectedEpisode) ? seasonGroup(key) === selectedEpisode : key === selectedEpisode;
+}
+
+function compareGroups(a, b) {
+    const toKey = function (group) { return /^s\d+$/.test(group) ? group.slice(1) + "-0" : group; };
+    return compareEpisodeKeys(toKey(a), toKey(b));
+}
+
+// 期の札（「すべて」「1期（5）」「2期（3）」「話数不明（4）」…）。分けられる作品だけ出す
 function renderEpisodeChips(spots) {
     const area = document.getElementById("work-episodes");
     const counts = {};
+    const episodeCounts = {};
     spots.forEach(function (spot) {
         const key = getSpotEpisodeKey(spot);
-        counts[key] = (counts[key] || 0) + 1;
+        const group = seasonGroup(key);
+        counts[group] = (counts[group] || 0) + 1;
+        episodeCounts[key] = (episodeCounts[key] || 0) + 1;
     });
-    const keys = Object.keys(counts).sort(compareEpisodeKeys);
+    const groups = Object.keys(counts).sort(compareGroups);
 
-    // 選んでいた話がもう無ければ、すべてに戻す
-    if (selectedEpisode !== null && !counts[selectedEpisode]) selectedEpisode = null;
+    // 選んでいた札がもう無ければ、すべてに戻す
+    if (selectedEpisode !== null && !counts[selectedEpisode] && !episodeCounts[selectedEpisode]) selectedEpisode = null;
+    // 地図の話の札から来た時の1話（期の札とは別に、選んだ札として出す）
+    const single = selectedEpisode !== null && !counts[selectedEpisode] ? selectedEpisode : null;
 
     area.innerHTML = "";
-    area.hidden = keys.filter(function (key) { return key !== ""; }).length < 2;
+    area.hidden = groups.length < 2 && single === null;
     if (area.hidden) {
         selectedEpisode = null;
         return;
@@ -182,8 +214,9 @@ function renderEpisodeChips(spots) {
     };
 
     addChip(null, "すべて（" + spots.length + "）");
-    keys.forEach(function (key) {
-        addChip(key, formatEpisodeKey(key) + "（" + counts[key] + "）");
+    if (single !== null) addChip(single, formatEpisodeKey(single) + "（" + episodeCounts[single] + "）");
+    groups.forEach(function (group) {
+        addChip(group, formatGroup(group) + "（" + counts[group] + "）");
     });
 }
 
@@ -210,11 +243,9 @@ function renderSpots(spots, stampCounts) {
 
     document.getElementById("work-spots-note").textContent = selectedEpisode === null
         ? "（話数の順）"
-        : "（" + formatEpisodeKey(selectedEpisode) + "）";
+        : "（" + formatGroup(selectedEpisode) + "）";
 
-    spots.slice().sort(compareEpisode).filter(function (spot) {
-        return selectedEpisode === null || getSpotEpisodeKey(spot) === selectedEpisode;
-    }).forEach(function (spot) {
+    spots.slice().sort(compareEpisode).filter(matchesEpisode).forEach(function (spot) {
         const li = el("li", "card work-spot");
 
         const imageSrc = getSpotImageSrc(spot.image_url);
@@ -237,7 +268,14 @@ function renderSpots(spots, stampCounts) {
         }
         li.appendChild(head);
 
-        if (spot.spot_info) li.appendChild(el("p", "work-spot-info", spot.spot_info));
+        if (spot.spot_info) {
+            // 長い説明は3行までにして、押すと全部出す（work.css）
+            const info = el("p", "work-spot-info", spot.spot_info);
+            info.addEventListener("click", function () {
+                info.classList.toggle("is-open");
+            });
+            li.appendChild(info);
+        }
 
         const view = el("a", "btn btn-secondary work-spot-map", "地図で見る");
         view.href = "map.html?spot=" + encodeURIComponent(spot.id);

@@ -122,3 +122,31 @@ test("スタンプが無い時は、共有のボタンを出さない", async ({
     await expect(page.locator("#got-count")).toHaveText("0");
     await expect(page.locator("#share-record")).toBeHidden();
 });
+
+test("スタンプ帳は、スタンプを取った作品だけ開き、ほかの作品は1行にたたむ。押すと開く", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    const mine = { user_id: { __ref: "user/uid2" }, spot_id: { __ref: "spot/" + bridge.id }, time_stamp: { __ts: Date.UTC(2026, 10, 1) } };
+    await seed(page, { user: "uid2", data: withSpots({ user: { uid2: PROFILE("巡礼者", "p@x.jp") }, stamp: { t1: mine } }) });
+    await page.goto("html/stamp.html");
+
+    const sections = page.locator(".stamp-section");
+    const titleCount = new Set(SPOTS.map((spot) => spot.title_name)).size;
+    await expect(sections).toHaveCount(titleCount);
+    // 取った作品（いちばん上）だけ開いている
+    await expect(sections.first().locator(".section-toggle")).toHaveAttribute("aria-expanded", "true");
+    await expect(sections.first()).toContainText(bridge.title_name);
+    await expect(page.locator(".stamp-section:not(.is-closed)")).toHaveCount(1);
+    await expect(page.locator(".stamp-section.is-closed .stamp-item")).toHaveCount(0);
+
+    // たたんだ作品を押すと開き、もう一度押すとたたむ
+    const second = sections.nth(1);
+    await second.locator(".section-toggle").click();
+    await expect(second.locator(".section-toggle")).toHaveAttribute("aria-expanded", "true");
+    await expect(second.locator(".stamp-item").first()).toBeVisible();
+    await second.locator(".section-toggle").click();
+    await expect(second).toHaveClass(/is-closed/);
+
+    // 獲得済みだけの時は、たたまない
+    await page.locator(".only-earned").click();
+    await expect(page.locator(".stamp-section.is-closed")).toHaveCount(0);
+});

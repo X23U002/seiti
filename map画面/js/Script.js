@@ -622,6 +622,37 @@ function getFlyOptions(options) {
     );
 }
 
+// 聖地をまとめて見せる時（作品で絞り込み・ルートなど）の余白。
+// 上の検索・絞り込み、右の現在地・2D/3D ボタン、下のルート案内に、ピンが隠れないようにする
+function getOverviewPadding() {
+    const container = map.getContainer();
+    const height = container.clientHeight;
+    const width = container.clientWidth;
+    const isMobile = window.matchMedia("(max-width: 600px)").matches;
+    const panel = document.getElementById("routePanel");
+    // 画面下に出ているルート案内の高さ（隠れている時は 0）
+    const panelHeight = panel ? panel.getBoundingClientRect().height : 0;
+
+    const padding = isMobile
+        ? { top: 140, right: 80, bottom: Math.max(48, panelHeight + 24), left: 32 }
+        : { top: 100, right: 100, bottom: 60, left: 80 };
+
+    // 地図が小さい時は、ピンを置ける所が残るように余白を減らす
+    const maxVertical = Math.max(0, height - 120);
+    if (padding.top + padding.bottom > maxVertical) {
+        const scale = maxVertical / (padding.top + padding.bottom);
+        padding.top = Math.round(padding.top * scale);
+        padding.bottom = Math.round(padding.bottom * scale);
+    }
+    const maxHorizontal = Math.max(0, width - 120);
+    if (padding.left + padding.right > maxHorizontal) {
+        const scale = maxHorizontal / (padding.left + padding.right);
+        padding.left = Math.round(padding.left * scale);
+        padding.right = Math.round(padding.right * scale);
+    }
+    return padding;
+}
+
 // ルート案内に入れたスポットが全部入るように地図を動かす
 function fitRouteBounds() {
     const bounds = new mapboxgl.LngLatBounds();
@@ -637,7 +668,7 @@ function fitRouteBounds() {
     map.fitBounds(
         bounds,
         getFlyOptions({
-            padding: 80,
+            padding: getOverviewPadding(),
             maxZoom: 16
         })
     );
@@ -1020,7 +1051,7 @@ function openWorkFromUrl() {
     map.fitBounds(
         bounds,
         getFlyOptions({
-            padding: 80,
+            padding: getOverviewPadding(),
             maxZoom: 15
         })
     );
@@ -2247,7 +2278,7 @@ function zoomToGroup(group) {
         }
     );
 
-    const camera = map.cameraForBounds(bounds, { padding: 80, maxZoom: 15 });
+    const camera = map.cameraForBounds(bounds, { padding: getOverviewPadding(), maxZoom: 15 });
     map.easeTo({
         center: camera ? camera.center : bounds.getCenter(),
         zoom: Math.max(11, camera ? camera.zoom : 11),
@@ -4162,7 +4193,7 @@ function fitFilteredSpots() {
     map.fitBounds(
         bounds,
         getFlyOptions({
-            padding: 80,
+            padding: getOverviewPadding(),
             maxZoom: 15
         })
     );
@@ -5748,7 +5779,7 @@ async function generateMapboxRoute() {
         });
 
         map.fitBounds(bounds, {
-            padding: 90,
+            padding: getOverviewPadding(),
             maxZoom: 16,
             duration: 800
         });
