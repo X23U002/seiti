@@ -194,6 +194,12 @@ test.describe("3D 表示の重なったピン（three.js を使う）", () => {
         // 少し待っても消えない
         await page.waitForTimeout(500);
         await expect(list).toBeVisible();
+        // 一覧は立体のピン（地図の上に重ねた絵）より手前に出る
+        const [popupZ, pinZ] = await page.evaluate(() => [
+            Number(getComputedStyle(document.querySelector(".overlap-list-popup")).zIndex),
+            Number(getComputedStyle(document.querySelector(".mapboxgl-glb-pin-overlay")).zIndex)
+        ]);
+        expect(popupZ).toBeGreaterThan(pinZ);
         await list.locator(".overlap-list-item", { hasText: "超かぐや姫！" }).click();
         await expect(page.locator(".popup-card .popup-title")).toHaveText("超かぐや姫！");
     });
@@ -493,9 +499,25 @@ test("TC-066 ログイン・ログアウト：間違ったパスワードはエ�
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem("mockAuth")).current)).toBe("uid2");
 
     await page.goto("html/mypage.html");
+    await expect(page.locator("#current-name")).toHaveText("巡礼者");
     await page.locator(".logout-btn").click();
     await page.locator("#logout-modal button", { hasText: "ログアウト" }).last().click();
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("mockAuth")).current)).toBeNull();
+
+    // ログインせずにマイページを開いても、前の人の名前・アイコンは出ない
+    await page.goto("html/mypage.html");
+    await expect(page.locator("#current-user-id")).toHaveText("ゲスト（ログインしていません）");
+    await expect(page.locator("#current-name")).toHaveText("ゲスト");
+    await expect(page.locator("#current-icon")).toHaveText("👤");
+    expect(await page.evaluate(() => localStorage.getItem("seitiProfile"))).toBeNull();
+});
+
+test("ログインしていない時のマイページには、端末に残った前の人の名前・アイコンを出さない", async ({ page }) => {
+    await seed(page, { local: { seitiProfile: JSON.stringify({ name: "前の人", icon: "🐱" }) } });
+    await page.goto("html/mypage.html");
+    await expect(page.locator("#current-user-id")).toHaveText("ゲスト（ログインしていません）");
+    await expect(page.locator("#current-name")).toHaveText("ゲスト");
+    await expect(page.locator("#current-icon")).toHaveText("👤");
 });
 
 test("TC-067 パスワード再発行：メールアドレスに再設定のメールを送る", async ({ page }) => {

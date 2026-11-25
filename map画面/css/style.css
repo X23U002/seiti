@@ -1571,6 +1571,9 @@ body {
 /* ---------- ポップアップ共通 ---------- */
 .mapboxgl-popup {
     max-width: min(300px, calc(100vw - 32px)) !important;
+    /* 3D の立体のピン（地図の上に重ねた絵。pin-3d-layer.js の z-index: 1）より手前に出す。
+       重なったピンの一覧（この場所の聖地）が、立体のピンの後ろに隠れないように */
+    z-index: 20;
 }
 
 .mapboxgl-popup-content {

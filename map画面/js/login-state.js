@@ -35,6 +35,8 @@ export function clearLoginState() {
     try {
         localStorage.removeItem("seitiCurrentUserId");
         localStorage.removeItem("seitiAccount");
+        // マイページの名前・アイコンの控えも消す（残すと、ログアウトしても前の人の名前が出る）
+        localStorage.removeItem("seitiProfile");
     } catch (e) {
         // 保存できない環境では何もしない
     }

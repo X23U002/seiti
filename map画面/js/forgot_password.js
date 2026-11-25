@@ -6,7 +6,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
 
 import { auth } from "./firebase-db.js?v=61accae5";
-import { authErrorMessage } from "./login-state.js?v=3858a481";
+import { authErrorMessage } from "./login-state.js?v=40299cf5";
 
 // メールの文面を日本語にする
 auth.languageCode = "ja";
