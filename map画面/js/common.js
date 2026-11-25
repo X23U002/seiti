@@ -124,3 +124,31 @@ function countUp(element, to, duration) {
 }
 
 window.countUp = countUp;
+
+// ------------------------------------------
+// 上の「＜ 戻る」の行き先を、開いた所に合わせる（?from=top・?from=mypage）
+// 操作ガイド・お問い合わせはトップページ・マイページ・地図のメニューから開けるが、
+// 「＜ マップ」だけだと、トップページから来た人がトップページに戻れないため
+// ------------------------------------------
+(function () {
+    const BACK_TO = {
+        top: { href: "../../index.html", text: "＜ トップ", label: "トップページに戻る" },
+        mypage: { href: "mypage.html", text: "＜ マイページ", label: "マイページに戻る" }
+    };
+
+    function fixBackButton() {
+        const from = new URLSearchParams(location.search).get("from");
+        const back = BACK_TO[from];
+        const button = document.querySelector("a.back-btn");
+        if (!back || !button) return;
+        button.href = back.href;
+        button.textContent = back.text;
+        button.setAttribute("aria-label", back.label);
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", fixBackButton);
+    } else {
+        fixBackButton();
+    }
+})();

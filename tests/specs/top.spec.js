@@ -106,3 +106,20 @@ test.describe("iPhone", () => {
         heights.forEach((height) => expect(height).toBeLessThan(30));
     });
 });
+
+test("トップページから開いた操作ガイド・お問い合わせは、上の「＜ トップ」でトップページに戻れる", async ({ page }) => {
+    await serveTop(page);
+    await page.goto(TOP);
+    await page.locator(".guide-link a").click();
+    await expect(page).toHaveURL(/guide\.html\?from=top$/);
+    const back = page.locator(".back-btn");
+    await expect(back).toHaveText("＜ トップ");
+    await back.click();
+    await expect(page).toHaveURL(TOP);
+
+    await page.locator(".footer-links a", { hasText: "お問い合わせ" }).click();
+    await expect(page).toHaveURL(/information\.html\?from=top$/);
+    await expect(back).toHaveText("＜ トップ");
+    await back.click();
+    await expect(page).toHaveURL(TOP);
+});
