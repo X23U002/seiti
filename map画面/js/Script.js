@@ -236,9 +236,13 @@ function loadThreeDExtras() {
 }
 
 // 現在地に歩く3Dキャラクター（walker.js）
+// 読み込んだ walker.js（立体のピンが、キャラクターの前に重ならないようにするのに使う）
+let walkerModule = null;
+
 function loadWalker() {
-    import("./walker.js?v=df7b31db")
+    import("./walker.js?v=60901e27")
         .then(function (walker) {
+            walkerModule = walker;
             walker.initWalker(
                 map,
                 geolocate
@@ -265,13 +269,19 @@ if (new URLSearchParams(location.search).has("walktest")) {
 let pin3DLayer = null;
 
 function loadPin3DLayer() {
-    import("./pin-3d-layer.js?v=3489f8d4")
+    import("./pin-3d-layer.js?v=d7ebfe9a")
         .then(function (module) {
             pin3DLayer = module.createGLBPinLayer(map, {
                 // 輪っかの頭に白い球、角ばった先端のピン。差し替える時は名前も変える（端末に残った古いモデルを使わないように）
                 modelUrl: new URL("../models/Pin_1.glb?v=bebf0102", import.meta.url).href,
                 is3D: function () {
                     return is3D;
+                },
+                // キャラクターが写っている所（重なるピンは薄くして、キャラクターを見せる）
+                getOccluder: function () {
+                    return walkerModule && walkerModule.getWalkerScreenBox
+                        ? walkerModule.getWalkerScreenBox(map)
+                        : null;
                 },
                 targetHeightPx: 42
             });

@@ -13,7 +13,7 @@ import * as THREE from "three";
 import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 
 // キャラクターの大きさ（画面上の高さを、キャラクターがいる場所の縮尺で決める）
-import { MODEL_HEIGHT_METERS, isModelVisible, metersPerPixel } from "./walker-size.js?v=9dbb121e";
+import { MODEL_HEIGHT_METERS, isModelVisible, metersPerPixel, modelScreenHeightPx } from "./walker-size.js?v=9dbb121e";
 
 // ---------------------------------------------------------
 // 設定
@@ -547,6 +547,25 @@ function createWalkerLayer(map) {
                 map.triggerRepaint();
             }
         }
+    };
+}
+
+// ---------------------------------------------------------
+// キャラクターが画面のどこに写っているか（立体のピンが前に重ならないようにするのに使う。pin-3d-layer.js）
+// 出していない時は null
+// ---------------------------------------------------------
+export function getWalkerScreenBox(map) {
+    if (!state.position || !map.getContainer().classList.contains("walker-active")) {
+        return null;
+    }
+    const point = map.project([state.position.lng, state.position.lat]);
+    const height = modelScreenHeightPx(map, state.position.lng, state.position.lat);
+    return {
+        x: point.x,
+        top: point.y - height,
+        bottom: point.y,
+        // 体の幅（高さのおよそ 3 割）
+        halfWidth: height * 0.3
     };
 }
 
