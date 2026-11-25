@@ -243,6 +243,22 @@ body {
     border-radius: 50%;
 }
 
+/* 読み込むまでの札の形（光らせる。common.css の skeleton-shine） */
+.work-chip.is-skeleton {
+    max-width: 100%;
+    border-color: transparent;
+    background: linear-gradient(90deg, #eef1f3 25%, #f8fafb 45%, #eef1f3 65%);
+    background-size: 300% 100%;
+    box-shadow: none;
+    animation: skeleton-shine 1.3s ease-in-out infinite;
+}
+
+/* 読めなかった時の、作品一覧への入口 */
+.works-fallback {
+    margin: 0;
+    text-align: center;
+}
+
 .work-chip-count {
     flex-shrink: 0;
     font-size: 12px;

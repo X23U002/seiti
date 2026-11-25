@@ -19,7 +19,7 @@
     <meta name="twitter:card" content="summary_large_image">
 
     <link rel="stylesheet" href="./map画面/css/common.css?v=f9624d5f">
-    <link rel="stylesheet" href="./map画面/css/top.css?v=970d8a7a">
+    <link rel="stylesheet" href="./map画面/css/top.css?v=02dbde55">
 </head>
 <body>
 
@@ -66,11 +66,26 @@
 
         <!-- =========================
              対応作品（データベースから読む。top.js）
+             読み込むまでは札の形だけを出して場所を取っておく（出た時に下がずれないように）。
+             読めない時も、この欄は残して作品一覧への入口を出す
              ========================= -->
-        <section class="section works" id="works" hidden>
+        <section class="section works" id="works">
             <h2 class="section-title">対応作品</h2>
-            <p class="works-lead"><b id="works-count">0</b>作品・<b id="spots-count">0</b>か所の聖地を巡れます</p>
-            <ul class="works-list" id="works-list"></ul>
+            <p class="works-lead" id="works-lead"><b id="works-count">–</b>作品・<b id="spots-count">–</b>か所の聖地を巡れます</p>
+            <ul class="works-list" id="works-list" aria-busy="true" aria-label="対応作品を読み込んでいます">
+                <li><span class="work-chip is-skeleton" style="width: 205px"></span></li>
+                <li><span class="work-chip is-skeleton" style="width: 200px"></span></li>
+                <li><span class="work-chip is-skeleton" style="width: 318px"></span></li>
+                <li><span class="work-chip is-skeleton" style="width: 157px"></span></li>
+                <li><span class="work-chip is-skeleton" style="width: 348px"></span></li>
+                <li><span class="work-chip is-skeleton" style="width: 159px"></span></li>
+                <li><span class="work-chip is-skeleton" style="width: 183px"></span></li>
+                <li><span class="work-chip is-skeleton" style="width: 227px"></span></li>
+                <li><span class="work-chip is-skeleton" style="width: 148px"></span></li>
+                <li><span class="work-chip is-skeleton" style="width: 137px"></span></li>
+                <li><span class="work-chip is-skeleton" style="width: 190px"></span></li>
+                <li><span class="work-chip is-skeleton" style="width: 165px"></span></li>
+            </ul>
         </section>
 
         <!-- =========================
@@ -246,6 +261,6 @@
         </p>
     </footer>
 
-    <script type="module" src="./map画面/js/top.js?v=e528aca7"></script>
+    <script type="module" src="./map画面/js/top.js?v=c0fb8e8c"></script>
 </body>
 </html>

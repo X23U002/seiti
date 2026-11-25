@@ -62,19 +62,58 @@ async function fetchSpots() {
     return list;
 }
 
+// 前にこのページで読んだ作品（次に開いた時にすぐ出して、読み終わった時に下がずれないようにする）
+const TOP_CACHE_KEY = "seitiTopWorks";
+
 function readCachedSpots() {
-    try {
-        const list = JSON.parse(localStorage.getItem(SPOT_CACHE_KEY) || "null");
-        return Array.isArray(list) ? list : null;
-    } catch (error) {
-        return null;
+    for (const key of [TOP_CACHE_KEY, SPOT_CACHE_KEY]) {
+        try {
+            const list = JSON.parse(localStorage.getItem(key) || "null");
+            if (Array.isArray(list) && list.length > 0) return list;
+        } catch (error) {
+            // 読めなければ次を見る
+        }
     }
+    return null;
+}
+
+function saveCachedSpots(spots) {
+    try {
+        localStorage.setItem(TOP_CACHE_KEY, JSON.stringify(spots));
+    } catch (error) {
+        // 保存できない環境では何もしない
+    }
+}
+
+// 読めなかった時：欄は残して、作品一覧のページへの入口を出す
+function renderWorksError() {
+    const lead = document.getElementById("works-lead");
+    const list = document.getElementById("works-list");
+    if (!lead || !list) {
+        return;
+    }
+    lead.textContent = "作品の一覧を読み込めませんでした。作品一覧のページから見られます。";
+    list.innerHTML = "";
+    list.removeAttribute("aria-busy");
+    list.removeAttribute("aria-label");
+    const item = document.createElement("li");
+    item.className = "works-fallback";
+    const link = document.createElement("a");
+    link.className = "work-chip";
+    link.href = "map画面/html/works.html";
+    link.textContent = "作品一覧を見る ›";
+    item.appendChild(link);
+    list.appendChild(item);
 }
 
 function renderWorks(spots) {
     const section = document.getElementById("works");
     const list = document.getElementById("works-list");
-    if (!section || !list || spots.length === 0) {
+    if (!section || !list) {
+        return;
+    }
+    if (spots.length === 0) {
+        renderWorksError();
         return;
     }
 
@@ -96,6 +135,8 @@ function renderWorks(spots) {
     document.getElementById("spots-count").textContent = spots.length;
 
     list.innerHTML = "";
+    list.removeAttribute("aria-busy");
+    list.removeAttribute("aria-label");
     titles.forEach(function (title) {
         const item = document.createElement("li");
         const link = document.createElement("a");
@@ -119,17 +160,22 @@ function renderWorks(spots) {
         list.appendChild(item);
     });
 
-    section.hidden = false;
 }
 
 async function showWorks() {
+    // 前に読んだ作品があれば、まずそれを出しておく（読み終わってもほとんどずれない）
+    const cached = readCachedSpots();
+    if (cached) {
+        renderWorks(cached);
+    }
     try {
-        renderWorks(await fetchSpots());
+        const spots = await fetchSpots();
+        saveCachedSpots(spots);
+        renderWorks(spots);
     } catch (error) {
-        // 通信できない時は、前に地図で読んだ聖地で出す（それも無ければ出さない）
-        const cached = readCachedSpots();
-        if (cached) {
-            renderWorks(cached);
+        // 通信できない時は、前に読んだ作品のまま（それも無ければ、作品一覧への入口を出す）
+        if (!cached) {
+            renderWorksError();
         }
         console.warn("対応作品を読めませんでした:", error);
     }
