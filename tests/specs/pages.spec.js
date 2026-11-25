@@ -62,3 +62,16 @@ test("操作ガイドに書いたボタンの名前が、実際の画面と同�
     // AI のプランは、作品ページではなくおすすめルートの画面にある
     expect(guide).not.toContain("AI におまかせプラン");
 });
+
+test("操作ガイド・お問い合わせの上の「＜ 戻る」は、開いた所（マイページ・地図）に戻る", async ({ page }) => {
+    await seed(page, { data: withSpots({}) });
+    for (const url of ["html/guide.html", "html/information.html"]) {
+        await page.goto(url + "?from=mypage");
+        await expect(page.locator(".back-btn")).toHaveText("＜ マイページ");
+        await expect(page.locator(".back-btn")).toHaveAttribute("href", "mypage.html");
+        // 地図のメニューから開いた時（from なし）は、今までどおり地図へ
+        await page.goto(url);
+        await expect(page.locator(".back-btn")).toHaveText("＜ マップ");
+        await expect(page.locator(".back-btn")).toHaveAttribute("href", "map.html");
+    }
+});
