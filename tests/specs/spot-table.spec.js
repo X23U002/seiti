@@ -105,7 +105,9 @@ test("CSV を書き出すと、全部の聖地が見出し付きで入る", asyn
     const [download] = await Promise.all([page.waitForEvent("download"), page.click("#export-csv")]);
     expect(download.suggestedFilename()).toMatch(/^seiti-spots-\d{8}\.csv$/);
     const text = (await (await download.createReadStream()).toArray()).join("");
-    expect(text.startsWith("﻿ID,作品名,スポット名,説明,期,話,緯度,経度,画像")).toBe(true);
+    expect(text.startsWith("﻿ID,作品名,スポット名,説明,期,話,緯度,経度,画像,公式サイト")).toBe(true);
+    // 作品の公式サイトも書き出す
+    expect(text).toContain(spotNamed("宇治橋").title_url);
     expect(text).toContain(spotNamed("宇治橋").spot_name);
 });
 
@@ -319,4 +321,41 @@ test("CSV で入れた ID の形がおかしい時は、保存せずにその行
     await page.click("#save-all");
     await expect(page.locator("#spot-rows tr.is-new .row-error")).toBeVisible();
     expect(Object.values((await readStore(page)).spot).some((spot) => spot.spot_name === "形のおかしい ID")).toBe(false);
+});
+
+test("作品の公式サイトを、CSV（「公式サイト」「HP」の列）と表で入れて保存できる。新しい聖地にも入る。URL でなければ保存しない", async ({ page }) => {
+    const bridge = spotNamed("宇治橋");
+    await openTable(page);
+    const csv = "﻿ID,作品名,スポット名,説明,緯度,経度,HP\r\n" +
+        `${bridge.id},${bridge.title_name},${bridge.spot_name},${bridge.spot_info},,,https://example.com/eupho\r\n` +
+        ",新しい作品,新しい作品の聖地,説明,35.0,135.8,https://example.com/new\r\n" +
+        ",新しい作品,新しい作品の聖地2,説明,35.01,135.8,\r\n";
+    await page.setInputFiles("#import-csv", { name: "spots.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await expect(page.locator("#toast")).toContainText("変更 1件・追加 2件");
+
+    // 表の作品名の下に出る（変えた所は色が付く）。新しい行は上に出るので、ID の欄で探す
+    await page.fill("#filter-text", bridge.id);
+    const index = await page.locator("#spot-rows tr").evaluateAll((trs, id) => trs.findIndex((tr) => tr.querySelector('[data-field="id"]').value === id), bridge.id);
+    const row = page.locator("#spot-rows tr").nth(index);
+    const url = row.locator('[data-field="title_url"]');
+    await expect(url).toHaveValue("https://example.com/eupho");
+    await expect(url).toHaveClass(/is-changed-cell/);
+
+    // URL でなければ保存しない
+    await url.fill("example.com");
+    await page.fill("#filter-text", "");
+    await page.click("#save-all");
+    await expect(page.locator("#toast")).toContainText("直すところがあります");
+    await page.fill("#filter-text", bridge.id);
+    await expect(row.locator(".row-error")).toContainText("公式サイトは http:// か https://");
+    await url.fill("https://example.com/eupho");
+
+    await page.fill("#filter-text", "");
+    await page.click("#save-all");
+    await expect(page.locator("#toast")).toContainText("3件の聖地を保存しました");
+    const store = await readStore(page);
+    expect(store.spot[bridge.id].title_url).toBe("https://example.com/eupho");
+    const created = Object.values(store.spot).filter((spot) => spot.title_name === "新しい作品");
+    // 空欄の行も、同じ作品で入れた URL を引き継ぐ
+    expect(created.map((spot) => spot.title_url)).toEqual(["https://example.com/new", "https://example.com/new"]);
 });

@@ -164,6 +164,12 @@
 
 .col-id { width: 110px; }
 .col-title { width: 180px; }
+
+/* 作品名の下の、作品の公式サイト（小さめ） */
+.col-title .row-title-url {
+    margin-top: 6px;
+    font-size: 12px;
+}
 .col-name { width: 200px; }
 .col-image { width: 190px; }
 .col-episode { width: 86px; }

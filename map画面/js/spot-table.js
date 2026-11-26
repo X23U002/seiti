@@ -18,7 +18,7 @@ import {
 
 import { db, getCurrentUser } from "./firebase-db.js?v=61accae5";
 import { encodeGeohash } from "./geohash.js?v=fe42fce1";
-import { assignSpotIds, buildCsv, decodeCsvBytes, readLatLng, readSpotCsv } from "./spot-csv.js?v=24508d96";
+import { assignSpotIds, buildCsv, decodeCsvBytes, readLatLng, readSpotCsv } from "./spot-csv.js?v=386509d4";
 import { getSpotImageSrc, normalizeSpotImage } from "./spot-image.js?v=59165daf";
 
 // 表で直せる項目
@@ -102,6 +102,8 @@ function makeRow(id, data) {
         newId: id,
         image: displayImage(data.image_url),
         originalImage: displayImage(data.image_url),
+        titleUrl: String(data.title_url || ""),
+        originalTitleUrl: String(data.title_url || ""),
         season: displayCount(data.season),
         episode: displayCount(data.episode),
         originalEpisode: { season: displayCount(data.season), episode: displayCount(data.episode) },
@@ -125,6 +127,8 @@ function makeNewRow(values) {
         newId: "",
         image: String(values.image || ""),
         originalImage: "",
+        titleUrl: String(values.title_url || ""),
+        originalTitleUrl: "",
         season: String(values.season || ""),
         episode: String(values.episode || ""),
         originalEpisode: { season: "", episode: "" },
@@ -153,6 +157,11 @@ function changedEpisodeFields(row) {
         .map(function (field) { return field.key; });
 }
 
+// 作品の公式サイトを変えたか
+function titleUrlChanged(row) {
+    return !row.isNew && row.titleUrl.trim() !== row.originalTitleUrl.trim();
+}
+
 function idChanged(row) {
     return !row.isNew && row.newId.trim() !== row.id;
 }
@@ -167,6 +176,7 @@ function placeChanged(row) {
 
 function isDirty(row) {
     return row.isNew || changedFields(row).length > 0 || idChanged(row) || placeChanged(row) || imageChanged(row) ||
+        titleUrlChanged(row) ||
         changedEpisodeFields(row).length > 0;
 }
 
@@ -187,6 +197,10 @@ function validate(row) {
     }
     if (Array.from(row.image.trim()).length > IMAGE_MAX_LENGTH) {
         return "画像は" + IMAGE_MAX_LENGTH + "文字までです";
+    }
+    const titleUrl = row.titleUrl.trim();
+    if (titleUrl && (!/^https?:\/\/[^\s"<>]+$/i.test(titleUrl) || titleUrl.length > 300)) {
+        return "公式サイトは http:// か https:// から始まる URL で入れてください（分からなければ空欄）";
     }
     if ((row.isNew || placeChanged(row)) && !readLatLng(row.latitude, row.longitude)) {
         return "緯度・経度を数字で入れてください（日本の中の場所）";
@@ -262,6 +276,8 @@ function updateRowState(tr, row) {
     if (idInput) idInput.classList.toggle("is-changed-cell", idChanged(row));
     const imageInput = tr.querySelector('[data-field="image"]');
     if (imageInput) imageInput.classList.toggle("is-changed-cell", imageChanged(row));
+    const titleUrlInput = tr.querySelector('[data-field="title_url"]');
+    if (titleUrlInput) titleUrlInput.classList.toggle("is-changed-cell", titleUrlChanged(row));
     const episodeChanged = changedEpisodeFields(row);
     EPISODE_FIELDS.forEach(function (field) {
         const input = tr.querySelector('[data-field="' + field.key + '"]');
@@ -316,6 +332,24 @@ function renderRow(row) {
             updateSaveButton();
         });
         td.appendChild(input);
+
+        // 作品名の下に、作品の公式サイト（ポップアップの 🌐 で開く）
+        if (field === "title_name") {
+            const url = el("input", "row-title-url");
+            url.type = "url";
+            url.dataset.field = "title_url";
+            url.value = row.titleUrl;
+            url.placeholder = "公式サイト https://…";
+            url.spellcheck = false;
+            url.setAttribute("aria-label", (row.isNew ? "新しい聖地" : row.original.spot_name) + "の作品の公式サイト");
+            url.addEventListener("input", function () {
+                row.titleUrl = url.value;
+                row.error = "";
+                updateRowState(tr, row);
+                updateSaveButton();
+            });
+            td.appendChild(url);
+        }
         tr.appendChild(td);
     });
 
@@ -407,6 +441,7 @@ function renderRow(row) {
             row.value = Object.assign({}, row.original);
             row.newId = row.id;
             row.image = row.originalImage;
+            row.titleUrl = row.originalTitleUrl;
             row.season = row.originalEpisode.season;
             row.episode = row.originalEpisode.episode;
             row.latitude = row.originalPlace.latitude;
@@ -476,7 +511,7 @@ document.getElementById("filter-text").addEventListener("input", render);
 
 document.getElementById("export-csv").addEventListener("click", function () {
     const list = rows.filter(function (row) { return !row.isNew; }).map(function (row) {
-        return Object.assign({ id: row.id, latitude: row.latitude, longitude: row.longitude, image: row.image, season: row.season, episode: row.episode }, row.value);
+        return Object.assign({ id: row.id, latitude: row.latitude, longitude: row.longitude, image: row.image, season: row.season, episode: row.episode, title_url: row.titleUrl }, row.value);
     });
     const blob = new Blob([buildCsv(list)], { type: "text/csv;charset=utf-8" });
     const link = document.createElement("a");
@@ -526,6 +561,7 @@ document.getElementById("import-csv").addEventListener("change", async function 
         const before = isDirty(row);
         FIELDS.forEach(function (field) { if (record[field] !== "") row.value[field] = record[field]; });
         if (record.image !== "") row.image = record.image;
+        if (record.title_url !== "") row.titleUrl = record.title_url;
         if (record.season !== "") row.season = record.season;
         if (record.episode !== "") row.episode = record.episode;
         if (record.latitude !== "" && record.longitude !== "") {
@@ -583,7 +619,13 @@ document.getElementById("save-all").addEventListener("click", async function () 
                 .map(function (row) { return { id: row.newId.trim(), title_name: row.value.title_name.trim() }; })),
         autoRows.map(function (row) { return row.value.title_name.trim(); })
     );
+    // 作品の公式サイト：今回入れた URL を先に、無ければ同じ作品の聖地のもの
     const titleUrls = {};
+    dirty.forEach(function (row) {
+        const url = row.titleUrl.trim();
+        const title = row.value.title_name.trim();
+        if (url && !titleUrls[title]) titleUrls[title] = url;
+    });
     existing.forEach(function (row) {
         if (row.data && row.data.title_url && !titleUrls[row.original.title_name]) {
             titleUrls[row.original.title_name] = row.data.title_url;
@@ -607,7 +649,7 @@ document.getElementById("save-all").addEventListener("click", async function () 
                     season: readCount(row.season),
                     episode: readCount(row.episode),
                     image_url: normalizeSpotImage(row.image),
-                    title_url: titleUrls[value.title_name] || ""
+                    title_url: row.titleUrl.trim() || titleUrls[value.title_name] || ""
                 })
             };
         }
@@ -616,6 +658,7 @@ document.getElementById("save-all").addEventListener("click", async function () 
         changedFields(row).forEach(function (field) { update[field] = value[field]; });
         if (placeChanged(row)) Object.assign(update, placeFields);
         if (imageChanged(row)) update.image_url = normalizeSpotImage(row.image);
+        if (titleUrlChanged(row)) update.title_url = row.titleUrl.trim();
         changedEpisodeFields(row).forEach(function (key) { update[key] = readCount(row[key]); });
 
         if (idChanged(row)) {
@@ -686,6 +729,8 @@ document.getElementById("save-all").addEventListener("click", async function () 
                 row.newId = row.id;
                 row.image = displayImage(row.data.image_url);
                 row.originalImage = row.image;
+                row.titleUrl = String(row.data.title_url || "");
+                row.originalTitleUrl = row.titleUrl;
                 row.season = displayCount(row.data.season);
                 row.episode = displayCount(row.data.episode);
                 row.originalEpisode = { season: row.season, episode: row.episode };

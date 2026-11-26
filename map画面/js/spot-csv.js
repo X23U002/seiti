@@ -15,7 +15,9 @@ export const CSV_COLUMNS = [
     { key: "latitude", label: "緯度" },
     { key: "longitude", label: "経度" },
     // 画像（eupho/eupho_s0701.jpg など。空欄なら変えない・新しい聖地は画像なし）
-    { key: "image", label: "画像" }
+    { key: "image", label: "画像" },
+    // 作品の公式サイト（https:// から。空欄なら変えない・新しい聖地は同じ作品の聖地から引き継ぐ）
+    { key: "title_url", label: "公式サイト", aliases: ["HP", "ホームページ", "URL"] }
 ];
 
 function escapeCell(value) {
@@ -94,7 +96,9 @@ export function readSpotCsv(text) {
     const header = table[0].map(function (value) { return value.trim(); });
     const indexOf = {};
     CSV_COLUMNS.forEach(function (column) {
-        const index = header.findIndex(function (name) { return name === column.label || name === column.key; });
+        const index = header.findIndex(function (name) {
+            return name === column.label || name === column.key || (column.aliases || []).includes(name);
+        });
         if (index >= 0) indexOf[column.key] = index;
     });
     ["title_name", "spot_name", "spot_info"].forEach(function (key) {
