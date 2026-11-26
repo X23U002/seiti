@@ -210,6 +210,33 @@
 
 .logout-btn:hover { background-color: #fdf1f0; }
 
+/* ログインしていない時は、ログアウト・名前の編集を出さない（hidden。display の指定より強くする） */
+.logout-btn[hidden],
+.edit-profile-btn[hidden],
+.guest-account[hidden] {
+    display: none !important;
+}
+
+/* ログインしていない時の、ログイン・新規登録 */
+.guest-account {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 24px;
+}
+
+.guest-account .btn {
+    text-align: center;
+    text-decoration: none;
+}
+
+.guest-account-note {
+    margin: 0;
+    font-size: 13px;
+    color: var(--color-text-sub);
+    text-align: center;
+}
+
 .btn-danger {
     background-color: var(--color-danger);
 }

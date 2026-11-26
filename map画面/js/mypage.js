@@ -327,6 +327,10 @@ function saveProfileToStorage(name, icon) {
 function showGuestProfile() {
     document.getElementById("current-name").textContent = "ゲスト";
     document.getElementById("current-icon").textContent = "👤";
+    // ログアウト・名前の編集の代わりに、ログイン・新規登録を出す
+    document.getElementById("logout-btn").hidden = true;
+    document.getElementById("edit-profile-btn").hidden = true;
+    document.getElementById("guest-account").hidden = false;
     try {
         localStorage.removeItem(PROFILE_STORAGE_KEY);
     } catch (e) {

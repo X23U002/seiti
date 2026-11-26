@@ -463,7 +463,7 @@ test("TC-060 スタンプ帳：作品を切りかえられ、獲得済みだけ�
     await expect(page.locator(".stamp-item")).toHaveCount(1);
 });
 
-test("TC-061 マイページ：名前・アイコン・獲得スタンプ数・作品数・達成率・バッジが出る", async ({ page }) => {
+test("TC-061 マイページ：名前・アイコン・獲得スタンプ数・作品数・達成率・バッジが出る（ログイン中はログアウトを出す）", async ({ page }) => {
     const mine = { user_id: { __ref: "user/uid2" }, spot_id: { __ref: "spot/" + bridge.id }, time_stamp: { __ts: Date.UTC(2026, 10, 1) } };
     await seed(page, { ...MEMBER, data: member({ stamp: { t1: mine } }) });
     await page.goto("html/mypage.html");
@@ -474,6 +474,9 @@ test("TC-061 マイページ：名前・アイコン・獲得スタンプ数・�
     await expect(page.locator("#anime-count")).toHaveText("1");
     await expect(page.locator("#progress-rate")).toHaveText(/\d+/);
     await expect(page.locator("#badge-list .badge-item.is-earned")).not.toHaveCount(0);
+    await expect(page.locator(".logout-btn")).toBeVisible();
+    await expect(page.locator(".edit-profile-btn")).toBeVisible();
+    await expect(page.locator("#guest-account")).toBeHidden();
 });
 
 test("TC-062 プロフィール編集：名前やアイコンを変えるとマイページに反映される", async ({ page }) => {
@@ -535,6 +538,11 @@ test("TC-066 ログイン・ログアウト：間違ったパスワードはエ�
     await expect(page.locator("#current-name")).toHaveText("ゲスト");
     await expect(page.locator("#current-icon")).toHaveText("👤");
     expect(await page.evaluate(() => localStorage.getItem("seitiProfile"))).toBeNull();
+    // ログアウト・名前の編集の代わりに、ログイン・新規登録を出す
+    await expect(page.locator(".logout-btn")).toBeHidden();
+    await expect(page.locator(".edit-profile-btn")).toBeHidden();
+    await expect(page.locator("#guest-account a")).toHaveText(["ログイン", "新規登録（無料）"]);
+    await expect(page.locator("#guest-account a").first()).toHaveAttribute("href", "login.html?next=mypage.html");
 });
 
 test("ログインしていない時のマイページには、端末に残った前の人の名前・アイコンを出さない", async ({ page }) => {
