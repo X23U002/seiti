@@ -49,6 +49,9 @@ import { refreshMyPlan, setupMyPlan } from "./my-plan.js?v=c168cc3c";
 // スマホの聖地の詳細パネルを、なぞって閉じる・全画面に広げる
 import { enableSheetDrag } from "./sheet-drag.js?v=61204c4c";
 
+// 圏外用の地図（地理院タイル。見た場所・ルートの周りを端末に残す）
+import { OFFLINE_MAP_STYLE, saveTilesAround, saveVisibleTilesSoon } from "./offline-map.js?v=4a330c6a";
+
 // 聖地・おすすめルートの読み込み（他の画面と共通。通信が止められた時の予備の読み方あり）
 import {
     loadCourses as fetchCourseList,
@@ -104,13 +107,8 @@ const titleColorMap = {};
 // 地図の絵（Mapbox）
 const MAP_STYLE = "mapbox://styles/mapbox/standard";
 
-// 圏外の時の地図：Mapbox の地図の絵は決まりで端末に残せないので出せない。
-// うすい色の地面だけにして、聖地のピン・現在地・ルート案内は使えるようにする（電波が戻ったら地図の絵に戻す）
-const OFFLINE_MAP_STYLE = {
-    version: 8,
-    sources: {},
-    layers: [{ id: "offline-background", type: "background", paint: { "background-color": "#e9eee8" } }]
-};
+// 圏外の時の地図：Mapbox の地図の絵は決まりで端末に残せないので、端末に残した地理院タイルで出す
+// （offline-map.js。残していない所はうすい地面の色）。聖地のピン・現在地・ルート案内は使える。電波が戻ったら Mapbox に戻す
 let isOfflineMapStyle = navigator.onLine === false;
 // 地図の絵を一度でも読めたか（読めた後のタイルの通信の失敗では、圏外の地図にしない）
 let basemapLoaded = false;
@@ -157,7 +155,7 @@ function showOfflineMapNote(show) {
         note = document.createElement("div");
         note.id = "offline-map-note";
         note.setAttribute("role", "status");
-        note.textContent = "📶 圏外のため、地図の絵を出せません。聖地のピン・現在地・ルートは使えます（電波が戻ると地図が出ます）";
+        note.textContent = "📶 圏外のため、残しておいた地図（国土地理院）を出しています。見たことのない所は出ません";
         map.getContainer().appendChild(note);
     }
     if (note) note.hidden = !show;
@@ -174,6 +172,13 @@ showOfflineMapNote(isOfflineMapStyle);
 
 map.on("style.load", function () {
     if (!isOfflineMapStyle) basemapLoaded = true;
+});
+
+// 電波がある時に見た場所の地図を、圏外用に裏で残す（寄せている時だけ）
+map.on("moveend", function () {
+    if (!isOfflineMapStyle) {
+        saveVisibleTilesSoon(map);
+    }
 });
 
 // 地図の絵を読めなかった（圏外など）時は、圏外の地図にする（ピンなどは出したまま）
@@ -6135,6 +6140,42 @@ document
         "click",
         shareRoute
     );
+
+// 出かける前に、ルートの聖地のまわりの地図を圏外用に端末に残す（offline-map.js）
+document
+    .getElementById("save-route-map")
+    ?.addEventListener("click", async function () {
+        const button = this;
+        if (selectedSpots.length === 0) {
+            return;
+        }
+        if (navigator.onLine === false) {
+            window.showToast("圏外のため、地図を保存できません。電波のある所で押してください", "error");
+            return;
+        }
+        button.disabled = true;
+        window.showToast("圏外用に、ルートの周りの地図を保存しています…");
+        let lastShown = 0;
+        try {
+            const saved = await saveTilesAround(selectedSpots, function (done, total) {
+                // 進み具合は、ときどき知らせる
+                if (done === total || Date.now() - lastShown > 800) {
+                    lastShown = Date.now();
+                    window.showToast("地図を保存しています… " + done + " / " + total);
+                }
+            });
+            window.showToast(
+                saved > 0
+                    ? "ルートの周りの地図を保存しました。圏外でも地図が出ます"
+                    : "ルートの周りの地図は、もう保存してあります"
+            );
+        } catch (error) {
+            console.error("地図を保存できませんでした:", error);
+            window.showToast("地図を保存できませんでした", "error");
+        } finally {
+            button.disabled = false;
+        }
+    });
 
 // 今のルートを保存済みなら「保存済み」にする
 function updateSaveRouteButton() {

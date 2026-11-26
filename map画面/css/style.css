@@ -2751,6 +2751,12 @@ body {
     flex: 1.4;
 }
 
+/* 圏外用に、ルートの周りの地図を保存（小さいアイコンのボタン） */
+.route-actions > .route-save-map {
+    flex: 0 0 40px;
+    font-size: 16px;
+}
+
 /* ルートを生成するボタンも少し低くする */
 #generate-mapbox-route {
     min-height: 40px !important;

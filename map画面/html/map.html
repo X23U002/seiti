@@ -40,7 +40,7 @@
     <!-- 自作CSS -->
     <link
         rel="stylesheet"
-        href="../css/style.css?v=eb1eed11"
+        href="../css/style.css?v=03fbf042"
     >
 
     <!-- スタンプのランク（回数で枠の色が変わる） -->
@@ -60,7 +60,7 @@
     <meta name="theme-color" content="#0b3c5d">
     <link rel="apple-touch-icon" href="../images/icons/apple-touch-icon.png">
     <link rel="icon" type="image/png" href="../images/icons/icon-192.png">
-    <script src="../js/pwa.js?v=c08113cc" defer></script>
+    <script src="../js/pwa.js?v=1b0cc35c" defer></script>
 </head>
 
 <body>
@@ -458,6 +458,17 @@
                     送る
                 </button>
 
+                <!-- 出かける前に、ルートの聖地のまわりの地図を端末に残す（圏外でも地図が出る。offline-map.js） -->
+                <button
+                    id="save-route-map"
+                    class="route-save-map"
+                    type="button"
+                    title="圏外用に、ルートの周りの地図を保存"
+                    aria-label="圏外用に、ルートの周りの地図を保存"
+                >
+                    📥
+                </button>
+
             </div>
 
         </div>
@@ -499,7 +510,7 @@
     ====================================================== -->
     <script
         type="module"
-        src="../js/Script.js?v=7acc2fc0"
+        src="../js/Script.js?v=92bac7a7"
     ></script>
 
 
