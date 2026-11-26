@@ -392,6 +392,74 @@
     transition: transform .2s;
 }
 
+/* 前に開いた時から新しく取ったスタンプ：上からドンと押され、インクがにじむ。右上に NEW */
+.stamp-item.is-new {
+    position: relative;
+}
+
+.stamp-new-label {
+    position: absolute;
+    top: 0;
+    right: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: #e53935;
+    color: #fff;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: .04em;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, .2);
+}
+
+.stamp-item.is-pressing .stamp-circle {
+    position: relative;
+    animation: stamp-press .65s cubic-bezier(.3, 1.4, .5, 1) both;
+    animation-delay: var(--press-delay, .2s);
+}
+
+/* 押した瞬間に、まわりにインクがにじむ */
+.stamp-item.is-pressing .stamp-circle::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 3px solid var(--color-accent);
+    opacity: 0;
+    animation: stamp-press-ink .7s ease-out both;
+    animation-delay: calc(var(--press-delay, .2s) + .3s);
+    pointer-events: none;
+}
+
+.stamp-item.is-pressing .stamp-new-label {
+    animation: stamp-new-pop .35s ease-out both;
+    animation-delay: calc(var(--press-delay, .2s) + .5s);
+}
+
+@keyframes stamp-press {
+    0% { opacity: 0; transform: translateY(-40px) scale(1.9) rotate(-14deg); }
+    55% { opacity: 1; transform: translateY(0) scale(.88) rotate(4deg); }
+    75% { transform: scale(1.06) rotate(-2deg); }
+    100% { opacity: 1; transform: none; }
+}
+
+@keyframes stamp-press-ink {
+    from { opacity: .8; transform: scale(.85); }
+    to { opacity: 0; transform: scale(1.45); }
+}
+
+@keyframes stamp-new-pop {
+    from { opacity: 0; transform: scale(.3); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .stamp-item.is-pressing .stamp-circle,
+    .stamp-item.is-pressing .stamp-circle::after,
+    .stamp-item.is-pressing .stamp-new-label {
+        animation: none;
+    }
+}
+
 .stamp-item:hover .stamp-circle { transform: rotate(-6deg) scale(1.05); }
 .stamp-item:active .stamp-circle { transform: scale(.95); }
 

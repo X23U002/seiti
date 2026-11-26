@@ -1226,6 +1226,7 @@ async function collectStamp(spotId) {
             true
         );
 
+        notifyStampCollected(key);
         refreshStampUI();
         return;
     }
@@ -1269,6 +1270,10 @@ async function collectStamp(spotId) {
                 ? getCompletedTitle(selectedSpot)
                 : null
         );
+
+        notifyStampCollected(key);
+        // このスタンプで新しくもらえたバッジがあれば、お祝いに出す
+        announceNewBadges(key);
     } catch (error) {
         console.error(
             "スタンプの保存に失敗しました:",
@@ -1288,6 +1293,117 @@ async function collectStamp(spotId) {
         collectingSpotIds.delete(key);
         refreshStampUI();
     }
+}
+
+
+// ==========================================
+// スタンプを取ったことをほかの部品に知らせる（3Dキャラクターが跳ねる・ルートの線を塗る）
+// ==========================================
+function notifyStampCollected(spotId) {
+    try {
+        window.dispatchEvent(
+            new CustomEvent("seiti:stamp-collected", { detail: { spotId: String(spotId) } })
+        );
+    } catch (error) {
+        // 知らせられない古いブラウザでは何もしない
+    }
+}
+
+
+// ==========================================
+// このスタンプで新しくもらえたバッジを、スタンプのお祝いに出す（badges.js）
+// 取った後の記録と、このスタンプを除いた記録でバッジを比べる（保存はしない）
+// ==========================================
+async function announceNewBadges(spotId) {
+    if (typeof window.getBadges !== "function") {
+        return;
+    }
+
+    let book;
+    try {
+        const stampDbModule = await import(
+            new URL("../js/stamp-db.js?v=4e60fcbf", document.baseURI).href
+        );
+        book = await stampDbModule.loadStampBook();
+    } catch (error) {
+        console.warn("バッジを確かめられませんでした:", error);
+        return;
+    }
+    if (!book || !Array.isArray(book.stamps)) {
+        return;
+    }
+
+    // このスタンプを取る前の記録（いちばん新しい1回を除く）
+    const before = book.stamps
+        .map(function (stamp) {
+            if (String(stamp.id) !== String(spotId)) {
+                return stamp;
+            }
+            const times = (stamp.times || []).slice().sort(function (a, b) { return a - b; });
+            times.pop();
+            return times.length > 0
+                ? Object.assign({}, stamp, { times: times, count: times.length, stampedAt: times[0] })
+                : null;
+        })
+        .filter(Boolean);
+
+    const had = new Set(
+        window.getBadges(before, book.summary)
+            .filter(function (badge) { return badge.earned; })
+            .map(function (badge) { return badge.id; })
+    );
+    const fresh = window.getBadges(book.stamps, book.summary)
+        .filter(function (badge) { return badge.earned && !had.has(badge.id); });
+
+    if (fresh.length > 0) {
+        showNewBadges(fresh);
+    }
+}
+
+// もらったバッジを、くるっと回って光りながら出す（スタンプのお祝いの中。閉じていたら知らせで）
+function showNewBadges(badges) {
+    const card = document.querySelector(".stamp-celebration-card");
+    if (!card) {
+        notifyStamp(
+            "🏅 バッジ「" + badges.map(function (badge) { return badge.name; }).join("」「") + "」を獲得しました！"
+        );
+        return;
+    }
+
+    const box = document.createElement("div");
+    box.className = "stamp-celebration-badges";
+    box.setAttribute("role", "status");
+
+    const heading = document.createElement("p");
+    heading.className = "stamp-celebration-badges-title";
+    heading.textContent = "🏅 バッジを獲得！";
+    box.appendChild(heading);
+
+    badges.forEach(function (badge, index) {
+        const item = document.createElement("div");
+        item.className = "new-badge";
+        item.style.setProperty("--badge-delay", (index * 0.25) + "s");
+
+        const icon = document.createElement("span");
+        icon.className = "new-badge-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = badge.icon;
+
+        const name = document.createElement("strong");
+        name.className = "new-badge-name";
+        name.textContent = badge.name;
+
+        const text = document.createElement("span");
+        text.className = "new-badge-text";
+        text.textContent = badge.text;
+
+        item.append(icon, name, text);
+        box.appendChild(item);
+    });
+
+    // 「OK」の上に入れる
+    const close = card.querySelector(".stamp-celebration-close");
+    card.insertBefore(box, close);
 }
 
 

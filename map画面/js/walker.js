@@ -85,8 +85,43 @@ const state = {
     // 体の向き（北=0、時計回りのラジアン）
     // 最初は南（画面のこちら側）を向いて正面を見せる
     heading: Math.PI,
-    targetHeading: Math.PI
+    targetHeading: Math.PI,
+
+    // ぴょんと跳ねた時刻（スタンプを取った時・ルートの聖地に着いた時。0 なら跳ねていない）
+    jumpStart: 0
 };
+
+// 跳ねる高さ（キャラクターの背の高さの何割か）と時間。2回跳ねる
+const JUMP_HEIGHT_RATIO = 0.35;
+const JUMP_DURATION_MS = 900;
+const JUMP_COUNT = 2;
+
+// 今の跳ねている高さ（背の高さの何割か。跳ねていなければ 0）
+function jumpRatio(now) {
+    if (!state.jumpStart) return 0;
+    const t = (now - state.jumpStart) / JUMP_DURATION_MS;
+    if (t >= 1) {
+        state.jumpStart = 0;
+        return 0;
+    }
+    // 1回目は高く、2回目は低く
+    const hop = Math.floor(t * JUMP_COUNT);
+    const phase = t * JUMP_COUNT - hop;
+    return JUMP_HEIGHT_RATIO * (hop === 0 ? 1 : 0.5) * Math.sin(Math.PI * phase);
+}
+
+// キャラクターをぴょんと跳ねさせる（動きを減らす設定の人には跳ねさせない）
+export function jumpWalker(map) {
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        return false;
+    }
+    state.jumpStart = performance.now();
+    // 跳ねた回数を地図に残す（テストで確かめる用）
+    const mapElement = document.getElementById("map");
+    if (mapElement) mapElement.dataset.walkerJumps = String(Number(mapElement.dataset.walkerJumps || 0) + 1);
+    if (map) map.triggerRepaint();
+    return true;
+}
 
 // 2点間の距離（m）
 function distanceMeters(a, b) {
@@ -527,8 +562,10 @@ function createWalkerLayer(map) {
             character.rotation.set(0, Math.PI - state.heading, 0);
 
             // --- 地図の座標系へ変換して描画 ---
+            // ぴょんと跳ねている間は、背の高さの何割か上に浮かせる
+            const jumping = jumpRatio(now);
             const modelMatrix = new THREE.Matrix4()
-                .makeTranslation(mercator.x, mercator.y, mercator.z)
+                .makeTranslation(mercator.x, mercator.y, mercator.z + scale * jumping)
                 .scale(new THREE.Vector3(scale, -scale, scale))
                 .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
 
@@ -542,8 +579,8 @@ function createWalkerLayer(map) {
             renderer.clearDepth();
             renderer.render(scene, camera);
 
-            // 歩いている・向きを変えている・止まりかけている間は次のフレームも描く
-            if (moving || turning || settling) {
+            // 歩いている・向きを変えている・止まりかけている・跳ねている間は次のフレームも描く
+            if (moving || turning || settling || state.jumpStart) {
                 map.triggerRepaint();
             }
         }
@@ -573,6 +610,14 @@ export function getWalkerScreenBox(map) {
 // 初期化
 // ---------------------------------------------------------
 export function initWalker(map, geolocate) {
+    // スタンプを取った時・ルートの聖地に着いた時に、ぴょんと跳ねる（stampsyori.js・Script.js が知らせる）
+    window.addEventListener("seiti:stamp-collected", function () {
+        jumpWalker(map);
+    });
+    window.addEventListener("seiti:spot-arrived", function () {
+        jumpWalker(map);
+    });
+
     function addLayer() {
         if (!map.getLayer(LAYER_ID)) {
             map.addLayer(createWalkerLayer(map));

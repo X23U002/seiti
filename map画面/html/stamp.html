@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="../css/common.css?v=f9624d5f">
     <link rel="stylesheet" href="../css/tab-bar.css?v=82026e7c">
     <link rel="stylesheet" href="../css/stamp-rank.css?v=966a0ec6">
-    <link rel="stylesheet" href="../css/stamp.css?v=0dc5f41c">
+    <link rel="stylesheet" href="../css/stamp.css?v=8b90ecb4">
     <!-- アプリとして使う（ホーム画面に追加・オフライン。pwa.js） -->
     <link rel="manifest" href="../manifest.webmanifest">
     <meta name="theme-color" content="#0b3c5d">
@@ -102,13 +102,15 @@
     <script src="../js/stamp-rank.js?v=c4ce732e"></script>
     <script src="../js/badges.js?v=5a082dfc"></script>
     <script src="../js/share-card.js?v=2da8df97"></script>
-    <script src="../js/stamp.js?v=2d03a6d0"></script>
+    <script src="../js/stamp.js?v=99f5f65b"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
         import { loadStampBook } from "../js/stamp-db.js?v=4e60fcbf";
+        import { getCurrentUser } from "../js/firebase-db.js?v=61accae5";
 
-        loadStampBook().then(function (book) {
-            showStamps(book.stamps || [], book.stamps === null ? "guest" : "ready", book.summary);
+        Promise.all([loadStampBook(), getCurrentUser().catch(function () { return null; })]).then(function ([book, user]) {
+            // ログインしている人（新しく取ったスタンプを、人ごとに覚えるのに使う）
+            showStamps(book.stamps || [], book.stamps === null ? "guest" : "ready", book.summary, user ? user.uid : null);
         }, function (error) {
             console.error("スタンプの読み込みに失敗しました:", error);
             showStamps([], "error");
