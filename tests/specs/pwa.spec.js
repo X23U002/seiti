@@ -32,7 +32,17 @@ test("一度開いたら、圏外でも地図の画面と前に見た聖地が�
     await page.reload();
     await expect(page.locator("#map")).toBeVisible();
     await expect(pins(page)).toHaveCount(SPOTS.length, { timeout: 30_000 });
+    // 地図の絵は出せないので、うすい地面だけの地図にして知らせる（ピンは使える）
+    const note = page.locator("#offline-map-note");
+    await expect(note).toBeVisible();
+    await expect(note).toContainText("圏外のため、地図の絵を出せません");
+    expect(await page.evaluate(() => window.__map.getStyle().layers[0].id)).toBe("offline-background");
+
+    // 電波が戻ったら、地図の絵を読み直して知らせを消す
     await context.setOffline(false);
+    await expect(note).toBeHidden();
+    await expect.poll(() => page.evaluate(() => window.__map.getStyle().layers[0].id)).not.toBe("offline-background");
+    await expect(pins(page)).toHaveCount(SPOTS.length);
 });
 
 test("聖地の写真を同じ名前で差し替えたら、次に開いた時は新しい写真が出る", async ({ page, context }) => {

@@ -101,9 +101,23 @@ let hoverPopup = null;
 // =========================================================
 const titleColorMap = {};
 
+// 地図の絵（Mapbox）
+const MAP_STYLE = "mapbox://styles/mapbox/standard";
+
+// 圏外の時の地図：Mapbox の地図の絵は決まりで端末に残せないので出せない。
+// うすい色の地面だけにして、聖地のピン・現在地・ルート案内は使えるようにする（電波が戻ったら地図の絵に戻す）
+const OFFLINE_MAP_STYLE = {
+    version: 8,
+    sources: {},
+    layers: [{ id: "offline-background", type: "background", paint: { "background-color": "#e9eee8" } }]
+};
+let isOfflineMapStyle = navigator.onLine === false;
+// 地図の絵を一度でも読めたか（読めた後のタイルの通信の失敗では、圏外の地図にしない）
+let basemapLoaded = false;
+
 const map = new mapboxgl.Map({
     container: "map",
-    style: "mapbox://styles/mapbox/standard",
+    style: isOfflineMapStyle ? OFFLINE_MAP_STYLE : MAP_STYLE,
     center: [
         139.7671,
         35.6812
@@ -135,6 +149,50 @@ const map = new mapboxgl.Map({
     }
 });
 
+
+// ---------- 圏外の時の地図 ----------
+function showOfflineMapNote(show) {
+    let note = document.getElementById("offline-map-note");
+    if (!note && show) {
+        note = document.createElement("div");
+        note.id = "offline-map-note";
+        note.setAttribute("role", "status");
+        note.textContent = "📶 圏外のため、地図の絵を出せません。聖地のピン・現在地・ルートは使えます（電波が戻ると地図が出ます）";
+        map.getContainer().appendChild(note);
+    }
+    if (note) note.hidden = !show;
+}
+
+function useOfflineMapStyle() {
+    if (isOfflineMapStyle) return;
+    isOfflineMapStyle = true;
+    map.setStyle(OFFLINE_MAP_STYLE);
+    showOfflineMapNote(true);
+}
+
+showOfflineMapNote(isOfflineMapStyle);
+
+map.on("style.load", function () {
+    if (!isOfflineMapStyle) basemapLoaded = true;
+});
+
+// 地図の絵を読めなかった（圏外など）時は、圏外の地図にする（ピンなどは出したまま）
+map.on("error", function () {
+    if (!basemapLoaded && navigator.onLine === false) {
+        useOfflineMapStyle();
+    }
+});
+window.addEventListener("offline", function () {
+    if (!basemapLoaded) useOfflineMapStyle();
+});
+
+// 電波が戻ったら、地図の絵を読み直す
+window.addEventListener("online", function () {
+    if (!isOfflineMapStyle) return;
+    isOfflineMapStyle = false;
+    showOfflineMapNote(false);
+    map.setStyle(MAP_STYLE);
+});
 
 // 初期状態（2D）はピッチ変更禁止
 map.touchPitch.disable();
@@ -5961,6 +6019,9 @@ document
 map.on("style.load", function () {
     setupMapboxRouteLayer();
     updateRoutePreview();
+    // 歩き終えた区間も描き直す
+    routeDoneKey = "";
+    updateRouteProgress(false);
 });
 
 // =========================================================
