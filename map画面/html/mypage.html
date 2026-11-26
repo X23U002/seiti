@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="../css/common.css?v=f9624d5f">
     <link rel="stylesheet" href="../css/tab-bar.css?v=82026e7c">
     <link rel="stylesheet" href="../css/stamp-rank.css?v=966a0ec6">
-    <link rel="stylesheet" href="../css/mypage.css?v=333df5a9">
+    <link rel="stylesheet" href="../css/mypage.css?v=0c013352">
     <!-- アプリとして使う（ホーム画面に追加・オフライン。pwa.js） -->
     <link rel="manifest" href="../manifest.webmanifest">
     <meta name="theme-color" content="#0b3c5d">
@@ -31,7 +31,7 @@
                 <h2 class="user-name" id="current-name">ゲスト</h2>
                 <p class="user-id" id="current-user-id">ID: ゲスト</p>
             </div>
-            <button type="button" class="edit-profile-btn" onclick="openEditModal()">
+            <button type="button" class="edit-profile-btn" id="edit-profile-btn" onclick="openEditModal()">
                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>
                 編集
             </button>
@@ -126,8 +126,15 @@
             </button>
         </nav>
 
+        <!-- ログインしていない時：ログアウトの代わりに、ログイン・新規登録（mypage.js の showGuestProfile） -->
+        <div class="guest-account" id="guest-account" hidden>
+            <p class="guest-account-note">ログインすると、スタンプ・お気に入り・ルートを保存できます</p>
+            <a href="login.html?next=mypage.html" class="btn btn-primary">ログイン</a>
+            <a href="newaccount.html" class="btn btn-secondary">新規登録（無料）</a>
+        </div>
+
         <!-- ログアウト -->
-        <button type="button" class="logout-btn" onclick="openLogoutModal()">
+        <button type="button" class="logout-btn" id="logout-btn" onclick="openLogoutModal()">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l5-5-5-5M15 12H4"/></svg>
             ログアウト
         </button>
@@ -181,7 +188,7 @@
     <script src="../js/tab-bar.js?v=f5e177d7"></script>
     <script src="../js/stamp-rank.js?v=c4ce732e"></script>
     <script src="../js/badges.js?v=5a082dfc"></script>
-    <script src="../js/mypage.js?v=62a8776e"></script>
+    <script src="../js/mypage.js?v=dce60d99"></script>
     <!-- 獲得したスタンプをDBから読み込んで表示する -->
     <script type="module">
         import { loadStampBook } from "../js/stamp-db.js?v=4e60fcbf";
