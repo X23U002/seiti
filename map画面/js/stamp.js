@@ -422,7 +422,13 @@ function renderNotice() {
 function createStampItem(stamp) {
     const item = document.createElement("button");
     item.type = "button";
-    item.className = "stamp-item" + (stamp.earned ? "" : " is-locked");
+    const isNew = stamp.earned && newStampIds.has(String(stamp.id));
+    item.className = "stamp-item" + (stamp.earned ? "" : " is-locked") +
+        (isNew ? " is-new" : "") + (isNew && !pressPlayed ? " is-pressing" : "");
+    if (isNew && !pressPlayed) {
+        // 新しいスタンプが何個かある時は、順番に押す
+        item.style.setProperty("--press-delay", (Array.from(newStampIds).indexOf(String(stamp.id)) * 0.25 + 0.2) + "s");
+    }
     const rank = stamp.earned ? getStampRank(stamp.count) : null;
     item.setAttribute("aria-label", stamp.name + (stamp.earned
         ? "（獲得済み・" + rank.name + "・" + stamp.count + "回）"
@@ -446,6 +452,13 @@ function createStampItem(stamp) {
     label.textContent = stamp.name;
 
     item.append(circle, label);
+    if (isNew) {
+        // 前に開いた時から新しく取ったスタンプ
+        const fresh = document.createElement("span");
+        fresh.className = "stamp-new-label";
+        fresh.textContent = "NEW";
+        item.appendChild(fresh);
+    }
     item.onclick = function () {
         openStampModal(stamp);
     };
@@ -510,19 +523,51 @@ function closeStampModal() {
 // ---------- 画面を開いた時 ----------
 document.getElementById("only-earned").addEventListener("change", renderSections);
 
+// ---------- 前に開いた時から新しく取ったスタンプ ----------
+// スポットID → 取った回数 を、ログインしている人ごとに端末に覚えておき、増えた聖地を「新しい」とする
+// （初めて開いた時は、全部を新しいことにはしない）
+let newStampIds = new Set();
+// 押される動きは、開いて最初に出した時だけ（たたむ・開くで描き直しても繰り返さない）
+let pressPlayed = false;
+
+function findNewStamps(uid) {
+    if (!uid) return new Set();
+    const key = "seitiSeenStamps:" + uid;
+    const seen = readJson(key, null);
+    const now = {};
+    collected.forEach(function (stamp) {
+        now[String(stamp.id)] = stamp.count || 1;
+    });
+    try {
+        localStorage.setItem(key, JSON.stringify(now));
+    } catch (e) {
+        // 保存できない環境では、毎回新しいものなしにする
+    }
+    if (!seen || typeof seen !== "object") return new Set();
+    return new Set(Object.keys(now).filter(function (id) {
+        return now[id] > (seen[id] || 0);
+    }));
+}
+
 // DBから読み込んだスタンプで表示し直す（stamp.html から呼ぶ）
-function showStamps(stamps, state, spotSummary) {
+function showStamps(stamps, state, spotSummary, uid) {
     if (spotSummary) {
         summary = spotSummary;
         hasSpotList = Array.isArray(summary.spots) && summary.spots.length > 0;
     }
     collected = Array.isArray(stamps) ? stamps : [];
     loadState = state;
+    if (state === "ready") {
+        newStampIds = findNewStamps(uid);
+    }
     buildStamps();
     renderNotice();
     renderOverall();
     renderTitlePicker();
     renderSections();
+    if (state === "ready") {
+        pressPlayed = true;
+    }
 
     // スタンプが1つ以上あれば、記録を画像にして共有できる
     document.getElementById("share-record").hidden =

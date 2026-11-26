@@ -240,7 +240,7 @@ function loadThreeDExtras() {
 let walkerModule = null;
 
 function loadWalker() {
-    import("./walker.js?v=60901e27")
+    import("./walker.js?v=2f6bb01e")
         .then(function (walker) {
             walkerModule = walker;
             walker.initWalker(
@@ -1929,6 +1929,30 @@ geolocate.on("trackuserlocationstart", stopOrbit);
 const NEAR_ROUTE_SPOT_METERS = 150;
 const notifiedNearSpotIds = new Set();
 
+// ルートの聖地に「着いた」とする距離（スタンプが取れる距離と同じ）と、着いた聖地
+const ARRIVED_ROUTE_SPOT_METERS = 50;
+const routeReachedIds = new Set();
+
+// ルートの聖地に着いた：3Dキャラクターを跳ねさせ（walker.js）、そこまでの区間を塗る
+function markRouteSpotReached(spotId) {
+    const id = String(spotId);
+    if (routeReachedIds.has(id)) {
+        return;
+    }
+    routeReachedIds.add(id);
+    window.dispatchEvent(new CustomEvent("seiti:spot-arrived", { detail: { spotId: id } }));
+    updateRouteProgress(true);
+}
+
+// スタンプを取った聖地も、着いたことにする（stampsyori.js が知らせる）
+window.addEventListener("seiti:stamp-collected", function (event) {
+    const id = event.detail && event.detail.spotId;
+    if (id && selectedSpots.some(function (spot) { return String(spot.id) === id; })) {
+        routeReachedIds.add(id);
+        updateRouteProgress(true);
+    }
+});
+
 // ルート案内をたたんだ時の1行（「次：宇治橋・あと約350m」）。
 // 次は、ルートの順でまだスタンプを押していない聖地。距離は現在地が分かる時だけ
 function updateRouteNext() {
@@ -1973,6 +1997,13 @@ geolocate.on(
         };
 
         updateRouteNext();
+
+        // ルートの聖地に着いたら（50m 以内）、キャラクターが跳ねて、そこまでの区間を塗る
+        selectedSpots.forEach(function (spot) {
+            if (getDistanceMeters(here, spot) <= ARRIVED_ROUTE_SPOT_METERS) {
+                markRouteSpotReached(spot.id);
+            }
+        });
 
         // ルートから外した聖地は、また知らせられるようにする
         const routeIds = new Set(
@@ -5197,6 +5228,35 @@ const MAPBOX_ROUTE_LAYER_ID = "selected-spots-route-line";
 const MAPBOX_ROUTE_ARROW_LAYER_ID = "selected-spots-route-arrow";
 const MAPBOX_ROUTE_ARROW_IMAGE = "selected-spots-route-arrow";
 
+// 歩き終えた区間（ルートの聖地に着いた・スタンプを取った所まで）を、太くはっきり塗る線
+const MAPBOX_ROUTE_DONE_SOURCE_ID = "selected-spots-route-done";
+const MAPBOX_ROUTE_DONE_LAYER_ID = "selected-spots-route-done-line";
+// 道順を出した時の回る地点（現在地 → 1か所目 → …）と区間ごとの線
+let mapboxRoutePoints = [];
+let mapboxRouteLegFeatures = [];
+// 今の塗った区間（同じなら描き直さない）
+let routeDoneKey = "";
+
+// 着いた聖地まで、区間を塗る（animate：新しく塗る時は1番目から伸ばして描く）
+function updateRouteProgress(animate) {
+    if (!map.getSource(MAPBOX_ROUTE_DONE_SOURCE_ID)) {
+        return;
+    }
+    const done = isMapboxRouteActive
+        ? mapboxRouteLegFeatures.filter(function (feature) {
+            const to = mapboxRoutePoints[feature.properties.index + 1];
+            return to && routeReachedIds.has(String(to.id));
+        })
+        : [];
+    const key = done.map(function (feature) { return feature.properties.index; }).join(",");
+    if (key === routeDoneKey) {
+        return;
+    }
+    routeDoneKey = key;
+    setRouteLine(MAPBOX_ROUTE_DONE_SOURCE_ID, done, animate);
+    map.getContainer().dataset.routeDone = key;
+}
+
 // 「地図上にルートを生成」を押す前の、回る順に聖地を結ぶ線（道に沿った線。読めない間は直線）
 const ROUTE_PREVIEW_SOURCE_ID = "selected-spots-preview";
 const ROUTE_PREVIEW_LAYER_ID = "selected-spots-preview-line";
@@ -5501,6 +5561,17 @@ function setupMapboxRouteLayer() {
         });
     }
 
+    if (!map.getSource(MAPBOX_ROUTE_DONE_SOURCE_ID)) {
+        routeDoneKey = "";
+        map.addSource(MAPBOX_ROUTE_DONE_SOURCE_ID, {
+            type: "geojson",
+            data: {
+                type: "FeatureCollection",
+                features: []
+            }
+        });
+    }
+
     // 進む向きの矢印の画像
     if (!map.hasImage(MAPBOX_ROUTE_ARROW_IMAGE)) {
         map.addImage(MAPBOX_ROUTE_ARROW_IMAGE, createRouteArrowImage());
@@ -5560,6 +5631,25 @@ function setupMapboxRouteLayer() {
         });
     }
 
+    // 歩き終えた区間：同じ色で太く、白い縁を付けて塗る（道順の線の上、矢印の下）
+    if (!map.getLayer(MAPBOX_ROUTE_DONE_LAYER_ID)) {
+        map.addLayer({
+            id: MAPBOX_ROUTE_DONE_LAYER_ID,
+            type: "line",
+            source: MAPBOX_ROUTE_DONE_SOURCE_ID,
+            layout: {
+                "line-join": "round",
+                "line-cap": "round"
+            },
+            paint: {
+                "line-color": ["coalesce", ["get", "color"], "#1976D2"],
+                "line-width": 9,
+                "line-opacity": 1,
+                "line-offset": 3
+            }
+        });
+    }
+
     if (!map.getLayer(MAPBOX_ROUTE_ARROW_LAYER_ID)) {
         map.addLayer({
             id: MAPBOX_ROUTE_ARROW_LAYER_ID,
@@ -5583,6 +5673,11 @@ function setupMapboxRouteLayer() {
 // 生成済みルートを消す
 function clearMapboxRoute() {
     setRouteLine(MAPBOX_ROUTE_SOURCE_ID, [], false);
+    mapboxRouteLegFeatures = [];
+    mapboxRoutePoints = [];
+    routeDoneKey = "";
+    setRouteLine(MAPBOX_ROUTE_DONE_SOURCE_ID, [], false);
+    map.getContainer().dataset.routeDone = "";
 }
 
 // Mapbox Directions API に、聖地を順に通る徒歩の道のりを頼む（coordinates は「経度,緯度;経度,緯度…」）
@@ -5780,6 +5875,13 @@ async function generateMapboxRoute() {
         );
 
         isMapboxRouteActive = true;
+
+        // 着いた聖地まで区間を塗る（もう着いている所があれば、すぐ塗る）
+        mapboxRoutePoints = routePoints;
+        mapboxRouteLegFeatures = legFeatures;
+        routeDoneKey = "";
+        updateRouteProgress(false);
+
         mapboxRouteSpotIds = new Set(
             routeSpots.map(function (spot) {
                 return String(spot.id);
