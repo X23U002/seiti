@@ -7,7 +7,7 @@
 (function () {
     if ("serviceWorker" in navigator) {
         window.addEventListener("load", function () {
-            navigator.serviceWorker.register("../sw.js?v=35e9fe25", { scope: "../" }).catch(function (error) {
+            navigator.serviceWorker.register("../sw.js?v=5f06dd39", { scope: "../" }).catch(function (error) {
                 console.warn("オフライン用の準備ができませんでした:", error);
             });
         });
