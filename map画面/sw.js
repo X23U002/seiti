@@ -4,7 +4,7 @@
 //   電波が弱い所・圏外でもアプリを開けるようにする
 // ・聖地のデータは、地図画面が端末に残したもの（seitiSpotCache）を使う
 // ・地図の絵（Mapbox のタイル）は、Mapbox の決まりがあるのでここでは残さない（ブラウザに任せる）
-// ・圏外用の地図（国土地理院の地理院タイル）は、地図の画面が残したもの（offline-map.js）を出す
+// ・圏外用の地図（OpenStreetMap の地図を聖地のまわりだけ置いたもの。offline-map/）は、地図の画面が残したもの（offline-map.js）を出す
 // ・ページ（HTML）は、通信できれば最新を、できなければ残したものを出す
 // ・部品は、残したものをすぐ出しつつ、裏で最新に入れかえる
 // ・聖地の写真（images/spots/）は同じ名前のまま差し替えることがあるので、毎回サーバーに新しいかを確かめる
@@ -13,8 +13,7 @@
 // 名前を変えると、前の版で残したもの（古い写真など）を消す
 const CACHE = "seiti-v2";
 // 圏外用の地図（offline-map.js の TILE_CACHE と同じ名前。版を変えても消さない）
-const TILE_CACHE = "seiti-offline-map-v1";
-const TILE_HOST = "https://cyberjapandata.gsi.go.jp/xyz/pale/";
+const TILE_CACHE = "seiti-offline-map-v2";
 
 // 先に残しておくもの（地図の画面を開くのに最低限いるもの）
 const CORE = [
@@ -85,17 +84,24 @@ function freshImage(request) {
         });
 }
 
-// 圏外用の地図のタイル：残してあればそれ（地図の絵はほとんど変わらない）。無ければ通信して残す
+// 圏外用の地図：残してあればそれ、無ければ通信する。地図のタイル（.pbf）は gzip で縮めて置いてあるので、開いて渡す
 function cachedTile(request) {
-    return caches.open(TILE_CACHE).then(function (cache) {
-        return cache.match(request.url).then(function (cached) {
-            if (cached) return cached;
-            return fetch(request).then(function (response) {
-                if (response.ok) cache.put(request.url, response.clone());
-                return response;
+    return caches.open(TILE_CACHE)
+        .then(function (cache) { return cache.match(request.url); })
+        .then(function (cached) { return cached || fetch(request); })
+        .then(function (response) {
+            if (!response.ok || !request.url.endsWith(".pbf")) return response;
+            return response.arrayBuffer().then(function (buffer) {
+                const bytes = new Uint8Array(buffer);
+                const headers = { "Content-Type": "application/x-protobuf" };
+                // gzip（先頭が 1f 8b）なら開く。もう開いてあればそのまま
+                if (bytes.length > 2 && bytes[0] === 0x1f && bytes[1] === 0x8b) {
+                    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+                    return new Response(stream, { headers: headers });
+                }
+                return new Response(bytes, { headers: headers });
             });
         });
-    });
 }
 
 // 残したものをすぐ出しつつ、裏で最新に入れかえる（残していなければ通信して残す）
@@ -127,16 +133,17 @@ self.addEventListener("fetch", function (event) {
         return;
     }
 
+    // 圏外用の地図：残してあればそれを出し、無ければ通信する（地図のタイルは gzip を開いて渡す）
+    if (sameOrigin && url.pathname.startsWith(new URL("offline-map/", self.location).pathname) &&
+        !url.pathname.endsWith("regions.json")) {
+        event.respondWith(cachedTile(request));
+        return;
+    }
+
     if (sameOrigin && url.pathname.startsWith(new URL("./", self.location).pathname)) {
         event.respondWith(
             request.mode === "navigate" ? networkFirst(request) : staleWhileRevalidate(request)
         );
-        return;
-    }
-
-    // 圏外用の地図：残してあればそれを出し、無ければ通信して残す
-    if (request.url.startsWith(TILE_HOST)) {
-        event.respondWith(cachedTile(request));
         return;
     }
 

@@ -1,160 +1,213 @@
 // ==========================================
-// 圏外用の地図（国土地理院の地理院タイル・淡色地図）
-// ・Mapbox の地図の絵は決まりで端末に残せないので、圏外の時は地理院タイルで地図を出す
-//   （出典の「国土地理院」を出せば使える。https://maps.gsi.go.jp/development/ichiran.html）
-// ・電波がある時に見た場所の地図を、裏で端末に残す（saveVisibleTiles）
-// ・出かける前に、ルートの聖地のまわりの地図をまとめて残せる（saveTilesAround）
+// 圏外用の地図（OpenStreetMap の地図データを、聖地のまわりだけこのサイトに置いたもの）
+// ・Mapbox の地図の絵は決まりで端末に残せないので、圏外の時はこの地図を出す
+//   （地図データ © OpenStreetMap contributors。tools/offline-map/build.mjs で作る）
+// ・地図データは「地域」（近い聖地をまとめたもの）ごとに offline-map/tiles/ に置いてあり、
+//   一覧は offline-map/regions.json
+// ・電波がある時に聖地の地域を見たら、その地域の地図を裏で端末に残す（saveRegionNearSoon）
+// ・出かける前に、ルートの聖地がある地域の地図をまとめて残せる（saveTilesAround）
 // ・圏外の時は、オフライン用の service worker（sw.js）が残した地図を出す
-// ・地理院のサーバーに負担をかけないよう、1回に残す枚数と、全部で残す枚数に上限を付ける
 // ==========================================
 
-export const TILE_CACHE = "seiti-offline-map-v1";
-const TILE_HOST = "https://cyberjapandata.gsi.go.jp/xyz/pale/";
-export const TILE_URL = TILE_HOST + "{z}/{x}/{y}.png";
+// 端末に残す場所（sw.js の TILE_CACHE と同じ名前）
+export const TILE_CACHE = "seiti-offline-map-v2";
+const BASE = new URL("../offline-map/", import.meta.url).href;
+const FONT_RANGES = ["Noto Sans Regular/0-255.pbf", "Noto Sans Medium/0-255.pbf"];
 
-// 地図を見ている時に残す（寄せている時だけ。引いた広い範囲は枚数が多すぎる）
-const AUTO_MIN_ZOOM = 14;
-const AUTO_MAX_TILES = 40;
-// 全部で残す枚数（1枚 約20KB。これを超えたら古いものから消す）
-const MAX_TILES = 3000;
-// ルートの周りを残す時：聖地のまわり何mを、どのズームで
-const AROUND_METERS = 350;
-const AROUND_ZOOMS = [14, 15, 16, 17];
-// 地理院タイルの淡色地図は 5〜18
-const MIN_TILE_ZOOM = 5;
-const MAX_TILE_ZOOM = 18;
+const NAME = ["coalesce", ["get", "name:ja"], ["get", "name"]];
+const GREEN_KINDS = ["park", "grass", "wood", "forest", "cemetery", "pitch", "playground", "garden", "grassland", "scrub", "golf_course", "nature_reserve"];
 
-// 圏外の時の地図（残した地理院タイル。残していない所は、うすい地面の色）
+// 圏外の時の地図（地域の外・ズーム 12 より引いた所は、うすい地面の色だけ）
 export const OFFLINE_MAP_STYLE = {
     version: 8,
+    glyphs: BASE + "fonts/{fontstack}/{range}.pbf",
     sources: {
-        "offline-gsi": {
-            type: "raster",
-            tiles: [TILE_URL],
-            tileSize: 256,
-            minzoom: MIN_TILE_ZOOM,
-            maxzoom: MAX_TILE_ZOOM,
-            attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院</a>'
+        "offline-osm": {
+            type: "vector",
+            tiles: [BASE + "tiles/{z}/{x}/{y}.pbf"],
+            minzoom: 12,
+            maxzoom: 14,
+            attribution: '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>'
         }
     },
     layers: [
         { id: "offline-background", type: "background", paint: { "background-color": "#e9eee8" } },
-        { id: "offline-gsi", type: "raster", source: "offline-gsi" }
+        { id: "offline-earth", type: "fill", source: "offline-osm", "source-layer": "earth", paint: { "fill-color": "#f4f1ea" } },
+        {
+            id: "offline-green", type: "fill", source: "offline-osm", "source-layer": "landuse",
+            filter: ["in", ["get", "kind"], ["literal", GREEN_KINDS]],
+            paint: { "fill-color": "#d3e9c8" }
+        },
+        {
+            id: "offline-school", type: "fill", source: "offline-osm", "source-layer": "landuse",
+            filter: ["in", ["get", "kind"], ["literal", ["school", "kindergarten", "university", "college", "hospital"]]],
+            paint: { "fill-color": "#f1e6d6" }
+        },
+        { id: "offline-water", type: "fill", source: "offline-osm", "source-layer": "water", paint: { "fill-color": "#a9d3ef" } },
+        {
+            id: "offline-building", type: "fill", source: "offline-osm", "source-layer": "buildings", minzoom: 14,
+            paint: { "fill-color": "#e2ddd3", "fill-outline-color": "#d2ccc0" }
+        },
+        {
+            id: "offline-rail", type: "line", source: "offline-osm", "source-layer": "roads",
+            filter: ["==", ["get", "kind"], "rail"],
+            paint: { "line-color": "#9aa6b2", "line-width": 2, "line-dasharray": [3, 2] }
+        },
+        {
+            id: "offline-road-casing", type: "line", source: "offline-osm", "source-layer": "roads",
+            filter: ["in", ["get", "kind"], ["literal", ["highway", "major_road", "minor_road"]]],
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: {
+                "line-color": "#d6cfc2",
+                "line-width": ["interpolate", ["linear"], ["zoom"], 12, 1.5, 16, 10, 18, 22]
+            }
+        },
+        {
+            id: "offline-path", type: "line", source: "offline-osm", "source-layer": "roads",
+            filter: ["==", ["get", "kind"], "path"],
+            paint: { "line-color": "#ffffff", "line-width": ["interpolate", ["linear"], ["zoom"], 14, 1, 18, 4] }
+        },
+        {
+            id: "offline-road", type: "line", source: "offline-osm", "source-layer": "roads",
+            filter: ["in", ["get", "kind"], ["literal", ["highway", "major_road", "minor_road"]]],
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: {
+                "line-color": ["match", ["get", "kind"], "highway", "#f6c467", "major_road", "#fde9a6", "#ffffff"],
+                "line-width": ["interpolate", ["linear"], ["zoom"], 12, 1, 16, 8, 18, 18]
+            }
+        },
+        {
+            id: "offline-road-name", type: "symbol", source: "offline-osm", "source-layer": "roads", minzoom: 15,
+            filter: ["all", ["in", ["get", "kind"], ["literal", ["highway", "major_road", "minor_road"]]], ["has", "name"]],
+            layout: { "symbol-placement": "line", "text-field": NAME, "text-font": ["Noto Sans Regular"], "text-size": 11 },
+            paint: { "text-color": "#6b5d4f", "text-halo-color": "#ffffff", "text-halo-width": 1.5 }
+        },
+        {
+            id: "offline-poi", type: "symbol", source: "offline-osm", "source-layer": "pois", minzoom: 15,
+            filter: ["all", ["has", "name"], ["in", ["get", "kind"], ["literal", ["station", "place_of_worship", "park", "school", "hospital", "library", "townhall", "post_office", "museum", "attraction", "shrine", "temple"]]]],
+            layout: { "text-field": NAME, "text-font": ["Noto Sans Regular"], "text-size": 11, "text-max-width": 8 },
+            paint: { "text-color": "#7a6a58", "text-halo-color": "#ffffff", "text-halo-width": 1.5 }
+        },
+        {
+            id: "offline-station", type: "symbol", source: "offline-osm", "source-layer": "pois",
+            filter: ["all", ["has", "name"], ["==", ["get", "kind"], "station"]],
+            layout: { "text-field": NAME, "text-font": ["Noto Sans Medium"], "text-size": 13 },
+            paint: { "text-color": "#2c3e50", "text-halo-color": "#ffffff", "text-halo-width": 2 }
+        },
+        {
+            id: "offline-place", type: "symbol", source: "offline-osm", "source-layer": "places",
+            filter: ["has", "name"],
+            layout: { "text-field": NAME, "text-font": ["Noto Sans Medium"], "text-size": 13, "text-max-width": 8 },
+            paint: { "text-color": "#4a4a4a", "text-halo-color": "#ffffff", "text-halo-width": 2 }
+        }
     ]
 };
-
-export function tileUrl(z, x, y) {
-    return TILE_HOST + z + "/" + x + "/" + y + ".png";
-}
-
-function lngToTileX(lng, z) {
-    return Math.floor((lng + 180) / 360 * Math.pow(2, z));
-}
-
-function latToTileY(lat, z) {
-    const rad = lat * Math.PI / 180;
-    return Math.floor((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * Math.pow(2, z));
-}
-
-// 範囲（west, south, east, north）にかかるタイルの URL
-export function tilesInBounds(west, south, east, north, z) {
-    const urls = [];
-    const x0 = lngToTileX(west, z);
-    const x1 = lngToTileX(east, z);
-    const y0 = latToTileY(north, z);
-    const y1 = latToTileY(south, z);
-    for (let x = x0; x <= x1; x++) {
-        for (let y = y0; y <= y1; y++) {
-            urls.push(tileUrl(z, x, y));
-        }
-    }
-    return urls;
-}
 
 function hasCaches() {
     return typeof caches !== "undefined" && typeof caches.open === "function";
 }
 
-// まだ残していないタイルだけを取りにいって残す。残した枚数を返す
-// onProgress(済んだ数, 全部の数)
-async function saveTiles(urls, onProgress) {
-    if (!hasCaches() || urls.length === 0) return 0;
-    const cache = await caches.open(TILE_CACHE);
-    let saved = 0;
-    let done = 0;
+// 地域の一覧（regions.json）
+let regionsPromise = null;
+export function loadRegions() {
+    if (!regionsPromise) {
+        regionsPromise = fetch(BASE + "regions.json")
+            .then(function (response) {
+                if (!response.ok) throw new Error("regions.json " + response.status);
+                return response.json();
+            })
+            .then(function (json) { return json.regions || []; })
+            .catch(function (error) {
+                regionsPromise = null;
+                throw error;
+            });
+    }
+    return regionsPromise;
+}
 
-    // 同時に4枚まで（地理院のサーバーに負担をかけないように）
+function inBounds(region, point) {
+    const [west, south, east, north] = region.bounds;
+    return point.longitude >= west && point.longitude <= east && point.latitude >= south && point.latitude <= north;
+}
+
+// その地点がある地域
+export async function regionsFor(points) {
+    const regions = await loadRegions();
+    return regions.filter(function (region) {
+        return points.some(function (point) { return inBounds(region, point); });
+    });
+}
+
+function regionUrls(region) {
+    return region.tiles.map(function (tile) { return BASE + "tiles/" + tile + ".pbf"; });
+}
+
+// 地域の地図を、もう端末に残してあるか（最初と最後のタイルで見る）
+async function isRegionSaved(cache, region) {
+    const urls = regionUrls(region);
+    if (urls.length === 0) return true;
+    return Boolean((await cache.match(urls[0])) && (await cache.match(urls[urls.length - 1])));
+}
+
+// 地域の地図（と文字）を端末に残す。新しく残した地域の数を返す
+// onProgress(済んだ数, 全部の数)
+async function saveRegions(regions, onProgress) {
+    if (!hasCaches()) return 0;
+    const cache = await caches.open(TILE_CACHE);
+    const todo = [];
+    for (const region of regions) {
+        if (!(await isRegionSaved(cache, region))) todo.push(region);
+    }
+    if (todo.length === 0) return 0;
+
+    const urls = FONT_RANGES.map(function (font) { return BASE + "fonts/" + font; })
+        .concat(...todo.map(regionUrls));
+    let done = 0;
     const queue = urls.slice();
     async function worker() {
         while (queue.length > 0) {
             const url = queue.shift();
             try {
                 if (!(await cache.match(url))) {
-                    const response = await fetch(url, { mode: "cors" });
-                    if (response.ok) {
-                        await cache.put(url, response);
-                        saved += 1;
-                    }
+                    const response = await fetch(url);
+                    if (response.ok) await cache.put(url, response);
                 }
             } catch (error) {
-                // 取れなかったタイルは飛ばす（圏外・地図の無い海など）
+                // 取れなかったものは飛ばす（次に保存する時に取り直す）
             }
             done += 1;
             if (onProgress) onProgress(done, urls.length);
         }
     }
     await Promise.all([worker(), worker(), worker(), worker()]);
-
-    if (saved > 0) await trimTiles(cache);
-    return saved;
+    return todo.length;
 }
 
-// 全部で残す枚数を超えたら、古く残したものから消す
-async function trimTiles(cache) {
-    const keys = await cache.keys();
-    const extra = keys.length - MAX_TILES;
-    for (let i = 0; i < extra; i++) {
-        await cache.delete(keys[i]);
-    }
+// ルートの聖地がある地域の地図をまとめて残す（📥）
+// 戻り値：{ regions: 聖地がある地域の数, saved: 新しく残した地域の数 }
+export async function saveTilesAround(points, onProgress) {
+    const regions = await regionsFor(points);
+    const saved = await saveRegions(regions, onProgress);
+    return { regions: regions.length, saved: saved };
 }
 
-// 今見ている範囲の地図を残す（寄せている時だけ。今のズームと1つ引いたズーム）
-let autoTimer = null;
-export function saveVisibleTilesSoon(map) {
-    clearTimeout(autoTimer);
-    autoTimer = setTimeout(function () {
-        saveVisibleTiles(map);
+// 電波がある時に、聖地の地域を見ていたら、その地域の地図を裏で残す（1回開いている間に1地域1回）
+const triedRegions = new Set();
+let nearTimer = null;
+export function saveRegionNearSoon(map) {
+    clearTimeout(nearTimer);
+    nearTimer = setTimeout(function () {
+        saveRegionNear(map).catch(function () {
+            // 残せなくても地図はそのまま使える
+        });
     }, 1500);
 }
 
-export async function saveVisibleTiles(map) {
-    if (navigator.onLine === false) return 0;
-    const zoom = Math.floor(map.getZoom());
-    if (zoom < AUTO_MIN_ZOOM) return 0;
-    const bounds = map.getBounds();
-    const urls = [];
-    [Math.min(zoom, MAX_TILE_ZOOM), Math.min(zoom - 1, MAX_TILE_ZOOM)].forEach(function (z) {
-        tilesInBounds(bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth(), z)
-            .forEach(function (url) { urls.push(url); });
-    });
-    return saveTiles(urls.slice(0, AUTO_MAX_TILES));
-}
-
-// 聖地のまわり（AROUND_METERS）の地図を、いくつかのズームでまとめて残す
-// points：[{ latitude, longitude }]
-export function tilesAround(points) {
-    const urls = new Set();
-    points.forEach(function (point) {
-        const dLat = AROUND_METERS / 111320;
-        const dLng = AROUND_METERS / (111320 * Math.cos(point.latitude * Math.PI / 180));
-        AROUND_ZOOMS.forEach(function (z) {
-            tilesInBounds(point.longitude - dLng, point.latitude - dLat, point.longitude + dLng, point.latitude + dLat, z)
-                .forEach(function (url) { urls.add(url); });
-        });
-    });
-    return Array.from(urls);
-}
-
-export function saveTilesAround(points, onProgress) {
-    return saveTiles(tilesAround(points), onProgress);
+export async function saveRegionNear(map) {
+    if (navigator.onLine === false || map.getZoom() < 12) return 0;
+    const center = map.getCenter();
+    const regions = (await regionsFor([{ latitude: center.lat, longitude: center.lng }]))
+        .filter(function (region) { return !triedRegions.has(region.id); });
+    regions.forEach(function (region) { triedRegions.add(region.id); });
+    return saveRegions(regions);
 }

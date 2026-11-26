@@ -35,13 +35,19 @@ test("一度開いたら、圏外でも地図の画面と前に見た聖地が�
     // 地図の絵は出せないので、うすい地面だけの地図にして知らせる（ピンは使える）
     const note = page.locator("#offline-map-note");
     await expect(note).toBeVisible();
-    await expect(note).toContainText("圏外のため、残しておいた地図（国土地理院）を出しています");
+    await expect(note).toContainText("圏外のため、残しておいた聖地のまわりの地図を出しています");
     expect(await page.evaluate(() => window.__map.getStyle().layers[0].id)).toBe("offline-background");
 
     // 電波が戻ったら、地図の絵を読み直して知らせを消す
     await context.setOffline(false);
     await expect(note).toBeHidden();
-    await expect.poll(() => page.evaluate(() => window.__map.getStyle().layers[0].id)).not.toBe("offline-background");
+    await expect.poll(() => page.evaluate(() => {
+        try {
+            return window.__map.getStyle().layers[0].id;
+        } catch (error) {
+            return "loading";
+        }
+    })).not.toMatch(/^(offline-background|loading)$/);
     await expect(pins(page)).toHaveCount(SPOTS.length);
 });
 
@@ -91,41 +97,26 @@ test("どのページにもタブのアイコンがあり、読める（無い�
     expect(fs.existsSync(path.join(process.cwd(), "..", topIcon))).toBe(true);
 });
 
-// ---------- 圏外用の地図（国土地理院の地理院タイル。offline-map.js） ----------
-// 1×1 の PNG（地理院タイルの代わり）
-const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
-const tileCount = (page) => page.evaluate(async () => (await (await caches.open("seiti-offline-map-v1")).keys()).length);
+// ---------- 圏外用の地図（OpenStreetMap の地図を聖地のまわりだけ置いたもの。offline-map.js） ----------
+const tileCount = (page) => page.evaluate(async () => (await (await caches.open("seiti-offline-map-v2")).keys())
+    .filter((request) => request.url.includes("/offline-map/tiles/")).length);
 
-// 地理院のサーバーの代わり。state.offline の間は答えない（圏外）
-async function serveGsi(page) {
-    const state = { offline: false, requests: 0 };
-    await page.context().route(/cyberjapandata\.gsi\.go\.jp\/xyz\/pale\//, (route) => {
-        if (state.offline) return route.abort("internetdisconnected");
-        state.requests += 1;
-        return route.fulfill({ status: 200, contentType: "image/png", headers: { "Access-Control-Allow-Origin": "*" }, body: PNG });
-    });
-    return state;
-}
-
-test("電波がある時に寄せて見た場所の地図を、圏外用に残す（引いた広い範囲は残さない）", async ({ page }) => {
+test("電波がある時に聖地の地域を見たら、その地域の地図を圏外用に残す（引いた広い範囲では残さない）", async ({ page }) => {
     const bridge = spotNamed("宇治橋");
-    await serveGsi(page);
     await seed(page);
     await page.goto("html/map.html");
     await expect(pins(page)).toHaveCount(SPOTS.length);
     // 引いている時は残さない
-    await page.evaluate(() => window.__map.jumpTo({ zoom: 10 }));
+    await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 10 }), [bridge.coord.longitude, bridge.coord.latitude]);
     await page.waitForTimeout(2500);
     expect(await tileCount(page)).toBe(0);
-    // 寄せると残す
-    await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 16 }), [bridge.coord.longitude, bridge.coord.latitude]);
-    await expect.poll(() => tileCount(page), { timeout: 10000 }).toBeGreaterThan(0);
-    expect(await tileCount(page)).toBeLessThanOrEqual(40);
+    // 宇治の聖地のあたりを見ると、宇治の地域の地図を残す
+    await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 15 }), [bridge.coord.longitude, bridge.coord.latitude]);
+    await expect.poll(() => tileCount(page), { timeout: 20000 }).toBeGreaterThan(10);
 });
 
-test("ルートの周りの地図を保存しておくと、圏外では残した地理院タイルの地図を出す", async ({ page, context }) => {
+test("ルートの周りの地図を保存しておくと、圏外では残した OpenStreetMap の地図を出す", async ({ page, context }) => {
     const [station, bridge] = ["京阪宇治駅", "宇治橋"].map(spotNamed);
-    const gsi = await serveGsi(page);
     await seed(page, { data: withSpots({ course: { c1: { title_name: station.title_name, course_name: "2か所", description: "", spot_ids: [station.id, bridge.id], updated_at: { __ts: 1 } } } }) });
     await page.goto("html/map.html?course=c1");
     await expect(page.locator("#routeList .routeItem")).toHaveCount(2);
@@ -134,23 +125,34 @@ test("ルートの周りの地図を保存しておくと、圏外では残し�
     await expect(page.locator("#routeList .routeItem")).toHaveCount(2);
 
     await page.click("#save-route-map");
-    await expect(page.locator("#toast")).toContainText("ルートの周りの地図を保存しました");
-    const saved = await tileCount(page);
-    expect(saved).toBeGreaterThan(10);
+    await expect(page.locator("#toast")).toContainText("ルートの周りの地図を保存しました", { timeout: 30000 });
+    expect(await tileCount(page)).toBeGreaterThan(10);
 
-    // 圏外で開き直す：残した地理院タイルで地図を出し、出典（国土地理院）も出す
+    // 圏外で開き直す：残した地図で出し、出典（OpenStreetMap）も出す
     await context.setOffline(true);
-    gsi.offline = true;
     await page.reload();
-    await expect(page.locator("#offline-map-note")).toContainText("残しておいた地図（国土地理院）");
+    await expect(page.locator("#offline-map-note")).toContainText("聖地のまわりの地図");
     await page.evaluate(() => {
         window.__loadedTiles = 0;
         window.__map.on("data", (event) => {
-            if (event.sourceId === "offline-gsi" && event.tile && event.tile.state === "loaded") window.__loadedTiles += 1;
+            if (event.sourceId === "offline-osm" && event.tile && event.tile.state === "loaded") window.__loadedTiles += 1;
         });
     });
-    await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 16 }), [bridge.coord.longitude, bridge.coord.latitude]);
+    await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 15 }), [bridge.coord.longitude, bridge.coord.latitude]);
     await expect.poll(() => page.evaluate(() => window.__loadedTiles), { timeout: 15000 }).toBeGreaterThan(0);
-    await expect(page.locator(".mapboxgl-ctrl-attrib")).toContainText("国土地理院");
+    await expect(page.locator(".mapboxgl-ctrl-attrib")).toContainText("OpenStreetMap");
     await context.setOffline(false);
+});
+
+test("地域の一覧（regions.json）の地図のファイルが、全部そろっている", async ({ request }) => {
+    const json = await (await request.get("offline-map/regions.json")).json();
+    expect(json.regions.length).toBeGreaterThan(0);
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const root = path.join(path.dirname(new URL(import.meta.url).pathname), "../../map画面/offline-map/tiles");
+    for (const region of json.regions) {
+        for (const tile of region.tiles) {
+            expect(fs.existsSync(path.join(root, tile + ".pbf")), tile).toBe(true);
+        }
+    }
 });

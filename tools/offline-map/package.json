@@ -1,0 +1,12 @@
+{
+  "name": "seiti-offline-map",
+  "private": true,
+  "type": "module",
+  "description": "圏外用の OSM の地図（聖地のまわりだけ）を作る道具",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "pmtiles": "4.3.0"
+  }
+}
